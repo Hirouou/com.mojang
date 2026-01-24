@@ -118,7 +118,7 @@ realms_show_friend_invites_only:0
 number_of_owned_realms:0
 number_of_friends_realms:1
 realms_view_upsell_screen_count:3
-realms_ore_ui_purchase_enabled:0
+realms_ore_ui_purchase_enabled:1
 owners_can_require_opt_in:0
 shown_ratings_prompt:1
 save_and_quit_count:5
@@ -369,7 +369,7 @@ nether_reached:0
 has_dismissed_new_player_flow:1
 ctrl_improvedInputResponse:0
 gfx_dynamictextures:1
-app_launched_count:59
+app_launched_count:60
 gfx_debug_trace:0
 xbl_use_remote_connect:0
 worlds_friends_servers_SISU_third_session:0
