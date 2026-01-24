@@ -1,0 +1,54 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Wizardry SpellPack (BP)",
+    "description": "Staff with bow animation + 4 spells + next/prev spell arrows. (1.21.73 compatible)",
+    "uuid": "b4ece108-4ea9-4d05-9b7b-c65e9cf29b85",
+    "version": [
+      1,
+      0,
+      1
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      70
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "b3cc0fe7-33d9-4790-98d1-4901977b0443",
+      "version": [
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "6467ac1e-a9fa-4f11-8bab-ef0fa44bbe45",
+      "version": [
+        1,
+        0,
+        1
+      ],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "064aa7b4-54c5-4e71-b807-b87d763a80d3",
+      "version": [
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "module_name": "@minecraft/server",
+      "version": "1.13.0"
+    }
+  ]
+}

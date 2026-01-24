@@ -1,0 +1,30 @@
+{
+	"format_version": 2,
+	"header": {
+		"name": "golem exemple",
+		"description": "golem exemple Behavior Pack",
+		"uuid": "fdf29015-c44e-24e1-86e1-ac1c1c240fcf",
+		"version": [1, 0, 0],
+		"min_engine_version": [1, 16, 0]
+	},
+	"metadata": {
+		"authors": ["Hirouiuuuslskdaoi ajasjdkaj"],
+		"generated_with": {
+			"blockbench_entity_wizard": ["1.8.2"]
+		}
+	},
+	"modules": [
+		{
+			"description": "Behavior",
+			"version": [1, 0, 0],
+			"uuid": "47ec519a-b740-b46e-3c0b-910d102363e4",
+			"type": "data"
+		}
+	],
+	"dependencies": [
+		{
+			"uuid": "e08b7486-b4ac-840a-22a8-e296a450e52a",
+			"version": [1, 0, 0]
+		}
+	]
+}

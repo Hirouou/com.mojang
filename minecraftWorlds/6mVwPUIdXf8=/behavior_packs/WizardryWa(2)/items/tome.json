@@ -1,0 +1,23 @@
+{
+  "format_version": "1.20.50",
+  "minecraft:item": {
+    "description": {
+      "identifier": "wizardry:tome",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "tome"
+      },
+      "minecraft:display_name": {
+        "value": "\u00a76Tomo de Upgrades"
+      },
+      "minecraft:cooldown": {
+        "category": "tome",
+        "duration": 0.3
+      }
+    }
+  }
+}

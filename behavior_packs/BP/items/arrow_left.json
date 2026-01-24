@@ -1,0 +1,20 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:item": {
+    "description": {
+      "identifier": "wizardry:arrow_left",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "arrow_left"
+      },
+      "minecraft:display_name": {
+        "value": "\u2190 Magia"
+      },
+      "minecraft:interact_button": "Anterior"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Wizardry Wand BP (Base)",
+    "description": "Base: varinha + mana + HUD + upgrades + golem canalizavel.",
+    "uuid": "67b5e803-33d0-4e7e-9582-146aad084b3b",
+    "version": [
+      1,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      130
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "3ce65d08-2248-4349-bb46-5c70cf767792",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "eff2b64f-2464-43f7-a2ae-5b9be58c16d6",
+      "entry": "scripts/main.js",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "1.19.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0"
+    }
+  ]
+}

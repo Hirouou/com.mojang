@@ -1,0 +1,50 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Wizardry Wand BP (1.21.73 Scoreboard)",
+    "description": "Compat 1.21.73 usando scoreboard (sem DynamicPropertiesDefinition).",
+    "uuid": "7691ca01-e746-4486-90ac-92a19c04249a",
+    "version": [
+      1,
+      0,
+      2
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      73
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "f96c7730-78de-466f-bbea-68446a45810d",
+      "version": [
+        1,
+        0,
+        2
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "9446250e-0762-4251-b8be-9321783a6b51",
+      "entry": "scripts/main.js",
+      "version": [
+        1,
+        0,
+        2
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.0.0-beta"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0-beta"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Wizardry Wand RP (1.21.73)",
+    "description": "Placeholders + geometria simples do golem.",
+    "uuid": "b92060d3-3061-48c1-ade8-dd9228dd5c87",
+    "version": [
+      1,
+      0,
+      2
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      73
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "9d7d9ee6-a5ac-4df4-b93e-93e47a33d0db",
+      "version": [
+        1,
+        0,
+        2
+      ]
+    }
+  ]
+}

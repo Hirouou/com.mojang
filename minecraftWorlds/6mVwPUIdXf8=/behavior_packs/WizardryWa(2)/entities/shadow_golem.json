@@ -1,0 +1,163 @@
+{
+  "format_version": "1.16.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "wizardry:shadow_golem",
+      "is_spawnable": true,
+      "is_summonable": true,
+      "is_experimental": false
+    },
+    "component_groups": {
+      "wizardry:growth_0": {
+        "minecraft:scale": {
+          "value": 0.35
+        },
+        "minecraft:health": {
+          "value": 12,
+          "max": 12
+        },
+        "minecraft:attack": {
+          "damage": 2
+        },
+        "minecraft:movement": {
+          "value": 0.2
+        }
+      },
+      "wizardry:growth_1": {
+        "minecraft:scale": {
+          "value": 0.7
+        },
+        "minecraft:health": {
+          "value": 30,
+          "max": 30
+        },
+        "minecraft:attack": {
+          "damage": 5
+        },
+        "minecraft:movement": {
+          "value": 0.22
+        }
+      },
+      "wizardry:growth_2": {
+        "minecraft:scale": {
+          "value": 1.1
+        },
+        "minecraft:health": {
+          "value": 65,
+          "max": 65
+        },
+        "minecraft:attack": {
+          "damage": 9
+        },
+        "minecraft:movement": {
+          "value": 0.24
+        }
+      },
+      "wizardry:growth_3": {
+        "minecraft:scale": {
+          "value": 1.55
+        },
+        "minecraft:health": {
+          "value": 120,
+          "max": 120
+        },
+        "minecraft:attack": {
+          "damage": 14
+        },
+        "minecraft:movement": {
+          "value": 0.26
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "wizardry_golem",
+          "monster"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 0.9,
+        "height": 1.9
+      },
+      "minecraft:physics": {},
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2
+      },
+      "minecraft:behavior.melee_attack": {
+        "priority": 3
+      },
+      "minecraft:behavior.random_stroll": {
+        "priority": 7
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 8
+      }
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "wizardry:growth_0"
+          ]
+        }
+      },
+      "wizardry:set_growth_0": {
+        "add": {
+          "component_groups": [
+            "wizardry:growth_0"
+          ]
+        },
+        "remove": {
+          "component_groups": [
+            "wizardry:growth_1",
+            "wizardry:growth_2",
+            "wizardry:growth_3"
+          ]
+        }
+      },
+      "wizardry:set_growth_1": {
+        "add": {
+          "component_groups": [
+            "wizardry:growth_1"
+          ]
+        },
+        "remove": {
+          "component_groups": [
+            "wizardry:growth_0",
+            "wizardry:growth_2",
+            "wizardry:growth_3"
+          ]
+        }
+      },
+      "wizardry:set_growth_2": {
+        "add": {
+          "component_groups": [
+            "wizardry:growth_2"
+          ]
+        },
+        "remove": {
+          "component_groups": [
+            "wizardry:growth_0",
+            "wizardry:growth_1",
+            "wizardry:growth_3"
+          ]
+        }
+      },
+      "wizardry:set_growth_3": {
+        "add": {
+          "component_groups": [
+            "wizardry:growth_3"
+          ]
+        },
+        "remove": {
+          "component_groups": [
+            "wizardry:growth_0",
+            "wizardry:growth_1",
+            "wizardry:growth_2"
+          ]
+        }
+      }
+    }
+  }
+}

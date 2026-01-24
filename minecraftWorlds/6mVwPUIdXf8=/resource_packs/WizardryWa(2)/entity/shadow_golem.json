@@ -1,0 +1,20 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "wizardry:shadow_golem",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/shadow_golem"
+      },
+      "geometry": {
+        "default": "geometry.wizardry_shadow_golem"
+      },
+      "render_controllers": [
+        "controller.render.default"
+      ]
+    }
+  }
+}

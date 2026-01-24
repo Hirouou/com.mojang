@@ -1,0 +1,19 @@
+{
+  "format_version": "1.20.50",
+  "minecraft:item": {
+    "description": {
+      "identifier": "wizardry:arrow_right",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "arrow_right"
+      },
+      "minecraft:display_name": {
+        "value": "Pr\u00f3ximo"
+      }
+    }
+  }
+}

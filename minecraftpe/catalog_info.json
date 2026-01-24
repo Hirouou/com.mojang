@@ -1,0 +1,26 @@
+{
+   "" : {
+      "last_viewed_default_cast_version" : 1,
+      "newProductInfoList" : {}
+   },
+   "2535471940592364" : {
+      "last_viewed_default_cast_version" : 1,
+      "newProductInfoList" : {},
+      "recentlyViewedProductIds" : [
+         "ItemDetail_5ed0af88-6e06-473e-b646-fbc3281d6b59",
+         "8d52f4ca-7841-4f93-8f4b-ab389ef323a1",
+         "ItemDetail_8d52f4ca-7841-4f93-8f4b-ab389ef323a1",
+         "ItemDetail_ffbe3dd1-52d5-4a94-ad6f-877bad519cbb",
+         "ItemDetail_9afc43e7-dc2c-44c0-a3b8-7107fa9da196",
+         "31951ea2-207a-4f3a-a14d-f92fdda0b18e",
+         "ItemDetail_8d32594c-0a07-4d76-9c87-63413de28b84",
+         "ItemDetail_61c7a786-d7ad-49e0-a710-817121cd9795",
+         "ItemDetail_b8294b31-2d62-4823-a13e-52d5ea6e6ef4",
+         "ItemDetail_6ac55b36-b539-4f49-a0ee-89cc2c60cfb7",
+         "ItemDetail_069b2db5-5164-48ba-afb2-e95d81aa763f",
+         "05e2870e-b788-4cfc-85ad-bfa920d64ff3"
+      ]
+   },
+   "marketplace_next_content_fetch_time" : 1769307400,
+   "marketplace_should_fetch_persona_content" : true
+}

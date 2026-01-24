@@ -1,0 +1,15 @@
+{
+  "resource_pack_name": "Wizardry SpellPack",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "wizardry_staff": {
+      "textures": "textures/items/wizardry_staff"
+    },
+    "wizardry_next": {
+      "textures": "textures/items/wizardry_next"
+    },
+    "wizardry_prev": {
+      "textures": "textures/items/wizardry_prev"
+    }
+  }
+}

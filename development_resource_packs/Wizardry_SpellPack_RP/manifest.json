@@ -1,0 +1,29 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Wizardry UI Pack",
+    "description": "Mana bar + spell icon HUD (Bedrock 1.21.x)",
+    "uuid": "526e6384-6434-47cb-9309-6465cc2966a5",
+    "version": [
+      1,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      70
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "efd1ae1f-c346-4eca-9d7e-6703a330317d",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ]
+}
