@@ -89,6 +89,31 @@ test('mute, pause and zero master remain silent through volume changes', t => {
   audio.setVolumes({ master: 0 }); audio.fire(); assert.equal(ctx.nodes.length, count);
 });
 
+test('inside engine rumble becomes brighter and stronger with speed without adding voices', t => {
+  const { audio, contexts } = fixture(t); audio.wake();
+  const ctx = contexts[0];
+  const engine = ctx.nodes.find(n => n.kind === 'oscillator' && n.started);
+  const engineFilter = ctx.nodes.find(n => n.kind === 'filter');
+  const engineGain = ctx.nodes.filter(n => n.kind === 'gain')[3];
+  const nodeCount = ctx.nodes.length;
+
+  audio.update({ inside: true, speed: 0 });
+  assert.equal(engine.frequency.value, 37);
+  assert.equal(engineFilter.frequency.value, 118);
+  assert.equal(engineGain.gain.value, .045);
+
+  audio.update({ inside: true, speed: 100 });
+  assert.equal(engine.frequency.value, 42.5);
+  assert.equal(engineFilter.frequency.value, 160);
+  assert.equal(engineGain.gain.value, .073);
+  assert.equal(ctx.nodes.length, nodeCount, 'speed response reuses the existing continuous engine graph');
+
+  audio.update({ inside: false, speed: 100 });
+  assert.equal(engine.frequency.value, 52);
+  assert.equal(engineFilter.frequency.value, 85);
+  assert.equal(engineGain.gain.value, .065);
+});
+
 test('cannon combines transient, bass and hull rattle with bounded, cleaned-up voices', t => {
   const { audio, contexts } = fixture(t); audio.wake(); audio.fire();
   const ctx = contexts[0];
