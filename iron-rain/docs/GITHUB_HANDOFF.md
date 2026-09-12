@@ -7,6 +7,7 @@
 - Branch de continuação: `iron-rain-v6-1-continuation`
 - Branch histórica preservada: `iron-rain-frontline`
 - Entrada do jogo: `iron-rain/index.html`
+- Sprint ativo da liderança: `iron-rain/docs/LEAD_SPRINT_20260912.md`
 - Publicação Pages: o workflow em `.github/workflows/iron-rain-pages.yml` publica o conteúdo de `iron-rain/` quando o GitHub Pages estiver habilitado no repositório.
 - URL esperada depois da primeira execução: `https://hirouou.github.io/com.mojang/`
 
@@ -27,6 +28,8 @@ O jogo remoto usa `game-v6.js` como módulo ES e importa os módulos em `iron-ra
 - O rádio separa COMANDO, INFANTARIA e INFORMAÇÕES; relatórios clicáveis fazem a sequência origem → alvo → Mamute.
 
 ## Verificação antes de editar
+
+Leia também `LEAD_SPRINT_20260912.md` antes de escolher a próxima integração para não duplicar helpers ou regressar prioridades validadas pelo usuário.
 
 Execute `npm test`. A build deve continuar usando caminhos relativos, sem dependências externas obrigatórias. Para testar navegador, defina `IRON_RAIN_PLAYWRIGHT` para o runtime Playwright disponível e execute `node tests/v7-browser.mjs`.
 
