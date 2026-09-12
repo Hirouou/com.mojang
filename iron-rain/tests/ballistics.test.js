@@ -88,13 +88,33 @@ test('manual notebook solutions enumerate reachable charges without choosing a f
     close(row.max, band.max);
     assert.ok(Object.isFrozen(row));
     assert.ok(Object.isFrozen(row.elevations));
+    assert.ok(Object.isFrozen(row.arcs));
+    assert.equal(row.arcs.length, row.elevations.length);
     assert.ok(row.elevations.length >= 1 && row.elevations.length <= 2);
-    for (const elevation of row.elevations) {
+    for (let index = 0; index < row.elevations.length; index++) {
+      const elevation = row.elevations[index];
+      const arc = row.arcs[index];
+      const solution = ballistics(row.charge, elevation);
+      assert.ok(Object.isFrozen(arc));
       assert.ok(elevation >= MIN_ELEVATION && elevation <= MAX_ELEVATION);
-      close(ballistics(row.charge, elevation).range, range);
+      close(arc.elevation, elevation);
+      close(arc.apex, solution.apex);
+      close(arc.tof, solution.tof);
+      close(solution.range, range);
     }
   }
   assert.deepEqual(notebookSolutions(CHARGES.at(-1).maxRange + 1), []);
+});
+
+test('manual notebook exposes distinct low/high flight profiles from the same plotted range', () => {
+  const range = ballistics(5, 30).range;
+  const row = notebookSolutions(range).find(entry => entry.charge === 5);
+  assert.ok(row);
+  assert.equal(row.arcs.length, 2);
+  close(row.arcs[0].elevation, 30);
+  close(row.arcs[1].elevation, 60);
+  assert.ok(row.arcs[1].apex > row.arcs[0].apex);
+  assert.ok(row.arcs[1].tof > row.arcs[0].tof);
 });
 
 test('bearing convention is correct in all quadrants, with no world-border clamp', () => {
