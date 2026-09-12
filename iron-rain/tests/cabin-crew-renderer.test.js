@@ -17,3 +17,12 @@ test('cabin renderer owns one visual bridge for remote crew without networking',
 test('cabin snapshot exposes renderer crew state for QA', () => {
   assert.match(source, /crew:\s*crewVisuals\.snapshot\(\)/);
 });
+
+test('physical cabin stations are gated through the external crew bridge', () => {
+  assert.match(source, /ironRainEntry\?\.crewBridge/);
+  assert.match(source, /bridge\.requestStation\(station\)/);
+  assert.match(source, /bridge\.releaseStation\(station\)/);
+  assert.match(source, /if \(!result\?\.ready\) return false/);
+  assert.match(source, /crewStation:\s*activeCrewStation/);
+  assert.doesNotMatch(source, /crew-mqtt-transport|crew-broadcast-transport/);
+});
