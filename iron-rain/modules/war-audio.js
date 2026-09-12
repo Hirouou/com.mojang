@@ -85,8 +85,9 @@ export function createWarAudio() {
           return;
         }
       }
-      // Resume every non-running state. Safari uses `interrupted` after some
-      // background/foreground and route changes, not only `suspended`.
+      // Resume every non-running state from the operator gesture. Safari uses
+      // `interrupted` after some background/foreground and route changes, not
+      // only `suspended`, and may reject resume attempts made outside a gesture.
       resumeContext();
       safely(applyVolumes);
     });
@@ -168,7 +169,9 @@ export function createWarAudio() {
     update({ time = 0, moving = false, inside = true, speed = 0, paused: isPaused = false } = {}) {
       paused = Boolean(isPaused);
       safely(() => {
-        if (!muted && context && context.state !== 'running') resumeContext();
+        // Keep autoplay-gated recovery attached to a real operator gesture.
+        // A passive frame must not start a resume promise that can occupy
+        // resumePending before Safari/iOS receives the next pointer/key event.
         applyVolumes();
         if (engine && context) {
           const velocity = clamp(speed, 0, 100);
