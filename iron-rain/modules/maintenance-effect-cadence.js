@@ -1,6 +1,11 @@
 const EFFECT_INTERVAL = 0.28;
 
 function maintenanceType(detail = {}) {
+  // The canonical producer is maintenanceFeedback(), which publishes
+  // { active, kind, progress }. Keep the older aliases as compatibility for
+  // any in-flight presentation caller while the live integration converges.
+  if (detail.active === true && detail.kind === 'extinguish') return 'extinguisher';
+  if (detail.active === true && detail.kind === 'repair') return 'repair';
   if (detail.extinguisherActive || detail.action === 'extinguish') return 'extinguisher';
   if (detail.repairActive || detail.action === 'repair') return 'repair';
   return null;
@@ -14,7 +19,13 @@ function maintenanceType(detail = {}) {
  */
 export function maintenanceEffectCadence(previous, detail, nowSeconds) {
   const type = maintenanceType(detail);
-  if (!type || !Number.isFinite(nowSeconds)) return Object.freeze({ emit: null, state: previous || null });
+  if (!type || !Number.isFinite(nowSeconds)) {
+    // Canonical inactive feedback marks the end/interruption of an action.
+    // Clearing presentation state lets a fast restart of the same tool emit an
+    // immediate cue instead of being swallowed by the previous cadence window.
+    const state = detail?.active === false ? null : (previous || null);
+    return Object.freeze({ emit: null, state });
+  }
 
   const progress = Number.isFinite(Number(detail.progress)) ? Math.max(0, Math.min(1, Number(detail.progress))) : 0;
   const prior = previous && typeof previous === 'object' ? previous : null;
