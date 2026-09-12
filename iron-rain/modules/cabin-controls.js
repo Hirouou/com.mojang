@@ -101,11 +101,11 @@ export function createCabinMovement() {
     get section() { return cabinSectionAt(position.x, position.z); },
     setPose({ x = position.x, z = position.z, yaw: nextYaw = yaw, pitch: nextPitch = pitch } = {}) {
       if (![x, z, nextYaw, nextPitch].every(Number.isFinite) || !canOccupyCabin(x, z)) return false;
-      position.x = x; position.z = z; yaw = nextYaw; pitch = clamp(nextPitch, -1.03, .91); return true;
+      position.x = x; position.z = z; yaw = wrapAngle(nextYaw); pitch = clamp(nextPitch, -1.03, .91); return true;
     },
     look(dx, dy) {
       if (touchAimViewLocked()) return false;
-      yaw -= Number.isFinite(dx) ? dx : 0;
+      yaw = wrapAngle(yaw - (Number.isFinite(dx) ? dx : 0));
       pitch = clamp(pitch - (Number.isFinite(dy) ? dy : 0), -1.03, .91);
       return true;
     },
@@ -114,7 +114,7 @@ export function createCabinMovement() {
       const dx = point.x - position.x, dz = point.z - position.z;
       const targetYaw = Math.atan2(-dx, -dz), targetPitch = Math.atan2(point.y - 1.58, Math.hypot(dx, dz));
       const delta = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw)), t = clamp(blend, 0, 1);
-      yaw += delta * t; pitch += (clamp(targetPitch, -1.03, .91) - pitch) * t; return true;
+      yaw = wrapAngle(yaw + delta * t); pitch += (clamp(targetPitch, -1.03, .91) - pitch) * t; return true;
     },
     update(dt, move = {}) {
       const mx = Number.isFinite(move.x) ? move.x : 0, my = Number.isFinite(move.y) ? move.y : 0;
