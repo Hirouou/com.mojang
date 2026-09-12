@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { INTEL_AGE_LIMITS, assessIntelAge, intelAgeLabel, exactMarkerAllowed } from '../modules/intel-knowledge.js';
+import { INTEL_AGE_LIMITS, assessIntelAge, intelAgeLabel, exactMarkerAllowed, mapIntelDisclosure } from '../modules/intel-knowledge.js';
 
 const report = reportedAt => ({ id: 'enemy-contact', reportedAt });
 
@@ -45,4 +45,33 @@ test('intel age is monotonic, frozen and conservative for malformed timestamps',
   assert.equal(invalid.state, 'lost');
   assert.equal(invalid.age, Infinity);
   assert.equal(exactMarkerAllowed({ reportedAt: null }, 100), false);
+});
+
+test('map disclosure degrades exact coordinates into uncertainty and finally removes them', () => {
+  const known = { id: 'scout-1', x: 14500, y: 22100, reportedAt: 0 };
+
+  const fresh = mapIntelDisclosure(known, 20);
+  assert.deepEqual({ mode: fresh.mode, x: fresh.x, y: fresh.y }, { mode: 'exact', x: 14500, y: 22100 });
+  assert.equal(fresh.uncertainty, 0);
+  assert.equal(Object.isFrozen(fresh), true);
+
+  const stale = mapIntelDisclosure(known, INTEL_AGE_LIMITS.aging + 10);
+  assert.equal(stale.mode, 'area');
+  assert.equal(stale.x, 14500);
+  assert.equal(stale.y, 22100);
+  assert.ok(stale.uncertainty >= 300);
+  assert.match(stale.label, /^POSIÇÃO ANTIGA/);
+
+  const lost = mapIntelDisclosure(known, INTEL_AGE_LIMITS.lost + 1);
+  assert.equal(lost.mode, 'lost');
+  assert.equal(lost.x, null);
+  assert.equal(lost.y, null);
+  assert.equal(lost.label, 'CONTATO PERDIDO');
+});
+
+test('map disclosure fails closed when a report has no usable point', () => {
+  const malformed = mapIntelDisclosure({ reportedAt: 10, x: '???', y: 20 }, 20);
+  assert.equal(malformed.mode, 'lost');
+  assert.equal(malformed.x, null);
+  assert.equal(malformed.y, null);
 });
