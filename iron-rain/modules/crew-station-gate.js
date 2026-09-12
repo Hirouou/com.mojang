@@ -55,7 +55,8 @@ export function requestStationGate(runtime, station) {
 export function releaseStationGate(runtime, station) {
   const id = cleanStation(station);
   if (!id) return false;
-  if (!runtime?.releaseStation) return true;
+  if (!runtime) return true;
+  if (typeof runtime.releaseStation !== 'function') return false;
   try { return Boolean(runtime.releaseStation(id)); }
   catch { return false; }
 }
