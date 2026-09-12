@@ -40,10 +40,11 @@ test('physical compartment follows the existing cabin, passage and engine bulkhe
   assert.equal(cabinSectionAt(99,99),null);
 });
 
-test('yaw remains unrestricted through multiple full turns',()=>{
+test('yaw stays wrapped through multiple full turns while preserving orientation',()=>{
   const c=createCabinMovement();
   c.look(-Math.PI*5,0);
-  assert.ok(c.yaw>Math.PI*4);
+  assert.ok(c.yaw>=-Math.PI&&c.yaw<=Math.PI);
+  assert.ok(Math.abs(Math.abs(c.yaw)-Math.PI)<1e-12,'five full half-turns preserve the expected facing at the ±π wrap');
 });
 
 test('diagonal motion is normalized and stalls do not tunnel through walls',()=>{
