@@ -86,10 +86,11 @@ export function createCabinMovement() {
     },
     look(dx, dy) { yaw -= Number.isFinite(dx) ? dx : 0; pitch = clamp(pitch - (Number.isFinite(dy) ? dy : 0), -1.03, .91); },
     lookToward(point, blend = 1) {
+      if (!point || ![point.x, point.y, point.z, blend].every(Number.isFinite)) return false;
       const dx = point.x - position.x, dz = point.z - position.z;
       const targetYaw = Math.atan2(-dx, -dz), targetPitch = Math.atan2(point.y - 1.58, Math.hypot(dx, dz));
-      const delta = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw));
-      yaw += delta * clamp(blend, 0, 1); pitch += (clamp(targetPitch, -1.03, .91) - pitch) * clamp(blend, 0, 1);
+      const delta = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw)), t = clamp(blend, 0, 1);
+      yaw += delta * t; pitch += (clamp(targetPitch, -1.03, .91) - pitch) * t; return true;
     },
     update(dt, move = {}) {
       const mx = Number.isFinite(move.x) ? move.x : 0, my = Number.isFinite(move.y) ? move.y : 0;
