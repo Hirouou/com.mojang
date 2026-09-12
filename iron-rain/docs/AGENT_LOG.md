@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 15:09 — ChatGPT-GPT-5.6-Sol-C / SLOT C — FP SYSTEMS
+- **FEITO:** relida a fundação concorrente de presença multiplayer/compartimentos e descartada uma tentativa de cobertura que já havia sido implementada por outra conta. Como ajuste independente, `createCabinMovement().lookToward()` agora rejeita ponto ausente, coordenadas não finitas e `blend` não finito antes de alterar a câmera; isso impede `NaN` em yaw/pitch de inutilizar foco, locomoção e a pose compacta de tripulação. A API passa a retornar `false` para entrada rejeitada e `true` para foco válido, sem alterar chamadas existentes que ignoram o retorno.
+- **ARQUIVOS:** `modules/cabin-controls.js`, `tests/cabin.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** regressão adicionada cobrindo `null`, coordenada `NaN`, `blend=NaN`, preservação integral do snapshot e recuperação com alvo válido. Validação focal equivalente executada em Node passou. `npm test` completo não pôde ser executado porque o runtime continua sem resolver `github.com` para checkout (`Could not resolve host: github.com`). Duas tentativas de editar o hotspot de teste foram recusadas com 409 após mudanças concorrentes; o arquivo foi relido e a cobertura final foi aplicada sobre o SHA novo, preservando o trabalho alheio.
+- **PRÓXIMO:** seguir a direção já registrada de presença visual de até dois tripulantes remotos em `cabin-view.js`, consumindo `crewPose()/section` e mantendo a última pose válida quando `interpolateCabinCrewPose()` rejeitar um midpoint sólido. Antes de mexer no renderer, reler o resultado do pedido Codex de arquitetura se ele sair de `READY` e verificar qualquer integração concorrente no mesmo hotspot.
+- **RISCO:** baixo. A mudança só endurece entrada inválida de uma função de orientação; alvos válidos continuam com o mesmo cálculo e clamp. O principal risco futuro está no renderer multiplayer: nunca usar estado remoto para comandar a câmera local e evitar teleporte/clipping quando uma interpolação for rejeitada.
+- **COMMIT:** `a2263d07f4d6797a1179bbda76a86198a34abc47` (validação de `lookToward`) + `a10aabed6dd60de78e2ce79d5b58e83b2258f08c` (regressão); commit desta entrada é o commit atual.
+
 ### 2026-09-12 15:06 — ChatGPT-GPT-5.6-Sol-B / SLOT B — FP SYSTEMS
 - **FEITO:** criada uma interface compacta e validada de pose da tripulação para preparar presença multiplayer dentro do Mamute sem acoplar networking ao controlador local: `cabinCrewPose()` normaliza yaw/pitch, rejeita estado não finito e posições dentro de sólidos, `interpolateCabinCrewPose()` interpola yaw pelo caminho curto em ±π e `createCabinMovement().crewPose()` expõe somente estado necessário para replicação, sem `travelled`/input local. Durante o ciclo entrou trabalho concorrente no mesmo hotspot classificando cabine/corredor/sala do motor; a mudança foi relida e consumida, preservando `CABIN_SECTIONS`, `cabinSectionAt()`, seção na pose/snapshot e a validação de midpoint para impedir interpolação através de sólidos. Nenhuma solução paralela foi criada.
 - **ARQUIVOS:** `modules/cabin-controls.js`, `tests/cabin.test.js`, `docs/AGENT_LOG.md`.
@@ -139,7 +147,7 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 - **ARQUIVOS:** `docs/MULTI_AGENT_CONTROL.md`, `docs/ART_DIRECTION.md`, `docs/AGENT_LOG.md`.
 - **TESTE:** revisão documental e inspeção de `modules/cabin-view.js`, `modules/cabin-controls.js` e `modules/pointer-controls.js`; nenhum código de gameplay alterado neste ciclo, portanto `npm test` não foi executado para esta mudança somente documental.
 - **PRÓXIMO:** FP VISUALS + AUDIO deve começar pela hierarquia de luz entre cabine principal, abertura exterior e sala do motor, reaproveitando materiais/luzes atuais e mantendo custo mobile baixo; demais workstreams devem seguir o próximo problema de maior valor registrado no estado mais recente.
-- **RISCO:** evitar que decoração visual invada volumes caminháveis; qualquer peça sólida nova deve respeitar/acompanhar colisões. Concepts/mockups são referência e não podem ser apresentados como screenshots reais.
+- **RISCO:** evitar que decoração visual invada volumes caminháveis; qualquer peça sólida nova deve respeitar/acompanhar colisões. Concepts/mockups são referência; nunca deve ser apresentada como screenshot real da build.
 - **COMMIT:** onboarding Slot B `bec086374d5b901fafcc52378f07e5c3af4d4565`; direção de arte `2ae84214a09fb4bcb557d1e728bfd1d1651ce6b9`; commit desta entrada é o commit atual.
 
 ### 2026-09-12 13:57 — LEAD — GOVERNANCE
