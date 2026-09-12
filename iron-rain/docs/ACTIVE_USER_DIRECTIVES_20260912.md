@@ -29,7 +29,7 @@ For the AIM station on touch/mobile:
 - do not regress desktop/mouse controls;
 - keep `AFASTAR-SE` available without rebuilding a large bottom panel.
 
-General direction: less abstract UI, more physical machine operation.
+General direction: less abstract UI, more physical machine operation. `mobile-station-ui.css` is the current implementation path; integrate/preserve it rather than creating a competing mobile fire deck.
 
 ## Shared feedback / immersion
 
@@ -40,6 +40,24 @@ General direction: less abstract UI, more physical machine operation.
 - Continue removing floating/misaligned props and adding meaningful mechanical animation.
 - iPhone/Safari audio silence remains a real bug until verified fixed on-device.
 
+## Strategic map — large hex regions with internal sectors
+
+- Expand the strategic world map into large hexagonal regions, inspired by the territorial flow of large persistent-war maps but using Iron Rain's own systems/art.
+- Each large hex contains multiple smaller capturable sectors/areas.
+- A hex only counts as fully controlled when all of its internal sectors are controlled by that faction.
+- The war should begin approximately divided between the two factions with a coherent territorial boundary/front.
+- Regular allied/enemy forces must not spawn or form contradictory fronts deep behind the opposing line.
+- Behind-the-lines hostile activity is allowed only when it is an explicit partisan/recon/raid/infiltration behavior, not ordinary frontline placement.
+- Captures move/bend the coherent ownership boundary and change which internal sectors/hexes belong to each faction; do not create disconnected arbitrary fronts.
+- The world map is a strategic planning surface where the player can inspect available fronts and choose where to support.
+
+## Faction symmetry — same war rules for both sides
+
+- Allied and enemy NPCs use the same underlying AI, construction, logistics, ammunition, range, fortification, reinforcement, vehicle and territorial-development rules.
+- Do not give one faction hidden free reinforcements, magical construction or faction-specific economic cheats.
+- Differences between sides should emerge from territory, stock, route safety, casualties, preparation, structures and AI decisions.
+- The same development tiers and costs apply to both sides unless a future explicit faction-design decision changes it.
+
 ## Persistent war / territory / logistics
 
 - Strategic ownership must form a coherent continuous front. Do not place allied fronts behind an enemy front on the same axis.
@@ -49,6 +67,26 @@ General direction: less abstract UI, more physical machine operation.
 - Development can progress through field defenses/outpost -> depot/mortar/bunker -> garage/heavier support -> factory after long secure control.
 - Factories produce materials; materials still need transport to other positions. No magical remote upgrades.
 - AI should use actual local supply, defenses, reinforcement availability and preparation state.
+- Supply trucks/convoys physically carry ammunition/materials/fuel between rear production/depot nodes and forward positions. Destroyed/cut convoys do not teleport their cargo to the destination.
+- Mamute ammunition is finite. Every shot consumes onboard stock.
+- A friendly base with zero shell stock cannot refill the Mamute. The crew must travel to another stocked base or wait for logistics to deliver ammunition there.
+- Range remains physical: being ordered to support a sector does not make the artillery able to hit a target outside its actual ballistic range.
+
+## Radio, world map and missions
+
+- The strategic world map is NOT an omniscient enemy tracker.
+- Friendly-controlled territory can be known, but remote front detail should depend on friendly radio coverage, recon and valid reports.
+- Enemy information may be exact, uncertain, stale or absent depending on the intelligence source/age.
+- The player should be able to consult radio-covered fronts and choose where to deploy/support.
+- Ordinary field missions should mostly be generated/delivered when the Mamute is near the relevant sector/front.
+- Remote high-command missions can arrive through radio, but should not reveal live enemy state without actual intel.
+
+## Persistent world authority
+
+- The global war state must not be owned by whichever phone/PC happens to host one Mamute crew.
+- Crew/session authority and world-war authority are separate responsibilities.
+- Leaving a crew must not reset/stop territorial war state.
+- `persistent-war-clock.js` is only a wall-clock/catch-up primitive; do not call persistence complete until there is authoritative backend/storage capable of restoring a shared theatre snapshot and advancing it safely.
 
 ## Product / deployment rule
 
