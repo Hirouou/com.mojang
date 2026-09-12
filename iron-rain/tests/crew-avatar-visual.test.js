@@ -20,21 +20,33 @@ test('remote crew avatars preallocate at most two visible low-poly bodies', () =
   assert.equal(snap[0].x, -1.4);
   assert.equal(snap[0].z, 1.8);
   assert.equal(snap[0].yaw, .4);
-  assert.equal(snap[0].pitch, .11);
+  assert.ok(Math.abs(snap[0].pitch - .11) < 1e-9);
   assert.ok(Object.isFrozen(snap) && snap.every(Object.isFrozen));
 
   avatars.dispose();
   assert.equal(scene.children.length, 0);
 });
 
-test('avatar updates reuse scene objects and hide omitted peers without spawning ghosts', () => {
+test('avatar updates reuse scene objects, preserve peer slots across reorder and hide ghosts', () => {
   const scene = new THREE.Scene();
-  const avatars = createCabinCrewAvatars(scene);
+  const avatars = createCabinCrewAvatars(scene, { palettes: [] });
   const roots = [...scene.children];
-  avatars.update([{ id: 'driver', pose: { x: -.8, z: -2.1, yaw: 0, pitch: 0 } }], .016);
-  avatars.update([{ id: 'driver', pose: { x: -.75, z: -2.05, yaw: .1, pitch: .1 } }], .016);
+  avatars.update([
+    { id: 'driver', pose: { x: -.8, z: -2.1, yaw: 0, pitch: 0 } },
+    { id: 'radio', pose: { x: -2.1, z: 2.5, yaw: 1, pitch: 0 } },
+  ], .016);
+  const first = avatars.snapshot();
+  const driverSlot = first.findIndex(item => item.id === 'driver');
+  const radioSlot = first.findIndex(item => item.id === 'radio');
+
+  avatars.update([
+    { id: 'radio', pose: { x: -2.05, z: 2.45, yaw: 1.1, pitch: .1 } },
+    { id: 'driver', pose: { x: -.75, z: -2.05, yaw: .1, pitch: .1 } },
+  ], .016);
+  const reordered = avatars.snapshot();
   assert.deepEqual(scene.children, roots, 'no scene objects are allocated per update');
-  assert.equal(avatars.snapshot()[0].visible, true);
+  assert.equal(reordered[driverSlot].id, 'driver');
+  assert.equal(reordered[radioSlot].id, 'radio');
 
   const hidden = avatars.update([], .016);
   assert.equal(hidden[0].visible, false);
