@@ -18,21 +18,22 @@ export function beginReturn(state) {
 }
 export function stepCamera(state, dt, viewportWidth) {
   const cam = state.cam;
+  const frameDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
   if (cam.mode === 'shell' || cam.mode === 'intel') return;
   if (cam.mode === 'impact') {
-    state.impactHold -= dt;
+    state.impactHold -= frameDt;
     if (state.impactHold <= 0) beginReturn(state);
     return;
   }
   const anchor = cameraAnchor(state, viewportWidth);
   if (cam.mode === 'return') {
-    cam.elapsed = (cam.elapsed || 0) + dt;
-    const a = smooth(5.5, dt);
+    cam.elapsed = (cam.elapsed || 0) + frameDt;
+    const a = smooth(5.5, frameDt);
     cam.x += (anchor.x - cam.x) * a;
     cam.y += (anchor.y - cam.y) * a;
     if (Math.hypot(cam.x-anchor.x,cam.y-anchor.y) < 8 || cam.elapsed >= 2.8) finishCamera(state, viewportWidth);
   } else {
-    const a = smooth(5, dt);
+    const a = smooth(5, frameDt);
     cam.x += (anchor.x + cam.manualX - cam.x) * a;
     cam.y += (anchor.y + cam.manualY - cam.y) * a;
   }
