@@ -3,6 +3,7 @@ import { createCrewRuntime } from './modules/crew-runtime.js';
 import { createCrewBroadcastTransport } from './modules/crew-broadcast-transport.js';
 import { createCrewMqttTransport } from './modules/crew-mqtt-transport.js';
 import { createCrewCabinBridge } from './modules/crew-cabin-bridge.js';
+import { stationGateMessage } from './modules/crew-station-gate.js';
 import { normalizeFaction, factionInfo } from './modules/factions.js';
 import { installStrategicWarLive } from './modules/strategic-war-live.js';
 
@@ -76,15 +77,6 @@ function showCrewToast(message, source = 'TRIPULAÇÃO') {
   clearTimeout(crewToastTimer);
   crewToastTimer = window.setTimeout(() => shell.classList.add('hidden'), 2600);
   return true;
-}
-
-function stationGateMessage(detail = {}) {
-  if (detail.ready || detail.reason === 'released') return '';
-  if (detail.reason === 'occupied') return 'POSTO OCUPADO POR OUTRO TRIPULANTE';
-  if (detail.reason === 'pending-host') return 'AGUARDANDO CONFIRMAÇÃO DO POSTO';
-  if (detail.reason === 'not-connected') return 'TRIPULAÇÃO DESCONECTADA';
-  if (detail.reason === 'faction-mismatch') return 'ESTE MAMUTE PERTENCE À OUTRA FACÇÃO';
-  return detail.reason === 'available' ? '' : 'POSTO INDISPONÍVEL';
 }
 
 function sessionDescriptor(status = {}, fallbackMode = 'offline') {
