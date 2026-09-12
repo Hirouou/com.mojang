@@ -47,3 +47,61 @@ test('runtime fails closed when transport cannot start', () => {
   assert.equal(result.reason, 'transport-start-failed');
   assert.equal(runtime.status().connected, false);
 });
+
+test('three crew can own different stations while shared Mamute commands remain owner-authorized', () => {
+  const bus = [], clock = { value: 30 }, applied = [];
+  const factory = options => new FakeTransport(options, bus);
+  const host = createCrewRuntime({
+    localId: 'driver',
+    now: () => clock.value,
+    transportFactory: factory,
+    applyMamuteCommand(command) { applied.push(command); return true; },
+  });
+  const gunner = createCrewRuntime({ localId: 'gunner', now: () => clock.value, transportFactory: factory });
+  const loader = createCrewRuntime({ localId: 'loader', now: () => clock.value, transportFactory: factory });
+  const fourth = createCrewRuntime({ localId: 'fourth', now: () => clock.value, transportFactory: factory });
+
+  assert.equal(host.host('M47-P0', 'allies').ok, true);
+  assert.equal(gunner.join('M47-P0', 'allies').ok, true);
+  assert.equal(loader.join('M47-P0', 'allies').ok, true);
+  assert.equal(host.status().count, 3);
+  assert.equal(gunner.status().seat, 1);
+  assert.equal(loader.status().seat, 2);
+
+  assert.equal(fourth.join('M47-P0', 'allies').ok, true);
+  assert.equal(fourth.status().connected, false);
+  assert.equal(fourth.status().lastEvent, 'denied:mamute-full');
+  assert.equal(host.status().count, 3);
+
+  assert.equal(host.claimStation('drive').ok, true);
+  assert.equal(gunner.claimStation('aim').pending, true);
+  assert.equal(loader.claimStation('load').pending, true);
+  assert.equal(host.stationOwner('drive'), 'driver');
+  assert.equal(host.stationOwner('aim'), 'gunner');
+  assert.equal(host.stationOwner('load'), 'loader');
+  assert.equal(gunner.stationOwner('aim'), 'gunner');
+  assert.equal(loader.stationOwner('load'), 'loader');
+
+  const collision = loader.claimStation('aim');
+  assert.equal(collision.pending, true);
+  assert.equal(host.stationOwner('aim'), 'gunner');
+  assert.equal(loader.stationOwner('aim'), 'gunner');
+
+  assert.equal(host.issueCommand('drive-vector', { throttle: .75, turn: -.2 }).ok, true);
+  const gunnerFire = gunner.issueCommand('fire', { shell: 'HE' });
+  assert.equal(gunnerFire.ok, true);
+  assert.equal(gunnerFire.pending, true);
+  const loaderReload = loader.issueCommand('reload-shell', { shell: 'HE' });
+  assert.equal(loaderReload.ok, true);
+  assert.equal(loaderReload.pending, true);
+
+  const illegalFire = loader.issueCommand('fire', { shell: 'HE' });
+  assert.equal(illegalFire.ok, false);
+  assert.equal(illegalFire.reason, 'station-not-owned');
+  assert.equal(applied.length, 3);
+  assert.deepEqual(applied.map(command => [command.playerId, command.type, command.station]), [
+    ['driver', 'drive-vector', 'drive'],
+    ['gunner', 'fire', 'aim'],
+    ['loader', 'reload-shell', 'load'],
+  ]);
+});
