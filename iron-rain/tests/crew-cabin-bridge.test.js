@@ -47,8 +47,10 @@ test('crew cabin bridge preserves offline rendering when runtime is absent', () 
   const bridge = createCrewCabinBridge({ cabin });
   assert.deepEqual(bridge.update(.25), { status: null, remoteCount: 0 });
   assert.deepEqual(calls, [[[], .1]]);
+  const offline = bridge.requestStation('aim');
   assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
-  assert.deepEqual(bridge.requestStation('aim'), { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
+  assert.deepEqual(offline, { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
+  assert.equal(bridge.stationMessage(offline), '');
   assert.equal(bridge.releaseStation('aim'), true);
 
   bridge.clear();
@@ -101,14 +103,16 @@ test('crew cabin bridge routes station ownership through the canonical runtime g
   const bridge = createCrewCabinBridge({ runtime });
 
   assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: false, pending: false, reason: 'available', station: 'aim', owner: null });
-  assert.deepEqual(bridge.requestStation('aim'), { ok: true, ready: true, pending: false, reason: 'claimed', station: 'aim', owner: 'player-a' });
+  const claimed = bridge.requestStation('aim');
+  assert.deepEqual(claimed, { ok: true, ready: true, pending: false, reason: 'claimed', station: 'aim', owner: 'player-a' });
+  assert.equal(bridge.stationMessage(claimed), '');
   assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: true, pending: false, reason: 'owned', station: 'aim', owner: 'player-a' });
   assert.equal(bridge.releaseStation('aim'), true);
   assert.deepEqual(calls.filter(call => call[0] === 'claim'), [['claim', 'aim']]);
   assert.deepEqual(calls.filter(call => call[0] === 'release'), [['release', 'aim']]);
 });
 
-test('crew cabin bridge exposes pending and occupied station states without entering locally', () => {
+test('crew cabin bridge exposes pending and occupied station feedback without entering locally', () => {
   const pendingRuntime = {
     status() { return { mode: 'guest', connected: true, localId: 'guest-a' }; },
     stationOwner() { return null; },
@@ -120,10 +124,17 @@ test('crew cabin bridge exposes pending and occupied station states without ente
     claimStation() { throw new Error('must not claim an occupied station'); },
   };
 
-  assert.deepEqual(createCrewCabinBridge({ runtime: pendingRuntime }).requestStation('radio'), {
+  const pendingBridge = createCrewCabinBridge({ runtime: pendingRuntime });
+  const pending = pendingBridge.requestStation('radio');
+  assert.deepEqual(pending, {
     ok: false, ready: false, pending: true, reason: 'pending-host', station: 'radio', owner: null,
   });
-  assert.deepEqual(createCrewCabinBridge({ runtime: occupiedRuntime }).requestStation('radio'), {
+  assert.equal(pendingBridge.stationMessage(pending), 'AGUARDANDO CONFIRMAÇÃO DO POSTO');
+
+  const occupiedBridge = createCrewCabinBridge({ runtime: occupiedRuntime });
+  const occupied = occupiedBridge.requestStation('radio');
+  assert.deepEqual(occupied, {
     ok: false, ready: false, pending: false, reason: 'occupied', station: 'radio', owner: 'guest-b',
   });
+  assert.equal(occupiedBridge.stationMessage(occupied), 'POSTO OCUPADO POR OUTRO TRIPULANTE');
 });
