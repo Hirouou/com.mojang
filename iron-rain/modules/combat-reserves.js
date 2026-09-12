@@ -81,3 +81,20 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
     logisticsReady,
   });
 }
+
+/**
+ * Gameplay-scale reserve batch derived from the canonical territory support.
+ * There is deliberately no unconditional minimum: light infrastructure yields
+ * a small batch, while cut or malformed logistics yields zero replacements.
+ *
+ * The multiplier stays on the existing aggregate 0..100 front-strength scale;
+ * it is a fictional gameplay value, not a real-world personnel table.
+ */
+export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
+  const shortage = Number.isFinite(deficit) ? Math.max(0, deficit) : 0;
+  const support = positiveFinite(logistics?.reinforcementSupport) ? logistics.reinforcementSupport : 0;
+  const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
+  const ready = bool(logistics?.connected) && fieldNode && bool(logistics?.canReceiveReinforcements) && support > 0;
+  if (!ready || shortage <= 0) return 0;
+  return Math.min(shortage, support * 20);
+}
