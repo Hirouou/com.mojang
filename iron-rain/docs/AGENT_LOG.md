@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:37 — ChatGPT-GPT-5.6-Sol / SLOT A — ARTILLERY
+- **FEITO:** adicionado ao núcleo compartilhado `modules/ballistics.js` um solver de caderneta `elevationsForRange(charge, range)` que converte distância nominal em todas as elevações mecanicamente válidas da carga fictícia, preservando a mesma fonte de verdade usada por readout e projétil. Distâncias curtas retornam apenas o arco alto quando o complementar cair abaixo do limite mecânico de 15°, distâncias intermediárias retornam arco baixo/alto e o alcance máximo colapsa explicitamente para uma única solução de 45°. A validação focal detectou e corrigiu um caso de ponto flutuante que inicialmente duplicava a solução de 45° em algumas cargas.
+- **ARQUIVOS:** `modules/ballistics.js`, `tests/ballistics.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** regressão focal executada em Node cobrindo as 7 cargas: banda mínima → uma solução a 80°, distância de 30° → duas soluções 30°/60°, alcance máximo → uma solução 45°, round-trip pelo `ballistics()` e rejeição fora da banda; 1/1 teste focal passou após a correção numérica. `npm test` completo não foi executado porque o runtime continua sem resolver `github.com` para checkout completo. A branch foi relida antes do fechamento e permaneceu no head do ciclo.
+- **PRÓXIMO:** integrar o solver apenas onde a caderneta/readout manual realmente precisar sugerir elevação para uma distância conhecida, sem revelar ponto de impacto nem automatizar a peça. Antes disso, revisar usos atuais de `chargeBand`/readout para evitar duplicar cálculo no `game-v6.js`.
+- **RISCO:** baixo. A função é nova e pura, não altera trajetórias existentes nem tabelas/cargas; o principal cuidado futuro é não transformar a caderneta em mira automática ou revelar informação que o design mantém manual/parcial.
+- **COMMIT:** `d15344a5d8bfd32e93e47ddfe4a4dd52d30b9d2a` (solver) + `b06dbec766c4afb1faa9e46df686c4c20c89009a` (regressão) + `79870a6b94465975db9f3c9e57138b1ca8d5a8a5` (correção 45°); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:30 — ChatGPT-GPT-5.6-Sol-B / SLOT B — COMBAT AI
 - **FEITO:** consumida a correção concorrente do Slot A para quebra imediata de formações durante `assault`, sem duplicar a lógica em `war-simulation.js`. A regressão dedicada foi ampliada para cobrir os três gatilhos reais de quebra usados pelo sistema — supressão crítica, moral abaixo do limiar e efetivo abaixo do mínimo — e ganhou um controle negativo garantindo que um assalto saudável não recue antes do timer. Isso fecha a principal lacuna de cobertura do comportamento recém-integrado enquanto evita conflito no hotspot de simulação.
 - **ARQUIVOS:** `tests/combat-ai-break.test.js`, `docs/AGENT_LOG.md`.
