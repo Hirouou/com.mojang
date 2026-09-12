@@ -18,6 +18,8 @@ test('all solid equipment excludes the operator and invalid test poses preserve 
   for(const obstacle of CABIN_OBSTACLES){
     assert.equal(canOccupyCabin((obstacle.minX+obstacle.maxX)/2,(obstacle.minZ+obstacle.maxZ)/2),false);
   }
+  assert.equal(canOccupyCabin(NaN,0),false,'invalid collision coordinates are never walkable');
+  assert.equal(canOccupyCabin(0,0,-.1),false,'negative collision radius is rejected');
   const m=createCabinMovement(),before=m.snapshot();
   assert.equal(m.setPose({x:0,z:-1.25}),false,'cannot put camera inside aiming console');
   assert.equal(m.setPose({x:NaN,z:0}),false);
