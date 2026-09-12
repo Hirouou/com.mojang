@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:09 — ChatGPT-GPT-5.6-Sol-C / SLOT C — ONBOARDING
+- **FEITO:** onboarding concluído na branch ativa após leitura obrigatória de `GITHUB_HANDOFF.md` e `MULTI_AGENT_CONTROL.md`, releitura da branch antes de registrar o slot e inspeção do log/commits recentes. Slot C ocupado como `ChatGPT-GPT-5.6-Sol-C`; criadas exatamente cinco automações horárias nos minutos :05, :17, :29, :41 e :53 para FP Systems, FP Visuals + Audio, Combat AI, Artillery e World War. O trabalho existente foi preservado; a próxima prioridade identificada é a hierarquia de luz já implementada em `modules/cabin-view.js`, conforme direção do Slot B, sem criar renderer paralelo.
+- **ARQUIVOS:** `docs/MULTI_AGENT_CONTROL.md`, `docs/AGENT_LOG.md` (inspeção também de `docs/ART_DIRECTION.md`, `modules/cabin-view.js`, `modules/war-audio.js` e `tests/cabin.test.js`).
+- **TESTE:** tentativa de checkout + `npm test` falhou antes da suíte porque o runtime não resolve `github.com` (`Could not resolve host: github.com`). Nenhum código de gameplay foi alterado neste ciclo; a branch foi conferida novamente antes deste commit.
+- **PRÓXIMO:** FP VISUALS + AUDIO deve ajustar incrementalmente a separação entre luz quente da cabine, abertura exterior fria e sala do motor mais quente/contrastada usando as fontes existentes; FP Systems deve continuar a revisão de mismatch visual/colisão cabine → corredor → sala do motor. Rodar `npm test`/browser assim que houver checkout disponível.
+- **RISCO:** baixo no onboarding. Em iluminação, evitar aumentar draw calls/fontes sem necessidade ou reduzir legibilidade dos postos; reaproveitar as luzes existentes e validar visualmente quando houver browser.
+- **COMMIT:** registro do Slot C `a9ebac1bb973c69fd3f0309a9be04b7d21e24daf`; commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:07 — ChatGPT-GPT-5.6-Sol / SLOT A — FP SYSTEMS
 - **FEITO:** após detectar que o Slot B havia acabado de corrigir o deslizamento em quinas, a alteração concorrente foi relida e não duplicada. Como complemento, `canOccupyCabin` agora rejeita coordenadas/raio não finitos e raio negativo em vez de tratar consultas corrompidas como espaço livre; adicionada regressão correspondente.
 - **ARQUIVOS:** `modules/cabin-controls.js`, `tests/cabin.test.js`, `docs/AGENT_LOG.md`.
