@@ -41,3 +41,19 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
     values.supply >= COMBAT_RECOVERY_THRESHOLDS.supply;
   return Object.freeze({ broken, recovered });
 }
+
+/**
+ * Recovery-only phase gate. A caller can apply this before its normal tactical
+ * phase selector: `null` means ordinary phase selection may continue.
+ *
+ * Once a formation reaches regroup it stays there until the healthier recovery
+ * band is satisfied. This gives reinforcements, morale, suppression, ammo and
+ * local logistics time to matter instead of cycling retreat/regroup by timer.
+ */
+export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
+  const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
+  if (phase === 'regroup') return recovery.recovered ? null : 'regroup';
+  if (phase === 'retreat') return 'regroup';
+  if (recovery.broken) return 'retreat';
+  return null;
+}
