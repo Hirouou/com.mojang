@@ -73,21 +73,28 @@ function sessionDescriptor(status = {}, fallbackMode = 'offline') {
     seat: Number.isFinite(Number(status.seat)) ? Number(status.seat) : 0,
     capacity: Number(status.capacity) || 3,
     runtime,
+    crewBridge: null,
     qaTransport: crewQa,
   };
+}
+
+function publishCrewBridge(nextBridge) {
+  crewBridge = nextBridge || null;
+  if (window.ironRainEntry) window.ironRainEntry.crewBridge = crewBridge;
+  window.dispatchEvent(new CustomEvent('ironrain:crew-bridge-change', { detail: { bridge: crewBridge } }));
 }
 
 function stopCrewFrame() {
   if (crewFrame) cancelAnimationFrame(crewFrame);
   crewFrame = 0;
   crewBridge?.clear?.();
-  crewBridge = null;
+  publishCrewBridge(null);
 }
 
 function attachCrewCabin(cabin) {
   if (!cabin || typeof cabin.snapshot !== 'function' || typeof cabin.updateRemoteCrew !== 'function') return false;
   stopCrewFrame();
-  crewBridge = createCrewCabinBridge({ runtime, cabin, interpolationDelay: .1 });
+  publishCrewBridge(createCrewCabinBridge({ runtime, cabin, interpolationDelay: .1 }));
   lastCrewFrameAt = performance.now();
 
   const frame = nowMs => {
