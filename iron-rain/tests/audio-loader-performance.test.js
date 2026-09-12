@@ -4,8 +4,9 @@ import { createWarAudio } from '../modules/war-audio.js';
 
 class Param {
   value = 0;
+  peak = 0;
   setValueAtTime(value) { this.value = value; }
-  linearRampToValueAtTime(value) { this.value = value; }
+  linearRampToValueAtTime(value) { this.value = value; this.peak = Math.max(this.peak, value); }
   exponentialRampToValueAtTime(value) { this.value = value; }
   setTargetAtTime(value) { this.value = value; }
 }
@@ -59,4 +60,17 @@ test('loader phase contact stays compact and reuses the shared noise buffer', t 
   const second = ctx.nodes.slice(afterFirst).filter(node => node.started && node.stopped !== undefined);
   assert.equal(second.length, 2, 'the next mechanical phase adds only one compact contact again');
   assert.equal(ctx.bufferAllocations, 1, 'repeated loader phases reuse the existing procedural noise buffer');
+});
+
+test('loader semantic intensity scales the same bounded contact without extra voices', t => {
+  const { audio, contexts } = fixture(t);
+  audio.wake();
+  const ctx = contexts[0], base = ctx.nodes.length;
+
+  audio.load({ cue: 'clamp', intensity: .5 });
+  const voices = ctx.nodes.slice(base).filter(node => node.started && node.stopped !== undefined);
+  assert.equal(voices.length, 2);
+  const gains = ctx.nodes.slice(base).filter(node => node.kind === 'gain' && node.gain.peak > 0).map(node => node.gain.peak).sort((a, b) => a - b);
+  assert.deepEqual(gains, [.06, .17]);
+  assert.equal(ctx.bufferAllocations, 1);
 });
