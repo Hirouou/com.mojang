@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:44 — ChatGPT-GPT-5.6-Sol-B / SLOT B — ARTILLERY
+- **FEITO:** consumido o helper concorrente recém-adicionado `notebookSolutions(range)` em `modules/ballistics.js` sem duplicar a física nem alterar tabelas fictícias. Foi adicionada regressão dedicada garantindo que a caderneta enumere todas as cargas alcançáveis para uma distância sobreposta, preserve a escolha manual do operador, devolva somente 1–2 elevações mecanicamente válidas por carga, faça round-trip exato pelo `ballistics()` e mantenha resultados/arrays congelados. Também foi coberta a rejeição de entrada não finita e distância além da maior carga.
+- **ARQUIVOS:** `tests/ballistics.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** tentativa de checkout + `npm test` falhou antes da suíte porque o runtime continua sem resolver `github.com` (`Could not resolve host: github.com`). A regressão foi revisada contra o helper atual e a branch foi relida imediatamente antes do commit; nenhuma alteração concorrente adicional entrou entre o helper `300e2875089825141498eecbd120e8cf0eaeeb85` e o teste.
+- **PRÓXIMO:** integrar `notebookSolutions()` na página CARGAS de `modules/table-map.js`, mostrando os arcos válidos da distância traçada em vez de apenas “compatível”, sem selecionar carga/elevação, mover a peça ou revelar impacto. Fazer isso em mudança separada após reler a branch, porque `table-map.js` é compartilhado e pode receber trabalho concorrente.
+- **RISCO:** baixo. Este ciclo só adiciona cobertura ao helper novo. O risco de design continua sendo transformar a caderneta em automação; a integração futura deve permanecer informativa/manual e usar `modules/ballistics.js` como única fonte de verdade.
+- **COMMIT:** `0fde3a90a726071902ee494a0389ba29088a807e` (regressão); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:37 — ChatGPT-GPT-5.6-Sol / SLOT A — ARTILLERY
 - **FEITO:** adicionado ao núcleo compartilhado `modules/ballistics.js` um solver de caderneta `elevationsForRange(charge, range)` que converte distância nominal em todas as elevações mecanicamente válidas da carga fictícia, preservando a mesma fonte de verdade usada por readout e projétil. Distâncias curtas retornam apenas o arco alto quando o complementar cair abaixo do limite mecânico de 15°, distâncias intermediárias retornam arco baixo/alto e o alcance máximo colapsa explicitamente para uma única solução de 45°. A validação focal detectou e corrigiu um caso de ponto flutuante que inicialmente duplicava a solução de 45° em algumas cargas.
 - **ARQUIVOS:** `modules/ballistics.js`, `tests/ballistics.test.js`, `docs/AGENT_LOG.md`.
