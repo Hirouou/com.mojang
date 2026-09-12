@@ -29,6 +29,17 @@ test('inactive canonical feedback resets cadence so an interrupted action can re
   assert.equal(restarted.emit.type, 'repair', 'restart is not swallowed by the previous cadence window');
 });
 
+test('maintenance cadence restarts immediately when presentation clock moves backwards', () => {
+  const started = maintenanceEffectCadence(null, { active: true, kind: 'extinguish', progress: .25 }, 42);
+  const resetClock = maintenanceEffectCadence(started.state, { active: true, kind: 'extinguish', progress: .3 }, .04);
+
+  assert.equal(resetClock.emit.type, 'extinguisher', 'reconnect or browser clock reset must not mute the tool for the old timestamp span');
+  assert.equal(resetClock.state.at, .04);
+
+  const throttledAgain = maintenanceEffectCadence(resetClock.state, { active: true, kind: 'extinguish', progress: .35 }, .05);
+  assert.equal(throttledAgain.emit, null, 'normal anti-spam cadence resumes from the new clock');
+});
+
 test('maintenance cadence keeps compatibility aliases and clamps presentation progress', () => {
   const clamped = maintenanceEffectCadence(null, { action: 'repair', progress: 8 }, 5);
   assert.deepEqual(clamped.emit, { type: 'repair', payload: { progress: 1 } });
