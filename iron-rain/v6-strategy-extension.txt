@@ -1,0 +1,122 @@
+
+  // Persistent theatre layer: logistics, fatigue and territorial control.
+  // Loaded inside the main V6 closure so it can extend the existing simulation
+  // without rewriting first-person, artillery or individual combat systems.
+  const coreNewState = newState;
+  newState = function(){
+    const next = coreNewState();
+    next.war = {turn:0,lastBrief:-999,allyHeld:0,enemyHeld:0};
+    for(const sec of next.sectors){
+      const allyRoute = clamp(1 - distance(next.base,sec)/76000,.28,1);
+      const enemyHQ = {x:WORLD.w-5200,y:WORLD.h*.5};
+      const enemyRoute = clamp(1 - distance(enemyHQ,sec)/76000,.28,1);
+      sec.supplyAlly = clamp(.48 + allyRoute*.42 + rand(-.05,.05),.2,1);
+      sec.supplyEnemy = clamp(.48 + enemyRoute*.42 + rand(-.05,.05),.2,1);
+      sec.fatigueAlly = rand(.05,.18);
+      sec.fatigueEnemy = rand(.05,.18);
+      sec.control = sec.progress;
+      sec.phase = 'contested';
+      sec.phaseReported = 'contested';
+      sec.momentum = 0;
+    }
+    return next;
+  };
+
+  const coreStrategicTick = strategicTick;
+  strategicTick = function(){
+    coreStrategicTick();
+    if(!state?.war)return;
+    state.war.turn++;
+    let allyHeld=0,enemyHeld=0,totalSupply=0;
+    const enemyHQ={x:WORLD.w-5200,y:WORLD.h*.5};
+
+    for(const sec of state.sectors){
+      const dep=sec.assets.find(a=>a.type==='DEPÓSITO');
+      const enemyDepotFactor=dep?.alive ? 1 : .58;
+      const allyRoute=clamp(1-distance(state.base,sec)/76000,.22,1);
+      const enemyRoute=clamp(1-distance(enemyHQ,sec)/76000,.22,1);
+      const pressure=Math.abs(sec.allyStrength-sec.enemyStrength)/100;
+
+      // Supply is persistent and changes gradually rather than teleporting each tick.
+      const allyTarget=clamp(.34+allyRoute*.58-(sec.status==='enemy_push'?.08:0),.15,1);
+      const enemyTarget=clamp((.34+enemyRoute*.58)*enemyDepotFactor-(sec.status==='allied_push'?.08:0),.12,1);
+      sec.supplyAlly=lerp(sec.supplyAlly,allyTarget,.18);
+      sec.supplyEnemy=lerp(sec.supplyEnemy,enemyTarget,.18);
+
+      // Sustained fighting creates fatigue; good logistics lets a side recover.
+      sec.fatigueAlly=clamp(sec.fatigueAlly+pressure*.018-(sec.supplyAlly-.45)*.018,0,.72);
+      sec.fatigueEnemy=clamp(sec.fatigueEnemy+pressure*.018-(sec.supplyEnemy-.45)*.018,0,.72);
+
+      const allyEffective=sec.allyStrength*(.72+sec.supplyAlly*.38)*(1-sec.fatigueAlly*.42);
+      const enemyEffective=sec.enemyStrength*(.72+sec.supplyEnemy*.38)*(1-sec.fatigueEnemy*.42);
+      sec.momentum=clamp((allyEffective-enemyEffective)/8,-6,6);
+      sec.control=clamp((sec.control??sec.progress)+sec.momentum,-100,100);
+      sec.progress=lerp(sec.progress,sec.control,.42);
+
+      // Reinforcements arrive slowly through healthy supply lines.
+      if(sec.supplyAlly>.68&&sec.allyStrength<82)sec.allyStrength=clamp(sec.allyStrength+.35,10,100);
+      if(sec.supplyEnemy>.68&&sec.enemyStrength<82)sec.enemyStrength=clamp(sec.enemyStrength+.35,10,100);
+      if(sec.supplyAlly<.32)sec.allyStrength=clamp(sec.allyStrength-.22,10,100);
+      if(sec.supplyEnemy<.32)sec.enemyStrength=clamp(sec.enemyStrength-.22,10,100);
+
+      sec.phase=sec.control>72?'allied_control':sec.control<-72?'enemy_control':'contested';
+      if(sec.phase==='allied_control')allyHeld++;
+      else if(sec.phase==='enemy_control')enemyHeld++;
+      totalSupply+=sec.supplyAlly;
+
+      if(sec.phase!==sec.phaseReported){
+        const intelKnown=sec.assets.some(a=>a.known)||state.mission?.sector===sec||state.intel?.sector===sec;
+        if(intelKnown){
+          if(sec.phase==='allied_control')log(`<b>COMANDO:</b> frente ${sec.name} consolidada por forças aliadas.`,'good');
+          else if(sec.phase==='enemy_control')log(`<b>COMANDO:</b> frente ${sec.name} cedendo sob pressão inimiga.`,'bad');
+          else log(`<b>COMANDO:</b> frente ${sec.name} voltou a ser disputada.`,'intel');
+        }
+        sec.phaseReported=sec.phase;
+      }
+    }
+
+    state.war.allyHeld=allyHeld;
+    state.war.enemyHeld=enemyHeld;
+    state.war.allySupply=totalSupply/Math.max(1,state.sectors.length);
+
+    // Operational briefings are deliberately sparse so radio remains readable.
+    if(state.time-state.war.lastBrief>52){
+      const hot=state.sectors.filter(s=>Math.abs(s.momentum)>2.2).sort((a,b)=>Math.abs(b.momentum)-Math.abs(a.momentum))[0];
+      if(hot){
+        const dir=hot.momentum>0?'avanço aliado':'pressão inimiga';
+        log(`<b>SITREP:</b> ${hot.name} registra ${dir}; logística aliada ${Math.round(hot.supplyAlly*100)}%.`,'intel');
+        state.war.lastBrief=state.time;
+      }
+    }
+  };
+
+  function drawStrategicOverlay(){
+    if(!state?.war)return;
+    for(const sec of state.sectors){
+      const known=sec.assets.some(a=>a.known)||state.intel?.sector===sec||state.mission?.sector===sec;
+      if(!known||!visible(sec.x,sec.y,180))continue;
+      const p=worldToScreen(sec.x,sec.y),z=clamp(state.cam.zoom,.45,1.1);
+      const w=92*z,h=5*z;
+      ctx.save();
+      ctx.globalAlpha=.82;
+      ctx.fillStyle='rgba(8,12,10,.72)';ctx.fillRect(p.x-w/2,p.y+54*z,w,h+16*z);
+      ctx.fillStyle=COLORS.ally;ctx.fillRect(p.x-w/2,p.y+54*z,w*sec.supplyAlly,h);
+      ctx.font=`${Math.max(8,9*z)}px system-ui`;ctx.textAlign='center';
+      ctx.fillStyle='#d9e4d8';
+      const label=sec.phase==='allied_control'?'SEGURA':sec.phase==='enemy_control'?'CEDENDO':'DISPUTADA';
+      ctx.fillText(`${label} • SUP ${Math.round(sec.supplyAlly*100)}%`,p.x,p.y+69*z);
+      ctx.restore();
+    }
+  }
+
+  const coreDraw = draw;
+  draw = function(){coreDraw();drawStrategicOverlay();};
+
+  const coreUpdateUI = updateUI;
+  updateUI = function(){
+    coreUpdateUI();
+    if(!state?.war||state.mission||state.intel)return;
+    const hot=state.sectors.filter(s=>Math.abs(s.momentum)>2).length;
+    const held=state.war.allyHeld;
+    UI.opSub.textContent=`${state.knownTargets.filter(a=>a.alive).length} alvos conhecidos • ${hot} frentes sob pressão • ${held} setores consolidados`;
+  };
