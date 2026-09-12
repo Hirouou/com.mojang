@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ballistics, bearingVector, chargeBand, sampleTrajectory, CHARGES, MIN_ELEVATION, MAX_ELEVATION, WIND_ACCELERATION } from '../modules/ballistics.js';
+import { ballistics, bearingVector, chargeBand, elevationsForRange, sampleTrajectory, CHARGES, MIN_ELEVATION, MAX_ELEVATION, WIND_ACCELERATION } from '../modules/ballistics.js';
 
 const close = (actual, expected, tolerance = 1e-7) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} ≠ ${expected}`);
 const origin = { x: 8200, y: 30000 };
@@ -44,6 +44,31 @@ test('charge table continuously covers 1–50 km and bands agree with every allo
   // Every requested whole kilometre has at least one usable charge.
   for (let distance = 1000; distance <= 50000; distance += 1000) {
     assert.ok(CHARGES.slice(1).some(c => { const band = chargeBand(c.id); return distance >= band.min && distance <= band.max; }));
+  }
+});
+
+test('notebook range solver returns only mechanically valid low/high arcs and round-trips their range', () => {
+  for (let charge = 1; charge < CHARGES.length; charge++) {
+    const band = chargeBand(charge);
+    const shortRange = band.min;
+    const shortSolutions = elevationsForRange(charge, shortRange);
+    assert.deepEqual(shortSolutions.length, 1);
+    close(shortSolutions[0], MAX_ELEVATION);
+    close(ballistics(charge, shortSolutions[0]).range, shortRange);
+
+    const twoArcRange = ballistics(charge, 30).range;
+    const twoArcSolutions = elevationsForRange(charge, twoArcRange);
+    assert.equal(twoArcSolutions.length, 2);
+    close(twoArcSolutions[0], 30);
+    close(twoArcSolutions[1], 60);
+    for (const elevation of twoArcSolutions) close(ballistics(charge, elevation).range, twoArcRange);
+
+    const maxSolutions = elevationsForRange(charge, band.max);
+    assert.equal(maxSolutions.length, 1);
+    close(maxSolutions[0], 45);
+    assert.ok(Object.isFrozen(maxSolutions));
+    assert.deepEqual(elevationsForRange(charge, band.min - 1), []);
+    assert.deepEqual(elevationsForRange(charge, band.max + 1), []);
   }
 });
 
@@ -102,6 +127,8 @@ test('changing charge changes the physical flight and existing launch solutions 
 test('invalid charges and non-finite inputs fail clearly; elevation follows mechanical stops', () => {
   for (const charge of [0, 8, 1.5, NaN]) assert.throws(() => ballistics(charge, 45), RangeError);
   assert.throws(() => ballistics(1, NaN), TypeError);
+  assert.throws(() => elevationsForRange(1, NaN), TypeError);
+  assert.throws(() => elevationsForRange(0, 1000), RangeError);
   assert.equal(ballistics(1, -20).elevation, MIN_ELEVATION);
   assert.equal(ballistics(1, 180).elevation, MAX_ELEVATION);
   assert.throws(() => sampleTrajectory(ballistics(1, 45), origin, 0, stillAir, Infinity), TypeError);
