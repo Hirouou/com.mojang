@@ -1,0 +1,49 @@
+ateUI();
+    if(performance.now()-idleAt>3500)app.classList.add('ui-idle');
+  }
+
+  function updateUI(){
+    UI.own.textContent=`X${fmt(state.robot.x)} Y${fmt(state.robot.y)}`;UI.wind.textContent=`VENTO ${state.wind.x>=0?'L':'O'} ${Math.abs(state.wind.x).toFixed(1)} / ${state.wind.y>=0?'S':'N'} ${Math.abs(state.wind.y).toFixed(1)}`;UI.ammo.textContent=`HE ${state.ammo.HE} • SMK ${state.ammo.SMOKE} • FRG ${state.ammo.FRAG}`;
+    UI.azValue.textContent=state.bearing.toFixed(1).padStart(5,'0')+'°';UI.elValue.textContent=state.elev.toFixed(1)+'°';UI.charge.textContent=state.charge;UI.he.textContent=state.ammo.HE;UI.smoke.textContent=state.ammo.SMOKE;UI.frag.textContent=state.ammo.FRAG;
+    const B=ballistics(state.charge,state.elev);UI.range.textContent=`alcance ${formatM(B.range)} • ápice ${formatM(B.apex)}`;const b45=ballistics(state.charge,45),b75=ballistics(state.charge,75);UI.chargeRange.textContent=`${formatM(Math.min(ballistics(state.charge,20).range,b75.range))}–${formatM(b45.range)}`;
+    if(state.mission){UI.opTitle.textContent=`MISSÃO • ${state.mission.target.type}`;UI.opSub.textContent=`alvo ${Math.round(distance(state.robot,state.mission.target))} m • frente ${state.mission.sector.name}`;}else if(state.intel){UI.opTitle.textContent='INTELIGÊNCIA';UI.opSub.textContent=state.intel.stage==='source'?'localizando origem':'confirmando alvo';}else{UI.opTitle.textContent='TEATRO DE OPERAÇÕES';UI.opSub.textContent=`${state.knownTargets.filter(a=>a.alive).length} alvos conhecidos • ${state.sectors.length} frentes ativas`;}
+  }
+  const formatM=m=>m>=10000?(m/1000).toFixed(1)+' km':m>=1000?(m/1000).toFixed(2)+' km':Math.round(m)+' m';
+
+  function updateNotebook(){
+    const m=state?.mission;if(!m){UI.notebookBody.innerHTML='<div class="calc-card wide"><small>MISSÃO</small><b>Nenhum alvo ativo</b><div class="formula">Aguarde um observador ou reconhecimento aéreo transmitir uma coordenada.</div></div>';buildRangeTable();return;}
+    const r=state.robot,t=m.target,dx=t.x-r.x,dy=t.y-r.y,d=Math.hypot(dx,dy),az=bearingTo(r,t),B=ballistics(state.charge,state.elev),err=B.range-d;
+    UI.notebookBody.innerHTML=`
+      <div class="calc-card"><small>MAMUTE</small><b>X${fmt(r.x)} Y${fmt(r.y)}</b></div>
+      <div class="calc-card"><small>ALVO</small><b>X${fmt(t.x)} Y${fmt(t.y)}</b></div>
+      <div class="calc-card"><small>ΔX</small><b>${Math.round(dx)} m</b></div>
+      <div class="calc-card"><small>ΔY</small><b>${Math.round(dy)} m</b></div>
+      <div class="calc-card wide"><small>DISTÂNCIA</small><b>${formatM(d)}</b><div class="formula">√(${Math.round(dx)}² + ${Math.round(dy)}²) = ${Math.round(d)} m</div></div>
+      <div class="calc-card wide"><small>AZIMUTE MATEMÁTICO</small><b>${az.toFixed(1)}°</b><div class="formula">0° N • 90° L • 180° S • 270° O. Ajuste a manivela até o tubo chegar próximo deste valor.</div></div>
+      <div class="calc-card wide"><small>SUA CONFIGURAÇÃO</small><b>C${state.charge} • El ${state.elev.toFixed(1)}° → ${formatM(B.range)}</b><div class="formula">Diferença nominal para o alvo: ${err>=0?'+':''}${Math.round(err)} m. O vento ainda deslocará o impacto.</div></div>
+      <div class="calc-card wide"><small>ALTURA DO ARCO</small><b>${formatM(B.apex)}</b><div class="formula">É a altura máxima aproximada da trajetória para esta carga e elevação.</div></div>`;
+    buildRangeTable(d);
+  }
+
+  function buildRangeTable(targetDist=0){
+    UI.rangeTable.innerHTML='';for(let c=1;c<=7;c++){const B=ballistics(c,45),min=Math.min(ballistics(c,20).range,ballistics(c,75).range);const div=document.createElement('div');div.className='range-cell';if(targetDist&&targetDist>=min&&targetDist<=B.range*1.02)div.style.outline='1px solid #e9cc7a';div.innerHTML=`<b>CARGA ${c}</b><span>${formatM(B.range)}</span><small>máx. em 45°</small>`;UI.rangeTable.appendChild(div);}
+  }
+
+  function openSheet(which){state.paused=true;closeAllSheets();UI[which].classList.remove('hidden');if(which==='notebook')updateNotebook();}
+  function closeAllSheets(){['notebook','help','menu'].forEach(k=>UI[k].classList.add('hidden'));}
+  function resume(){closeAllSheets();state.paused=false;touchUI();}
+
+  // Handwheels: many degrees of handwheel movement translate to a small change in gun angle.
+  function bindWheel(el,kind){
+    let id=null,lastA=0,visual=0;const arm=$(kind==='az'?'azArm':'elArm');
+    el.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();touchUI();id=e.pointerId;el.setPointerCapture(id);const r=el.getBoundingClientRect();lastA=Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2);});
+    el.addEventListener('pointermove',e=>{if(e.pointerId!==id)return;e.preventDefault();const r=el.getBoundingClientRect(),a=Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2);let d=a-lastA;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;lastA=a;const dd=deg(d);visual+=dd;arm.style.transform=`rotate(${visual}deg)`;if(kind==='az')state.azTarget=(state.azTarget+dd/6.5+3600)%360;else state.elTarget=clamp(state.elTarget+dd/8.5,15,80);updateNotebook();});
+    const stop=e=>{if(id===null||e.pointerId!==id)return;id=null;};el.addEventListener('pointerup',stop);el.addEventListener('pointercancel',stop);
+  }
+
+  // Joystick
+  const joyEl=$('joystick'),joyKnob=$('joyKnob');
+  function setJoy(e){const r=joyEl.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy,max=r.width*.35,l=Math.hypot(dx,dy)||1;if(l>max){dx*=max/l;dy*=max/l;}joy.x=dx/max;joy.y=dy/max;joyKnob.style.transform=`translate(${dx}px,${dy}px)`;}
+  joyEl.addEventListener('pointerdown',e=>{e.preventDefault();touchUI();joyId=e.pointerId;joyEl.setPointerCapture(joyId);setJoy(e);});joyEl.addEventListener('pointermove',e=>{if(e.pointerId===joyId)setJoy(e)});function endJoy(e){if(joyId===null||e.pointerId!==joyId)return;joyId=null;joy={x:0,y:0};joyKnob.style.transform='translate(0,0)';}joyEl.addEventListener('pointerup',endJoy);joyEl.addEventListener('pointercancel',endJoy);
+
+  
