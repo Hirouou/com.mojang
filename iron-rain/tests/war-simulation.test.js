@@ -148,7 +148,7 @@ test('squads alternate cover, suppression, supported bounds, regrouping and retr
     assert.ok(state.tracers.length <= WAR_LIMITS.maxTracers);
   }
   for (const phase of ['hold', 'suppress', 'assault', 'consolidate']) assert.ok(observed.has(phase), `${phase} should be observed`);
-  sec.war.ally.morale = .1; sec.war.ally.phaseTime = 0;
+  sec.war.ally.phase = 'assault'; sec.war.ally.morale = .1; sec.war.ally.phaseTime = 0;
   updateWar(state, 1);
   assert.equal(sec.war.ally.phase, 'retreat');
   sec.war.ally.phaseTime = 0;
