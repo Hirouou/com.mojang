@@ -1,6 +1,8 @@
 # IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport
 
-STATUS: READY
+STATUS: IN_PROGRESS
+CLAIMED_HEAD: 7d314ed9778e6709e1dda4a9355270560edbfd43
+CLAIMED_AT: 2026-09-12T17:36:19-03:00
 REQUESTER: LEAD
 RETURN_TO: LEAD + FP SYSTEMS
 PRIORITY: P0
@@ -9,6 +11,8 @@ BRANCH: iron-rain-v6-1-continuation
 BASE_HEAD: 4fe094677fce499cefe930987e08eafaf4f777a6
 
 ## MISSÃO
+Atualização direta do usuário (2026-09-12): auditar e estabilizar a implementação atual, incluindo PC+PC e PC+celular, postos exclusivos simultâneos, reconexão e feedback compartilhado de tiro/recarga/impacto. Não partir do BASE_HEAD antigo nem recriar transporte. Correções mínimas e evidência browser obrigatórias. Responsável atual: CODEX; hotspots previstos: crew-runtime/session/transport, bootstrap e integração em game-v6.js.
+
 Implementar a menor fatia coerente que permita iniciar multiplayer REAL entre dispositivos para um único M-47 Mamute, aproveitando a fundação já existente de presença/replicação/sessão e sem reescrever a cabine.
 
 O alvo do produto é: máximo 3 jogadores no mesmo Mamute (1 host + até 2 convidados), cada um vendo os outros jogadores em primeira pessoa dentro da cabine. Mobile Safari/iPhone e desktop precisam estar no caminho suportado. O projeto é publicado como site estático no GitHub Pages, então transporte/sinalização precisa respeitar essa restrição.
