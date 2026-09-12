@@ -50,3 +50,27 @@ export function exactMarkerAllowed(report, now = 0) {
   const state = assessIntelAge(report, now).state;
   return state === 'fresh' || state === 'aging';
 }
+
+/**
+ * Produce a map-safe disclosure for already-known intel. This does not discover
+ * anything: it only limits what a renderer may expose from a legitimate report.
+ * Fresh/aging reports may use their recorded point, stale reports become an
+ * uncertainty area around the historical point, and lost reports deliberately
+ * drop coordinates so a future map cannot accidentally resurrect exact contact.
+ */
+export function mapIntelDisclosure(report, now = 0) {
+  const intel = assessIntelAge(report, now);
+  const x = Number(report?.x);
+  const y = Number(report?.y);
+  const hasPoint = Number.isFinite(x) && Number.isFinite(y);
+  const mode = intel.state === 'lost' ? 'lost' : exactMarkerAllowed(report, now) && hasPoint ? 'exact' : hasPoint ? 'area' : 'lost';
+  return Object.freeze({
+    mode,
+    state: intel.state,
+    label: intelAgeLabel(report, now),
+    confidence: intel.confidence,
+    uncertainty: intel.uncertainty,
+    x: mode === 'lost' ? null : x,
+    y: mode === 'lost' ? null : y
+  });
+}
