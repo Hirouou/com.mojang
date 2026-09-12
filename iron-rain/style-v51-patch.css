@@ -1,0 +1,4 @@
+.wheel-spoke .wheel-handle{position:absolute;right:-6px;left:auto;top:50%;width:13px;height:13px;margin:0;border-radius:50%;background:#dec47c;border:2px solid rgba(45,35,17,.75);transform:translateY(-50%);pointer-events:none}
+#artilleryPanel{transition:opacity .2s ease,transform .24s ease}
+.shot-cinematic #artilleryPanel{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(18px)}
+.shot-cinematic .hud-top{opacity:.10}.shot-cinematic .top-actions{opacity:.18}.shot-cinematic .request-card{opacity:.25}
