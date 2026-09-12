@@ -88,7 +88,10 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         const move = Math.min(travel, remaining);
         convoy.legProgress += move; travel -= move;
         if (convoy.legProgress >= leg.distance - 1e-6) { convoy.leg += 1; convoy.legProgress = 0; }
-        if (convoy.leg < convoy.path.length && !routeStillOpen(convoy)) break;
+        if (convoy.leg < convoy.path.length && !routeStillOpen(convoy)) {
+          convoy.status = 'blocked';
+          break;
+        }
       }
       if (convoy.leg >= convoy.path.length) {
         const destination = nodeMap.get(convoy.to);
