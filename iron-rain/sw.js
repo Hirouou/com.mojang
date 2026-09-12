@@ -1,6 +1,6 @@
-/* Offline shell. Paths stay relative so GitHub Pages /iron-rain/ also works. */
+/* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v7.0`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.1`;
 const OFFLINE_FILES = [
   './index.html',
   './style-v6.css',
@@ -14,6 +14,9 @@ const OFFLINE_FILES = [
   './modules/battlefield-view.js',
   './modules/cabin-controls.js',
   './modules/cabin-view.js',
+  './modules/crew-presence.js',
+  './modules/crew-avatar-visual.js',
+  './modules/crew-visual-layer.js',
   './modules/loading-cycle.js',
   './modules/war-audio.js',
   './modules/key-bindings.js',
@@ -58,8 +61,10 @@ self.addEventListener('fetch', event => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     try {
-      // Network first allows a refreshed build to appear immediately online.
-      const response = await fetch(request);
+      // Network first is intentional: the home-screen app keeps the SAME URL,
+      // but reopening it online pulls the newest deployed build before falling
+      // back to the offline copy.
+      const response = await fetch(request, { cache: 'no-store' });
       if (response.ok && (response.type === 'basic' || response.type === 'default')) {
         try { await cache.put(navigation ? indexURL : request, response.clone()); } catch { /* Storage pressure must not block the online build. */ }
       }
