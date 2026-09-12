@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#0a0e12" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>Iron Rain: Frontline</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand"><b>IRON RAIN: FRONTLINE</b><small>Operador de artilharia móvel • campanha dinâmica</small></div>
+    <div class="chips"><span class="chip" id="sectorChip">Setor: —</span><span class="chip" id="modeChip">MODO MARCHA</span><span class="chip" id="scoreChip">Impacto: 0</span></div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="1000" height="600" aria-label="Mapa tático"></canvas>
+    <div class="overlay"><span class="mini" id="coordHud">CÂMERA X000 Y000</span><span class="mini" id="windHud">VENTO —</span><span class="mini" id="frontHud">FRONT —</span></div>
+  </div>
+
+  <div class="layout">
+    <section class="panel">
+      <div class="row space"><h3>ROBO-ARTILHARIA M-47 “MAMUTE”</h3><span class="muted" id="robotCoord">X 000 • Y 000</span></div>
+      <div class="modebox">
+        <button class="btn primary active" id="marchBtn" type="button">🚶 MODO MARCHA</button>
+        <button class="btn warn" id="deployBtn" type="button">⚙️ MODO ARTILHARIA</button>
+      </div>
+
+      <div class="moveWrap" id="moveWrap">
+        <div class="manual" style="margin-top:8px">O Mamute é lento. Mova-se para encurtar tiros, fugir do avanço inimigo ou achar uma posição melhor. Arraste o mapa para olhar o front sem mover o robô.</div>
+        <div class="movebox">
+          <button class="btn up" data-move="up" type="button">▲</button>
+          <button class="btn left" data-move="left" type="button">◀</button>
+          <button class="btn stop" data-move="stop" type="button">PARAR</button>
+          <button class="btn right" data-move="right" type="button">▶</button>
+          <button class="btn down" data-move="down" type="button">▼</button>
+        </div>
+      </div>
+
+      <div class="aim" id="aimPanel">
+        <div class="manual"><b>Sem previsão de impacto.</b> Use a grade, as coordenadas do rádio e a tabela de tiro. 0° = norte, 90° = leste. O vento desvia o projétil durante o voo.</div>
+        <div class="field"><label for="bearing">Azimute</label><input id="bearing" type="range" min="0" max="359" value="90" step="1"><output id="bearingOut">090°</output></div>
+        <div class="field"><label for="elevation">Elevação</label><input id="elevation" type="range" min="20" max="75" value="45" step="1"><output id="elevationOut">45°</output></div>
+        <div class="field"><label for="charge">Carga</label><input id="charge" type="range" min="1" max="5" value="3" step="1"><output id="chargeOut">3</output></div>
+        <div class="shells">
+          <button class="btn active" data-shell="HE" type="button">💥 HE</button>
+          <button class="btn" data-shell="SMOKE" type="button">☁️ FUMAÇA</button>
+          <button class="btn" data-shell="CLUSTER" type="button">✦ FRAG</button>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <button class="btn danger" id="fireBtn" type="button">🔥 DISPARAR</button>
+          <button class="btn" id="undeployBtn" type="button">RECOLHER</button>
+        </div>
+      </div>
+
+      <div class="statgrid">
+        <div class="stat"><small>Blindagem</small><b id="armorStat">100%</b></div>
+        <div class="stat"><small>Munição HE</small><b id="heStat">12</b></div>
+        <div class="stat"><small>Fumaça</small><b id="smokeStat">5</b></div>
+        <div class="stat"><small>Fragmentação</small><b id="fragStat">4</b></div>
+      </div>
+      <div class="footerBtns"><button class="btn" id="zoomOut" type="button">− ZOOM</button><button class="btn" id="centerRobot" type="button">CENTRALIZAR</button><button class="btn" id="zoomIn" type="button">+ ZOOM</button></div>
+    </section>
+
+    <aside class="panel">
+      <h3>RÁDIO / OBSERVADORES</h3>
+      <div class="radio" id="radio"></div>
+      <div class="panel" style="padding:10px;margin-top:8px;background:#0b1015">
+        <h3 style="margin-bottom:5px">CADERNETA DE TIRO</h3>
+        <div class="manual">
+          <div>1 quadrícula grande = <b>100 m</b>. Coordenadas do mapa já estão em metros.</div>
+          <div>Distância: <code>√(ΔX² + ΔY²)</code></div>
+          <div>Azimute aproximado: use a direção do alvo na grade. 0° N • 90° L • 180° S • 270° O.</div>
+          <div style="margin-top:5px"><b>Cargas:</b> 1≈240 m • 2≈390 m • 3≈560 m • 4≈730 m • 5≈910 m em 45° antes do vento.</div>
+          <div>Elevação maior que 45° aumenta o tempo de voo; menor reduz o arco. O alcance segue a curva balística.</div>
+        </div>
+      </div>
+      <button class="btn" id="newBattle" type="button" style="width:100%;margin-top:8px">NOVA BATALHA</button>
+    </aside>
+  </div>
+</div>
+<script src="game-a.js"></script>
+<script src="game-b.js"></script>
+<script src="game-c.js"></script>
+</body>
+</html>
