@@ -46,5 +46,6 @@ export function intelAgeLabel(report, now = 0) {
  * uncertainty or textual references instead of pretending the target is live.
  */
 export function exactMarkerAllowed(report, now = 0) {
-  return assessIntelAge(report, now).state !== 'lost';
+  const state = assessIntelAge(report, now).state;
+  return state === 'fresh' || state === 'aging';
 }
