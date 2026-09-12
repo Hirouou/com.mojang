@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { combatLogisticsState, combatReserveGate } from '../modules/combat-reserves.js';
+import { combatLogisticsState, combatReserveGate, combatRouteOpen } from '../modules/combat-reserves.js';
+import { createLogisticsNode, createStrategicLogistics, createSupplyRoute } from '../modules/strategic-logistics.js';
 
 const readyLogistics = Object.freeze({
   connected: true,
@@ -95,4 +96,38 @@ test('the same infrastructure rules apply to enemy formations', () => {
   const enemy = combatLogisticsState({ territory: { owner: 'enemy', contested: false, structures: ['depot'] }, team: 'enemy', routeOpen: true });
   assert.deepEqual(enemy, ally);
   assert.equal(enemy.reinforcementSupport, .12);
+});
+
+test('combat route reachability delegates to the canonical strategic logistics graph', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [
+      createLogisticsNode({ id: 'rear', team: 'ally' }),
+      createLogisticsNode({ id: 'relay', team: 'ally' }),
+      createLogisticsNode({ id: 'front', team: 'ally' }),
+      createLogisticsNode({ id: 'enemy', team: 'enemy' }),
+    ],
+    routes: [
+      createSupplyRoute({ id: 'rear-relay', team: 'ally', from: 'rear', to: 'relay' }),
+      createSupplyRoute({ id: 'relay-front', team: 'ally', from: 'relay', to: 'front' }),
+    ],
+  });
+
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), true);
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'enemy' }), false);
+  assert.equal(combatRouteOpen({ logistics, team: 'enemy', from: 'rear', to: 'front' }), false);
+
+  logistics.setRouteOpen('relay-front', false);
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), false);
+});
+
+test('combat route reachability fails closed for invalid endpoints or adapters', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [createLogisticsNode({ id: 'front', team: 'ally' })],
+    routes: [],
+  });
+
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'front', to: 'front' }), true);
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'missing', to: 'front' }), false);
+  assert.equal(combatRouteOpen({ logistics: {}, team: 'ally', from: 'front', to: 'front' }), false);
+  assert.equal(combatRouteOpen({ logistics, team: 'neutral', from: 'front', to: 'front' }), false);
 });
