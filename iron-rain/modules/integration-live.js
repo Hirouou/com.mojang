@@ -34,7 +34,7 @@ function applyRemoteEffect(effect) {
     toast('OUTRO TRIPULANTE DISPAROU · recuo e recarga sincronizados.', 'MAMUTE');
   } else if (effect.type === 'reload') audio.load(effect.payload);
   else if (effect.type === 'impact' || effect.type === 'critical') {
-    audio.impact();
+    audio.impact(effect.payload || effect);
     toast(effect.type === 'critical' ? 'ESTADO CRÍTICO · toda a tripulação recebeu o alerta.' : 'IMPACTO NO CASCO · sentido por toda a tripulação.', 'CASCO');
   } else if (effect.type === 'repair') audio.load({ intensity: .45 });
   else if (effect.type === 'extinguisher') audio.load({ intensity: .35 });
