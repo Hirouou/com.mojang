@@ -18,10 +18,20 @@ test('bootstrap attaches crew runtime to the asynchronously-created cabin', asyn
   assert.match(cabinView, /detail: \{ cabin: view \}/);
 });
 
-test('public multiplayer remains gated until a cross-device transport replaces QA BroadcastChannel', async () => {
+test('production multiplayer uses a cross-device transport while BroadcastChannel stays QA-only', async () => {
   const bootstrap = await source('bootstrap.js');
   assert.match(bootstrap, /const crewQa = params\.has\('crewqa'\)/);
-  assert.match(bootstrap, /const transportFactory = crewQa \?/);
-  assert.match(bootstrap, /MULTIPLAYER ONLINE · EM PREPARAÇÃO/);
-  assert.doesNotMatch(bootstrap, /createCrewBroadcastTransport\(options\)\s*:\s*options/);
+  assert.match(bootstrap, /createCrewMqttTransport/);
+  assert.match(bootstrap, /\? options => createCrewBroadcastTransport\(options\)/);
+  assert.match(bootstrap, /: options => createCrewMqttTransport\(options\)/);
+  assert.match(bootstrap, /beginCrew\('host', room, faction\)/);
+  assert.match(bootstrap, /beginCrew\('guest', room, faction\)/);
+  assert.doesNotMatch(bootstrap, /MULTIPLAYER ONLINE · EM PREPARAÇÃO/);
+});
+
+test('each browser tab gets its own crew identity so local QA peers do not self-filter', async () => {
+  const bootstrap = await source('bootstrap.js');
+  assert.match(bootstrap, /sessionStorage\.getItem\(tabKey\)/);
+  assert.match(bootstrap, /sessionStorage\.setItem\(tabKey, created\)/);
+  assert.match(bootstrap, /iron-rain-device-id/);
 });
