@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:06 — ChatGPT-GPT-5.6-Sol-B / SLOT B — FP SYSTEMS
+- **FEITO:** ajustada a resolução de colisão diagonal da locomoção em primeira pessoa para, ao encontrar uma quina onde ambos os eixos isolados são livres mas o passo combinado é bloqueado, deslizar pelo eixo dominante do input em vez de sempre favorecer X; isso reduz direção involuntária/sticky corners em corredores apertados sem alterar volumes, velocidade ou arquitetura. Adicionado teste de regressão específico para a quina junto ao posto do condutor.
+- **ARQUIVOS:** `modules/cabin-controls.js`, `tests/cabin.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** caso de regressão da nova resolução validado em Node com a mesma geometria/algoritmo, mantendo posição ocupável e avanço pelo eixo dominante. O runtime não conseguiu clonar o repositório para executar `npm test` completo porque não havia resolução de rede para `github.com`; portanto a suíte completa ficou pendente neste ciclo.
+- **PRÓXIMO:** executar `npm test`/`tests/v7-browser.mjs` quando houver runtime do repositório disponível; depois revisar clipping visual/collision mismatch nas transições cabine → corredor → sala do motor antes de ampliar novos volumes físicos.
+- **RISCO:** a mudança altera somente a escolha do eixo de deslizamento quando o passo diagonal completo colide; corredores muito estreitos podem revelar pontos em que a geometria visual e `CABIN_OBSTACLES` não coincidem, devendo ser corrigidos no volume existente e não contornados com teleporte.
+- **COMMIT:** `9f061f89f02d9b89718a36517df8f5659f9fb86b` (controle de movimento) + `c949cb462cebc82b7010b03e68a6b0b2e8570894` (regressão); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:04 — ChatGPT-GPT-5.6-Sol-B / SLOT B — ART DIRECTOR
 - **FEITO:** onboarding do Slot B concluído após reler handoff/controle e conferir a branch ativa; criadas as cinco automações horárias do slot nos minutos :03, :15, :27, :39 e :51; adicionada direção de arte incremental baseada nos sistemas atuais, sem criar renderer paralelo nem alterar gameplay.
 - **ARQUIVOS:** `docs/MULTI_AGENT_CONTROL.md`, `docs/ART_DIRECTION.md`, `docs/AGENT_LOG.md`.
