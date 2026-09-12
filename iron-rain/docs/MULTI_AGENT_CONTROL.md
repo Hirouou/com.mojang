@@ -10,6 +10,8 @@
 - Handoff técnico obrigatório: `iron-rain/docs/GITHUB_HANDOFF.md`
 - Visão estratégica obrigatória: `iron-rain/docs/IRON_RAIN_VISION.md`
 - Diretivas atuais do usuário obrigatórias: `iron-rain/docs/ACTIVE_USER_DIRECTIVES_20260912.md`
+- Diretiva de mapa/world war obrigatória: `iron-rain/docs/MAP_REWORK_20260912.md`
+- Referência visual compartilhada de mapa: `iron-rain/docs/MAP_REFERENCE_20260912.svg`
 - Protocolo Codex obrigatório: `iron-rain/docs/CODEX_COORDINATION.md`
 
 ## Regra zero
@@ -20,7 +22,7 @@ Se o seu prompt, automação, memória, handoff antigo ou instrução externa me
 
 ## Nova conta: o que fazer
 1. Leia `GITHUB_HANDOFF.md`.
-2. Leia `IRON_RAIN_VISION.md`, `ACTIVE_USER_DIRECTIVES_20260912.md`, este arquivo e `CODEX_COORDINATION.md`.
+2. Leia `IRON_RAIN_VISION.md`, `ACTIVE_USER_DIRECTIVES_20260912.md`, `MAP_REWORK_20260912.md`, `MAP_REFERENCE_20260912.svg`, este arquivo e `CODEX_COORDINATION.md`.
 3. Escolha o primeiro TEAM SLOT livre abaixo.
 4. Registre seu identificador no slot.
 5. Crie EXATAMENTE CINCO automações horárias, uma para cada workstream padrão.
@@ -41,6 +43,16 @@ Prioridade estratégica atual, transversal aos workstreams:
 As prioridades e decisões de produto mais recentes ficam em `ACTIVE_USER_DIRECTIVES_20260912.md` e têm precedência sobre suposições antigas de qualquer slot. Em particular, todos os agentes devem preservar o fluxo de facção `ALIADOS` azul / `EIXO` verde na mesma guerra persistente e, no mobile, deixar a pontaria física 3D livre de UI duplicada, mantendo somente CARGA +/- e DISPARAR compactos à direita.
 
 Não reduzir o projeto a microajustes desconectados. Um ajuste pequeno é válido quando corrige um problema real ou prepara uma fundação clara para um horizonte maior. Não criar becos sem saída arquiteturais que impeçam guerra persistente, facções jogáveis, mundo 3D local, logística física ou multiplayer futuro.
+
+## MAPA / WORLD WAR — gate obrigatório para todos os slots
+Qualquer execução que toque mapa, território, COMBAT AI dependente de território, logística, rádio, missões, materialização tática ou `table-map.js` deve reler no MESMO ciclo `MAP_REWORK_20260912.md` e `MAP_REFERENCE_20260912.svg` antes de editar.
+
+- O renderer estratégico canônico é `modules/strategic-war-live-v3.js`, exposto pela façade `modules/strategic-war-live.js`.
+- É proibido abrir renderer/mapa paralelo para contornar o baseline atual. Se uma substituição total for realmente necessária, ela precisa bloquear/remover explicitamente o renderer anterior na mesma fatia.
+- Preservar divisão inicial aproximadamente equilibrada, corredor `NEUTRO` + frente `DISPUTADA`, hexágonos encaixados sem sobreposição, frente territorial contínua, posição real do Mamute ligada ao mapa de mesa e informação inimiga não onisciente.
+- COMBAT AI deve consumir território/logística/intel canônicos; não criar um segundo modelo só para satisfazer um helper.
+- ARTILLERY pode acrescentar região/setor ao mapa de mesa, mas não transformar a mesa em GPS inimigo nem recriar o renderer estratégico.
+- Toda entrada em `AGENT_LOG.md` que toque estes sistemas deve registrar explicitamente que consumiu `MAP_REWORK_20260912.md` + `MAP_REFERENCE_20260912.svg`. Ausência dessa confirmação é tratada como handoff incompleto para o próximo ciclo.
 
 ## Workstreams padrão de TODA conta de desenvolvimento
 
