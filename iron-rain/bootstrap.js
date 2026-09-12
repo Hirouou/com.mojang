@@ -10,6 +10,16 @@ let started = false;
 let lobby = null;
 let heartbeatTimer = 0;
 
+// Keep mobile station overrides isolated from the legacy field UI. This makes
+// the physical 3D handwheels the dominant control surface while preserving PC.
+if (!document.querySelector('link[data-iron-rain-mobile-station]')) {
+  const stationStyles = document.createElement('link');
+  stationStyles.rel = 'stylesheet';
+  stationStyles.href = './mobile-station-ui.css';
+  stationStyles.dataset.ironRainMobileStation = '1';
+  document.head.appendChild(stationStyles);
+}
+
 function localPlayerId() {
   const key = 'iron-rain-player-id';
   try {
@@ -115,6 +125,7 @@ lobby = createCrewLobbyUI({
 });
 
 lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, capacity: 3, lastEvent: 'choose-faction' });
+setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado antes de criar uma tripulação, entrar por código ou jogar sozinho.');
 lobby.show();
 
 // The production URL never exposes the same-browser QA transport as public multiplayer.
