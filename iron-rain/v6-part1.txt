@@ -1,0 +1,103 @@
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const app = $('app'), canvas = $('game'), ctx = canvas.getContext('2d');
+  const UI = {
+    hud:$('hud'), own:$('ownCoord'), opTitle:$('opTitle'), opSub:$('opSub'), wind:$('windText'), ammo:$('ammoText'),
+    missionPill:$('missionPill'), missionTitle:$('missionTitle'), missionText:$('missionText'),
+    march:$('marchUi'), fireDeck:$('fireDeck'), azValue:$('azValue'), elValue:$('elValue'), range:$('rangeReadout'), charge:$('chargeValue'), chargeRange:$('chargeRange'),
+    he:$('heCount'), smoke:$('smokeCount'), frag:$('fragCount'), notebook:$('notebook'), notebookBody:$('notebookBody'), rangeTable:$('rangeTable'),
+    help:$('help'), menu:$('menu'), radio:$('radio'), radioLog:$('radioLog'), intelBanner:$('intelBanner'), intelTitle:$('intelTitle'), intelText:$('intelText'), installHint:$('installHint')
+  };
+
+  const WORLD = {w:80000,h:60000}; // metres
+  const G = 9.81;
+  const CHARGE_V = [0,115,215,310,410,515,620,740]; // m/s, fictional M-47 propellant charges
+  const COLORS = {ally:'#71c3ff',enemy:'#ff8278',allyDark:'#27516b',enemyDark:'#733832',dirt:'#806d51',trench:'#514438',lip:'#aa9872',sand:'#b69e72',bunker:'#69685b'};
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  const fmt=n=>String(Math.round(n)).padStart(5,'0');
+  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const angDiff=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
+  const deg=r=>r*180/Math.PI;
+  const rad=d=>d*Math.PI/180;
+  const bearingTo=(from,to)=>(deg(Math.atan2(to.x-from.x, -(to.y-from.y)))+360)%360;
+  const ballistics=(charge,elev)=>{
+    const v=CHARGE_V[charge], th=rad(elev);
+    const range=Math.max(0,(v*v*Math.sin(2*th))/G);
+    const apex=(v*v*Math.sin(th)*Math.sin(th))/(2*G);
+    const tof=Math.max(0,(2*v*Math.sin(th))/G);
+    return {range,apex,tof,v};
+  };
+
+  let DPR=1, SW=1280, SH=720, last=performance.now();
+  let joyId=null, joy={x:0,y:0};
+  let panId=null, panStart=null;
+  let wheelPointers={};
+  let selectedShell='HE';
+  let idleAt=performance.now();
+  let state;
+
+  const sectorsData = [
+    ['FALCON',17600,12600],['BIRCH',24800,33200],['CINDER',35600,45800],['DAGGER',49300,18800],['ECHO',61100,39100],['FROST',58000,11200]
+  ];
+
+  function buildSector(name,x,y,idx){
+    const assets=[
+      {id:`${name}-HMG`,type:'HMG',x:x+370,y:y-120,hp:180,maxHp:180,known:false,alive:true},
+      {id:`${name}-MTR`,type:'MORTEIRO',x:x+450,y:y+90,hp:150,maxHp:150,known:false,alive:true},
+      {id:`${name}-BAT`,type:'BATERIA',x:x+650,y:y+260,hp:260,maxHp:260,known:false,alive:true},
+      {id:`${name}-DEP`,type:'DEPÓSITO',x:x+820,y:y-260,hp:220,maxHp:220,known:false,alive:true}
+    ];
+    const units=[];
+    for(let i=0;i<8;i++) units.push({team:'ally',role:i===2?'mg':'rifle',slot:i,x:x-420+rand(-20,20),y:y-180+i*50+rand(-8,8),cool:rand(.2,2),duck:Math.random(),pop:0,supp:0});
+    for(let i=0;i<9;i++) units.push({team:'enemy',role:i===3?'mg':'rifle',slot:i,x:x+330+rand(-20,20),y:y-200+i*48+rand(-8,8),cool:rand(.2,2),duck:Math.random(),pop:0,supp:0});
+    return {id:idx,name,x,y,assets,units,allyStrength:65+rand(-8,8),enemyStrength:72+rand(-8,8),progress:0,status:'stalemate',lastRadio:0,known:false};
+  }
+
+  function newState(){
+    const sectors=sectorsData.map((d,i)=>buildSector(...d,i));
+    return {
+      time:0,paused:false,mode:'march',
+      robot:{x:8200,y:30000,facing:0,turret:0,armor:100,speed:0},
+      cam:{x:8650,y:30000,zoom:.78,targetZoom:.78,manualX:0,manualY:0,mode:'follow'},
+      bearing:90,elev:45,charge:4,azTarget:90,elTarget:45,ammo:{HE:18,SMOKE:8,FRAG:8},
+      wind:{x:rand(-7,7),y:rand(-5,5)},shell:null,impactHold:0,returning:false,
+      sectors,knownTargets:[],mission:null,nextIntel:5.5,intel:null,intelQueue:[],
+      effects:[],tracers:[],smokes:[],craters:[],radio:[],
+      base:{x:7750,y:30000},
+      strategicTick:0,clean:false
+    };
+  }
+
+  function resize(){
+    const r=app.getBoundingClientRect(); DPR=Math.min(2,window.devicePixelRatio||1); SW=Math.max(320,r.width); SH=Math.max(180,r.height);
+    canvas.width=Math.round(SW*DPR);canvas.height=Math.round(SH*DPR);canvas.style.width=SW+'px';canvas.style.height=SH+'px';ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,120));
+
+  function worldToScreen(x,y){return {x:(x-state.cam.x)*state.cam.zoom+SW/2,y:(y-state.cam.y)*state.cam.zoom+SH/2};}
+  function screenToWorld(x,y){return {x:(x-SW/2)/state.cam.zoom+state.cam.x,y:(y-SH/2)/state.cam.zoom+state.cam.y};}
+  function visible(x,y,pad=100){const p=worldToScreen(x,y);return p.x>-pad&&p.x<SW+pad&&p.y>-pad&&p.y<SH+pad;}
+
+  function log(text,type=''){
+    state.radio.push({text,type,t:state.time}); if(state.radio.length>80)state.radio.shift();
+    const d=document.createElement('div');d.className='radio-msg '+type;d.innerHTML=text;UI.radioLog.appendChild(d);UI.radioLog.scrollTop=UI.radioLog.scrollHeight;
+    while(UI.radioLog.children.length>60)UI.radioLog.removeChild(UI.radioLog.firstChild);
+  }
+
+  function resetGame(){
+    state=newState(); UI.radioLog.innerHTML=''; selectedShell='HE';
+    document.querySelectorAll('.ammo').forEach(b=>b.classList.toggle('active',b.dataset.shell==='HE'));
+    setMode('march'); closeAllSheets();
+    log('<b>COMANDO:</b> M-47 Mamute inserido no teatro. Mantemos informação parcial do inimigo.','good');
+    log('<b>INTEL:</b> observadores e reconhecimento aéreo enviarão coordenadas conforme descobrirem alvos.');
+    updateUI();
+  }
+
+  function setMode(m){state.mode=m;UI.march.classList.toggle('hidden',m!=='march');UI.fireDeck.classList.toggle('hidden',m!=='artillery');if(m==='artillery'){state.azTarget=state.bearing;state.elTarget=state.elev;}touchUI();}
+  function touchUI(){idleAt=performance.now();app.classList.remove('ui-idle');}
+
+  function drawTerrain(){
+    // procedurally tiled fields so any of the 80x60 km theatre has det
