@@ -1,5 +1,5 @@
 import { crewLocalPoseFromCabinSnapshot } from './crew-local-pose.js';
-import { releaseStationGate, requestStationGate, stationGateState } from './crew-station-gate.js';
+import { releaseStationGate, requestStationGate, stationGateMessage, stationGateState } from './crew-station-gate.js';
 
 const clampDelay = value => Math.max(0, Number.isFinite(value) ? value : .1);
 const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
@@ -42,6 +42,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     stationState: station => stationGateState(runtime, station),
     requestStation: station => requestStationGate(runtime, station),
     releaseStation: station => releaseStationGate(runtime, station),
+    stationMessage: result => stationGateMessage(result),
     interpolationDelay: delay,
   });
 }
