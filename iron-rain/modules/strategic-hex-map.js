@@ -107,10 +107,50 @@ export function setSectorOwner(hex, sectorId, owner) {
 }
 
 const HEX_DIRECTIONS = Object.freeze([[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]]);
+const RING_TO_HEX_DIRECTION = Object.freeze({
+  1: Object.freeze([0, -1]),
+  2: Object.freeze([1, -1]),
+  3: Object.freeze([1, 0]),
+  4: Object.freeze([0, 1]),
+  5: Object.freeze([-1, 1]),
+  6: Object.freeze([-1, 0]),
+});
+
 export function neighboringHexIds(hex, allHexes) {
   if (!hex || !Array.isArray(allHexes)) return Object.freeze([]);
   const wanted = new Set(HEX_DIRECTIONS.map(([dq, dr]) => `${hex.q + dq},${hex.r + dr}`));
   return Object.freeze(allHexes.filter(candidate => wanted.has(`${candidate.q},${candidate.r}`)).map(candidate => candidate.id));
+}
+
+const adjacentSectorIndexes = index => {
+  if (index === 0) return [1, 2, 3, 4, 5, 6];
+  if (index < 1 || index > 6) return [];
+  return [0, index === 1 ? 6 : index - 1, index === 6 ? 1 : index + 1];
+};
+
+/**
+ * A normal sector capture must stay physically connected to the faction's
+ * existing line. Inner sectors advance from an adjacent friendly sector; a
+ * border sector may also be entered from the matching neighboring hex, but only
+ * when that neighboring region is fully controlled by the same faction.
+ *
+ * This is deliberately conservative: it prevents isolated ownership islands
+ * that would bend the visible front without a continuous advance path.
+ */
+export function sectorCaptureAllowed({ team, hex, sectorId, allHexes = [] } = {}) {
+  if (!['ally', 'enemy'].includes(team) || !Array.isArray(hex?.sectors)) return false;
+  const targetIndex = hex.sectors.findIndex(sector => sector.id === sectorId);
+  if (targetIndex < 0) return false;
+  if (hex.sectors[targetIndex].owner === team) return true;
+
+  if (adjacentSectorIndexes(targetIndex).some(index => hex.sectors[index]?.owner === team)) return true;
+  if (targetIndex === 0 || !Array.isArray(allHexes)) return false;
+
+  const direction = RING_TO_HEX_DIRECTION[targetIndex];
+  if (!direction || !Number.isFinite(hex.q) || !Number.isFinite(hex.r)) return false;
+  const [dq, dr] = direction;
+  const neighbor = allHexes.find(candidate => candidate?.q === hex.q + dq && candidate?.r === hex.r + dr);
+  return hexControl(neighbor) === team;
 }
 
 /**
