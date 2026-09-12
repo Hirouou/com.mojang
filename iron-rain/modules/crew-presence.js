@@ -12,6 +12,10 @@ export function createCabinCrewPresence({ capacity = 2 } = {}) {
 
   const validId = id => (typeof id === 'string' || typeof id === 'number') && String(id).length > 0;
   const immutableEntry = (id, pose) => Object.freeze({ id, pose });
+  const blendAlpha = (remote, fallback) => {
+    const value = Number.isFinite(remote?.alpha) ? remote.alpha : fallback;
+    return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+  };
 
   function update(remotes = [], alpha = 1) {
     if (!Array.isArray(remotes)) remotes = [];
@@ -24,7 +28,7 @@ export function createCabinCrewPresence({ capacity = 2 } = {}) {
 
       let pose = null;
       if (remote.pose) pose = cabinCrewPose(remote.pose);
-      else if (remote.from || remote.to) pose = interpolateCabinCrewPose(remote.from, remote.to, alpha);
+      else if (remote.from || remote.to) pose = interpolateCabinCrewPose(remote.from, remote.to, blendAlpha(remote, alpha));
 
       // A rejected midpoint can happen when two valid network samples straddle
       // solid equipment. Keep the last drawable pose instead of clipping or
