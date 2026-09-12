@@ -139,3 +139,23 @@ export function combatReservePlan({
   const decision = combatReserveDecision({ logistics, timerExpired, fallbackComplete, deficit });
   return Object.freeze({ routeOpen, logistics, ...decision });
 }
+
+/**
+ * Advance one reserve countdown without consuming an already-due request when
+ * route/fallback conditions are temporarily blocked. The timer stays at zero
+ * until a positive batch is actually admitted, then resets for the next cycle.
+ */
+export function combatReserveCycle({ logistics, timer = 0, fallbackUntil = 0, tick = 0, strength = 0, resetIn = 40 } = {}) {
+  const remaining = Number.isFinite(timer) ? Math.max(0, timer - 1) : 0;
+  const currentTick = Number.isFinite(tick) ? tick : 0;
+  const fallbackTick = Number.isFinite(fallbackUntil) ? fallbackUntil : Infinity;
+  const currentStrength = Number.isFinite(strength) ? Math.max(0, Math.min(100, strength)) : 100;
+  const decision = combatReserveDecision({
+    logistics,
+    timerExpired: remaining <= 0,
+    fallbackComplete: currentTick >= fallbackTick,
+    deficit: 100 - currentStrength,
+  });
+  const interval = Number.isFinite(resetIn) && resetIn > 0 ? Math.max(1, Math.floor(resetIn)) : 40;
+  return Object.freeze({ ...decision, nextTimer: decision.ready ? interval : remaining });
+}
