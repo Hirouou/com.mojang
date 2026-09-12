@@ -1,4 +1,5 @@
 import { ballistics, chargeBand } from './ballistics.js';
+import { mapPointerSettings, pointerDistance, precisePlotPoint, precisePanView } from './map-touch-precision.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const number = value => Math.round(value).toLocaleString('pt-BR');
@@ -337,23 +338,27 @@ export function createTableMap(root, { onClose = () => {} } = {}) {
     if (active.length >= 2) {
       const midpoint = { x: (active[0].x + active[1].x) / 2, y: (active[0].y + active[1].y) / 2 };
       gesture = { kind: 'pinch', distance: Math.max(1, Math.hypot(active[0].x - active[1].x, active[0].y - active[1].y)), anchor: toWorld(midpoint), scale: view.scale };
-    } else if (active.length === 1) gesture = { kind: mode, start: active[0], x: view.x, y: view.y };
-    else gesture = null;
+    } else if (active.length === 1) {
+      gesture = { kind: mode, start: active[0], startWorld: toWorld(active[0]), pointerType: active[0].pointerType, x: view.x, y: view.y };
+    } else gesture = null;
   }
 
   canvas.addEventListener('pointerdown', event => {
     if (!opened || event.button > 0) return;
     event.preventDefault();
-    pointers.set(event.pointerId, localPoint(event));
+    const local = localPoint(event), pointerType = event.pointerType || 'mouse';
+    pointers.set(event.pointerId, { ...local, pointerType });
     canvas.setPointerCapture(event.pointerId);
     resetGesture();
-    if (pointers.size === 1 && mode === 'plot') setManual(toWorld(localPoint(event)));
+    // Mouse keeps the immediate 1:1 plotting behaviour. A thumb/pen gets a
+    // short deadzone so touching down does not throw the plotted coordinate.
+    if (pointers.size === 1 && mode === 'plot' && !mapPointerSettings(pointerType).coarse) setManual(toWorld(local));
   });
   canvas.addEventListener('pointermove', event => {
     if (!pointers.has(event.pointerId)) return;
     event.preventDefault();
-    const current = localPoint(event);
-    pointers.set(event.pointerId, current);
+    const current = localPoint(event), previous = pointers.get(event.pointerId);
+    pointers.set(event.pointerId, { ...current, pointerType: previous?.pointerType || event.pointerType || 'mouse' });
     const active = [...pointers.values()];
     if (gesture?.kind === 'pinch' && active.length >= 2) {
       const midpoint = { x: (active[0].x + active[1].x) / 2, y: (active[0].y + active[1].y) / 2 };
@@ -363,12 +368,25 @@ export function createTableMap(root, { onClose = () => {} } = {}) {
       view.y = gesture.anchor.y - (midpoint.y - height / 2) / view.scale;
       constrainView(); draw();
     } else if (gesture?.kind === 'pan') {
-      view.x = gesture.x - (current.x - gesture.start.x) / view.scale;
-      view.y = gesture.y - (current.y - gesture.start.y) / view.scale;
+      const settings = mapPointerSettings(gesture.pointerType);
+      if (pointerDistance(gesture.start, current) < settings.deadzonePx) return;
+      const nextView = precisePanView({ startScreen: gesture.start, currentScreen: current, startView: { x: gesture.x, y: gesture.y }, scale: view.scale, pointerType: gesture.pointerType });
+      view.x = nextView.x; view.y = nextView.y;
       constrainView(); draw();
-    } else if (gesture?.kind === 'plot') setManual(toWorld(current));
+    } else if (gesture?.kind === 'plot') {
+      const settings = mapPointerSettings(gesture.pointerType);
+      if (pointerDistance(gesture.start, current) < settings.deadzonePx) return;
+      setManual(settings.coarse ? precisePlotPoint({ startScreen: gesture.start, currentScreen: current, startWorld: gesture.startWorld, scale: view.scale, pointerType: gesture.pointerType }) : toWorld(current));
+    }
   });
   const endPointer = event => {
+    const current = pointers.get(event.pointerId);
+    // A short coarse-pointer tap still places a point exactly where the user
+    // touched; only dragging is reduced for precision.
+    if (gesture?.kind === 'plot' && current && pointers.size === 1) {
+      const settings = mapPointerSettings(gesture.pointerType);
+      if (settings.coarse && pointerDistance(gesture.start, current) < settings.deadzonePx) setManual(toWorld(current));
+    }
     pointers.delete(event.pointerId);
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     resetGesture();
