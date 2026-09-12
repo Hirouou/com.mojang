@@ -15,6 +15,7 @@ test('guide exposes both manual movements for the inserted charge without select
   close(guide[0].delta, -10);
   close(guide[1].delta, 20);
   assert.deepEqual(guide.map(item => item.direction), ['down', 'up']);
+  assert.deepEqual(guide.map(item => item.movementLabel), ['↓ 10.0°', '↑ 20.0°']);
   assert.ok(Object.isFrozen(guide));
   assert.ok(guide.every(Object.isFrozen));
 });
@@ -23,7 +24,17 @@ test('guide reports hold when the current elevation already matches an arc', () 
   const range = ballistics(5, 30).range;
   const guide = artilleryCrankGuide(range, 5, 30);
   assert.equal(guide[0].direction, 'hold');
+  assert.equal(guide[0].movementLabel, 'SEGURE');
   close(guide[0].delta, 0);
+});
+
+test('guide labels fractional manual correction without changing the underlying solution', () => {
+  const range = ballistics(5, 30).range;
+  const guide = artilleryCrankGuide(range, 5, 39.75);
+  close(guide[0].delta, -9.75);
+  close(guide[1].delta, 20.25);
+  assert.equal(guide[0].movementLabel, '↓ 9.8°');
+  assert.equal(guide[1].movementLabel, '↑ 20.3°');
 });
 
 test('guide fails closed when the inserted charge cannot reach the plotted range', () => {
