@@ -2,45 +2,32 @@ import * as THREE from '../vendor/three.module.min.js';
 import { createCabinView as createCabinViewCore } from './cabin-view-core.js';
 import { createCabinCrewVisualLayer } from './crew-visual-layer.js';
 import { maintenanceFeedback } from './maintenance-feedback.js';
+import { beginLoading, stepLoading } from './loading-cycle.js';
 import './maintenance-overlay.js';
 
-/**
- * Public cabin renderer with the remote-crew visual layer attached.
- * Networking/session ownership stays outside: callers feed renderer-ready
- * samples from crew-runtime/crew-replication through updateRemoteCrew() or
- * the optional crewRemotes field accepted by update().
- */
 export function createCabinView(canvas, options = {}) {
   let scene = null;
   let view = null;
   let activeCrewStation = null;
   let enteringCrewStation = null;
+  let remoteLoading = null;
+  let remoteRecoil = 0;
+  let remoteImpact = 0;
   const originalOnStation = options.onStation;
   const originalSceneAdd = THREE.Scene.prototype.add;
 
   const crewBridge = () => globalThis.ironRainEntry?.crewBridge || null;
-  const stationResultEvent = result => {
-    try {
-      globalThis.dispatchEvent?.(new CustomEvent('ironrain:station-gate', { detail: { ...result } }));
-    } catch {}
-  };
+  const stationResultEvent = result => { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:station-gate', { detail: { ...result } })); } catch {} };
   const requestCrewStation = station => {
     const bridge = crewBridge();
     if (!bridge?.requestStation) return { ok: true, ready: true, reason: 'single-player', station };
-    let result;
-    try { result = bridge.requestStation(station); }
-    catch { result = { ok: false, ready: false, reason: 'claim-failed', station }; }
-    stationResultEvent(result);
-    return result;
+    let result; try { result = bridge.requestStation(station); } catch { result = { ok: false, ready: false, reason: 'claim-failed', station }; }
+    stationResultEvent(result); return result;
   };
   const releaseCrewStation = station => {
     if (!station) return false;
-    const bridge = crewBridge();
-    let released = true;
-    if (bridge?.releaseStation) {
-      try { released = bridge.releaseStation(station) !== false; }
-      catch { released = false; }
-    }
+    const bridge = crewBridge(); let released = true;
+    if (bridge?.releaseStation) { try { released = bridge.releaseStation(station) !== false; } catch { released = false; } }
     stationResultEvent({ ok: released, ready: false, reason: released ? 'released' : 'release-failed', station });
     return released;
   };
@@ -50,60 +37,42 @@ export function createCabinView(canvas, options = {}) {
     onStation(station) {
       const result = requestCrewStation(station);
       if (!result?.ready) return false;
-      activeCrewStation = station;
-      enteringCrewStation = station;
-      try {
-        return originalOnStation?.(station);
-      } finally {
-        enteringCrewStation = null;
-      }
+      activeCrewStation = station; enteringCrewStation = station;
+      try { return originalOnStation?.(station); } finally { enteringCrewStation = null; }
     },
   };
 
-  THREE.Scene.prototype.add = function captureCabinScene(...objects) {
-    scene ||= this;
-    return originalSceneAdd.apply(this, objects);
-  };
-
+  THREE.Scene.prototype.add = function captureCabinScene(...objects) { scene ||= this; return originalSceneAdd.apply(this, objects); };
   let core;
-  try {
-    core = createCabinViewCore(canvas, gatedOptions);
-  } finally {
-    THREE.Scene.prototype.add = originalSceneAdd;
-  }
-
+  try { core = createCabinViewCore(canvas, gatedOptions); } finally { THREE.Scene.prototype.add = originalSceneAdd; }
   if (!scene) throw new Error('Cabin scene was not created');
   const crewVisuals = createCabinCrewVisualLayer(scene, { capacity: 2 });
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   const safeDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
 
-  function updateRemoteCrew(remotes = [], dt = 0) {
-    return crewVisuals.update(remotes, 1, safeDt(dt));
-  }
-
+  function updateRemoteCrew(remotes = [], dt = 0) { return crewVisuals.update(remotes, 1, safeDt(dt)); }
   function publishMaintenance(engine) {
     const detail = maintenanceFeedback(engine);
-    try {
-      globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail }));
-    } catch {}
+    try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
     return detail;
   }
+  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } })); } catch {} }
 
-  function clearMaintenance() {
-    try {
-      globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } }));
-    } catch {}
+  function onSharedCrewEffect(event) {
+    const effect = event.detail || {};
+    if (!effect.remote) return;
+    if (effect.type === 'fire') { remoteRecoil = Math.max(remoteRecoil, 1); remoteImpact = Math.max(remoteImpact, .45); }
+    if (effect.type === 'reload') {
+      const shell = ['HE','FRAG','SMOKE'].includes(effect.payload?.shell) ? effect.payload.shell : 'HE';
+      remoteLoading = beginLoading(shell, shell);
+    }
+    if (effect.type === 'impact') remoteImpact = Math.max(remoteImpact, Math.min(1, Number(effect.payload?.intensity) || .65));
+    if (effect.type === 'critical') remoteImpact = 1;
   }
+  globalThis.addEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
 
   function leaveCrewStation() {
-    // Entering the drive station switches the main game to field view, which
-    // synchronously asks the cabin renderer to leave its local interaction.
-    // Keep ownership during that transition; the later real leave/deploy call
-    // releases the driver station normally.
-    if (activeCrewStation && enteringCrewStation !== activeCrewStation) {
-      releaseCrewStation(activeCrewStation);
-      activeCrewStation = null;
-    }
+    if (activeCrewStation && enteringCrewStation !== activeCrewStation) { releaseCrewStation(activeCrewStation); activeCrewStation = null; }
     return core.leaveStation?.();
   }
 
@@ -111,7 +80,20 @@ export function createCabinView(canvas, options = {}) {
     ...core,
     leaveStation: leaveCrewStation,
     update(dt, data = {}) {
-      core.update(dt, data);
+      const elapsed = safeDt(dt);
+      if (remoteLoading) { stepLoading(remoteLoading, elapsed); if (remoteLoading.complete) remoteLoading = null; }
+      remoteRecoil = Math.max(0, remoteRecoil - elapsed * 2.2);
+      remoteImpact = Math.max(0, remoteImpact - elapsed * 2.8);
+      const merged = { ...data };
+      if (!merged.loading && remoteLoading) merged.loading = remoteLoading;
+      merged.recoil = Math.max(Number(merged.recoil) || 0, remoteRecoil);
+      core.update(dt, merged);
+      const shake = Math.max(remoteRecoil * 2.4, remoteImpact * 4.2);
+      if (shake > .05) {
+        const t = performance.now() * .055;
+        canvas.style.transform = `translate(${Math.sin(t) * shake}px,${Math.cos(t * 1.37) * shake * .55}px)`;
+        canvas.style.filter = remoteImpact > .65 ? `brightness(${1 + remoteImpact * .16})` : '';
+      } else { canvas.style.transform = ''; canvas.style.filter = ''; }
       if (own(data, 'engine')) publishMaintenance(data.engine);
       if (own(data, 'crewRemotes')) updateRemoteCrew(data.crewRemotes, dt);
     },
@@ -119,28 +101,20 @@ export function createCabinView(canvas, options = {}) {
     crewStation() { return activeCrewStation; },
     reset() {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
-      activeCrewStation = enteringCrewStation = null;
-      clearMaintenance();
-      core.reset();
-      crewVisuals.clear();
+      activeCrewStation = enteringCrewStation = null; remoteLoading = null; remoteRecoil = remoteImpact = 0;
+      canvas.style.transform = ''; canvas.style.filter = '';
+      clearMaintenance(); core.reset(); crewVisuals.clear();
     },
-    snapshot() {
-      return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot() };
-    },
+    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
     dispose() {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null;
-      clearMaintenance();
-      crewVisuals.dispose();
-      core.dispose();
+      globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
+      canvas.style.transform = ''; canvas.style.filter = '';
+      clearMaintenance(); crewVisuals.dispose(); core.dispose();
     },
   };
 
-  // Integration seam only: renderer stays transport-agnostic. Bootstrap can
-  // attach the crew runtime after the asynchronously-created cabin is ready.
-  try {
-    globalThis.dispatchEvent?.(new CustomEvent('ironrain:cabin-ready', { detail: { cabin: view } }));
-  } catch {}
-
+  try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:cabin-ready', { detail: { cabin: view } })); } catch {}
   return view;
 }
