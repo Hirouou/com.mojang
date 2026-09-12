@@ -110,3 +110,52 @@ test('disconnected capture fails closed without moving ownership or front', () =
   assert.equal(result.hex.sectors[3].owner, 'neutral');
   assert.deepEqual(result.line, DEFAULT_CONTROL_LINE);
 });
+
+test('enemy capture bends the canonical front west with the same magnitude rule', () => {
+  const sectors = Array.from({ length: 7 }, (_, index) => ({
+    id: `HX-E-S${index}`,
+    owner: index === 0 ? 'enemy' : 'neutral',
+    y: 24_000 + index * 100,
+    structures: [],
+  }));
+  const hex = { id: 'HX-E', q: 0, r: 0, sectors };
+  const result = captureSectorWithFront({
+    team: 'enemy',
+    hex,
+    sectorId: 'HX-E-S3',
+    allHexes: [hex],
+    points: DEFAULT_CONTROL_LINE,
+    pushMetres: 2_000,
+    radius: 5_000,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(result.hex.sectors[3].owner, 'enemy');
+  assert.ok(result.line.some((point, index) => point.x < DEFAULT_CONTROL_LINE[index].x));
+});
+
+test('already-owned sector preserves ownership and front snapshot exactly', () => {
+  const sectors = Array.from({ length: 7 }, (_, index) => ({
+    id: `HX-A-S${index}`,
+    owner: 'ally',
+    y: 24_000 + index * 100,
+    structures: [],
+  }));
+  const hex = { id: 'HX-A', q: 0, r: 0, sectors };
+  const result = captureSectorWithFront({
+    team: 'ally',
+    hex,
+    sectorId: 'HX-A-S3',
+    allHexes: [hex],
+    points: DEFAULT_CONTROL_LINE,
+    pushMetres: 2_000,
+    radius: 5_000,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, false);
+  assert.equal(result.reason, 'already-owned');
+  assert.equal(result.hex, hex);
+  assert.deepEqual(result.line, DEFAULT_CONTROL_LINE);
+});
