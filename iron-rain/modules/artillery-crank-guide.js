@@ -10,6 +10,9 @@ const movementLabel = delta => {
   return `${delta > 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(1)}°`;
 };
 
+const ARC_LABELS = Object.freeze({ low: 'BAIXO', high: 'ALTO', single: 'ÚNICO' });
+const arcLabel = kind => ARC_LABELS[kind] || String(kind ?? '').toUpperCase();
+
 /**
  * Read-only hand-crank guide for the charge already inserted in the gun.
  *
@@ -25,14 +28,18 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
 
   return Object.freeze(row.arcs.map(arc => {
     const delta = arc.elevation - elevation;
+    const movement = movementLabel(delta);
+    const label = arcLabel(arc.kind);
     return Object.freeze({
       kind: arc.kind,
+      arcLabel: label,
       elevation: arc.elevation,
       apex: arc.apex,
       tof: arc.tof,
       delta,
       direction: Math.abs(delta) < 1e-7 ? 'hold' : delta > 0 ? 'up' : 'down',
-      movementLabel: movementLabel(delta),
+      movementLabel: movement,
+      instructionLabel: `${label} · ${movement}`,
     });
   }));
 }
