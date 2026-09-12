@@ -1,93 +1,91 @@
 # Iron Rain — LEAD active sprint — 2026-09-12
 
-This file is the current short-horizon integration handoff. It does not replace `IRON_RAIN_VISION.md`, `MULTI_AGENT_CONTROL.md` or `AGENT_LOG.md`.
+This file is the current short-horizon integration handoff. It does not replace `IRON_RAIN_VISION.md`, `MULTI_AGENT_CONTROL.md`, `ACTIVE_USER_DIRECTIVES_20260912.md` or `AGENT_LOG.md`.
 
-## User-validated problems to fix now
+## LEAD GATE — P0 ATÉ CHECKPOINT REAL DE 2 DISPOSITIVOS
 
-1. iPhone/mobile audio can remain completely silent even with audio ON and volumes high.
-2. Table-map touch control feels too sensitive / hard to place precisely.
-3. Reload presentation looks fake when the round appears to float into the breech.
-4. Extinguisher action needs visible discharge/foam instead of only waiting for fire state to end.
-5. Repair needs explicit in-view progress feedback while the player stays at the engine.
-6. First-person aiming should let the operator directly grab/turn the physical azimuth/elevation handwheels while reading the instrument panel.
-7. Floating/misaligned props and weak mechanical animation inside the Mamute remain a visual priority.
-8. Multiplayer is P0: max 3 crew per Mamute, local player + at most two visible remote crew, with real cross-device transport as the next hard milestone.
-9. Two players must never operate the same physical station/control surface at the same time. Station ownership is exclusive and must release on leave/disconnect.
-10. Multiplayer needs a real player-facing lobby: choose faction, create match / enter code / play alone / enter the Mamute. Do not expose technical signaling.
-11. On entry the player chooses one of two persistent-war factions: **ALIADOS** (blue) or **EIXO** (green). A Mamute belongs to one faction only; opposite factions can fight in the same theatre but can never share one Mamute/session.
-12. External hits on the Mamute must be felt by crew inside through hull audio, shake/light/dust feedback, regardless of which player is driving/firing.
-13. The war must not belong to the crew host. Long-term world authority must keep the theatre advancing if a player leaves and eventually while no specific crew client is online.
-14. Territory/front topology must be coherent: one continuous ownership line, ally territory on one side and enemy territory on the other. Do not scatter independent fronts behind each other.
-15. Territory development is logistics-gated: secure control -> truck delivery -> construction. Bases, walls, mortars, garages and factories cannot appear from timers alone. Cut routes stop deliveries/building. Factories produce transferable material which still has to travel.
+A branch ganhou bastante fundação útil, mas a integração P0 ainda não chegou ao caminho principal do jogo: `cabin-view.js` ainda não consome a camada visual de tripulação e `game-v6.js` ainda não importa/monta `crew-runtime.js` + `crew-lobby-ui.js`. Portanto, helpers/testes isolados não contam como avanço perceptível do multiplayer.
 
-## Work already landed by LEAD in this sprint
+A partir deste checkpoint, a regra de ritmo é obrigatória para todos os slots:
+- se um workstream completar 2 ciclos sem avanço perceptível/fundacional do seu objetivo e sem bloqueio legítimo, o ciclo seguinte deve ser reorientado para uma fatia integrada de maior impacto;
+- P0 multiplayer supera micro-polish desconectado até existir um checkpoint real de dois dispositivos;
+- não recriar helpers já existentes; consumir a fundação que já está na branch;
+- antes de tocar hotspots compartilhados, reler HEAD/commits e preservar trabalho concorrente;
+- não chamar BroadcastChannel de multiplayer público: ele é somente transporte de QA local;
+- não declarar persistência global pronta sem backend/storage autoritativo compartilhado.
 
-- Mobile Safari audio wake hardened in `modules/war-audio.js`; another audio pass later coalesced pending mobile wake calls. Real iPhone QA remains mandatory.
-- Installed/PWA app keeps the same URL and uses network-first refresh; service-worker cache was bumped so the home-screen icon can receive current modules.
-- Mobile cabin clarity pass landed in `style-v7.css`.
-- Table-map touch precision is integrated through `modules/map-touch-precision.js`.
-- `modules/loader-arm.js`: visual-only articulated robotic loader choreography. Consume it; do not recreate a competing loader clock.
-- `modules/maintenance-feedback.js` + `modules/maintenance-overlay.js`: repair/extinguisher progress and visible overlay feedback. Cabin 3D foam/tool geometry can still enhance this later.
-- `modules/crew-replication.js`: transport-agnostic three-seat replication state (1 local + 2 remotes), ordered packets, stale-peer pruning and renderer from/to samples.
-- `modules/crew-session.js`: host-authoritative crew protocol with handshake, room isolation, heartbeat, three-seat cap, faction lock and pose cadence. Remote time is normalized to local receipt time for interpolation. A guest choosing the opposite faction is denied with `faction-mismatch`.
-- `modules/factions.js`: canonical Allies/Axis IDs and display metadata. Current user-facing palette is Allies blue / Axis green.
-- `modules/crew-runtime.js`: stable transport adapter boundary. It now carries the selected faction through host/join. Sockets/WebRTC must stay outside cabin/camera code.
-- `modules/crew-broadcast-transport.js`: same-origin QA transport only. Never call this public multiplayer.
-- `modules/crew-station-authority.js`: exclusive physical-station claims. `crew-session.js` carries station request/release/state packets so the host serializes station ownership; a disconnected peer releases its stations.
-- `modules/crew-lobby-ui.js`: player-facing three-seat lobby component with explicit ALIADOS/EIXO selection before create/join/offline play, mobile/desktop styling and create/join/offline/enter-Mamute actions. It intentionally does not choose a transport.
-- `modules/cabin-hit-feedback.js`: presentation contract for external hull impacts heard/felt inside (shake, lamp flicker, dust, rattle, low thump/crack). Integrate with `war-audio.js` + cabin renderer rather than inventing a second hit system.
-- `modules/theatre-control.js`: one continuous strategic control line plus ally/enemy/contested ownership classification and local line-shift operation after captures.
-- `modules/theatre-sectors.js`: coherent tactical sector seeds along that same control line, with hostile assets deeper on the enemy side.
-- `modules/territory-development.js`: secure-time gates, physical delivered stock, outpost/depot/mortar/bunker/garage/factory projects, route-paused construction, factory material production and physical supply-convoy progression.
-- `modules/persistent-war-clock.js`: wall-clock strategic catch-up primitive independent of requestAnimationFrame/performance.now(). Persistence/backend authority remains outside this helper.
-- Focused tests exist for crew session/faction lock, crew stations, theatre, territory/logistics, persistent-clock and hull-feedback helpers.
-- Codex P0 request `IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md` is queued for real cross-device transport/signaling.
-- Codex P1 request `IR-CODEX-20260912-1620-LEAD-persistent-war-authority.md` is queued to separate persistent world authority from crew-host authority after/alongside the transport decision.
+### Integração P0 obrigatória — ordem atual
+1. **Presença visual real:** integrar `createCabinCrewVisualLayer()` em `cabin-view.js`, com no máximo dois remotos e API mínima para renderer-ready samples. Nenhum código de rede no renderer.
+2. **Runtime no jogo:** integrar `crew-runtime.js` em `game-v6.js`: pose local -> `runtime.update()` -> `runtime.renderSamples()` -> camada visual. Offline/single-player precisa continuar idêntico.
+3. **Lobby real:** montar `crew-lobby-ui.js` como primeiro fluxo do jogador. Escolha obrigatória antes da sessão: `ALIADOS` azul ou `EIXO` verde; CRIAR / ENTRAR / JOGAR SOZINHO / ENTRAR NO MAMUTE sem linguagem de signaling.
+4. **Posse de postos:** entrada em `drive/aim/load/map/radio/engine/extinguisher` só ocorre após claim exclusivo; ocupado = não engaja e informa indisponibilidade; release em saída/desconexão.
+5. **Transporte cross-device:** substituir transporte QA pelo adapter real retornado/implementado pelo Codex P0, preservando a API do runtime/session.
+6. **Checkpoint de aceitação:** dois dispositivos da mesma facção entram no mesmo Mamute, veem um ao outro, usam postos diferentes simultaneamente, não roubam o mesmo posto, recebem o mesmo feedback de impacto e desconectam limpo; terceiro entra; quarto é recusado; facção oposta é recusada no mesmo Mamute.
 
-## Next integration order — do not duplicate helpers
+## DIRETIVA MOBILE — POSTO DE PONTARIA
 
-### P0 MULTIPLAYER — CURRENT TOP PRIORITY
-1. Integrate `createCabinCrewVisualLayer()` into `cabin-view.js` and expose the smallest possible API for renderer-ready remote samples. Maximum two remote avatars. No network code in renderer.
-2. Wire `crew-runtime.js` into `game-v6.js`: local cabin crew pose -> runtime update -> runtime render samples -> cabin visual layer. Keep single-player behavior identical while offline.
-3. Mount `crew-lobby-ui.js` as the actual first entry flow. The player must choose ALIADOS (blue) or EIXO (green) before CRIAR PARTIDA / ENTRAR / JOGAR SOZINHO. Pass that faction to `crew-runtime.host/join`. Do not auto-switch a guest to the host faction; show a clear refusal if they chose the opposite side.
-4. Consume `crew-session` station claims in actual station entry: request exclusive ownership before entering `drive/aim/load/map/radio/engine/extinguisher`; if occupied, show who is using it and do not engage controls. Release on leave/disconnect.
-5. Replace QA BroadcastChannel with the real cross-device adapter selected/implemented by Codex P0. Preserve the same session/runtime API and faction field.
-6. Acceptance checkpoint: two real devices on the same faction host/join, see each other walking, operate different stations simultaneously, cannot steal the same station, share Mamute hit feedback, disconnect cleanly; third can join; fourth is refused. Opposite-faction join to that Mamute is refused.
+O touch/mobile deve operar as manivelas físicas 3D. Não criar um segundo fire deck concorrente.
 
-### FACTION / WORLD PERSPECTIVE
-1. Allies and Axis are two sides of the **same persistent war**, never separate local wars.
-2. Strategic ownership must be absolute/canonical. UI perspective may flip labels/colours for an Axis player, but simulation data cannot be duplicated or inverted per client.
-3. Mamute, base access, intel, spawn/return and future logistics must use the player's faction. Friendly/enemy rendering is derived from that faction.
-4. Do not introduce historical insignia or real extremist symbols as UI shorthand. Faction readability comes from names, colour language, silhouettes and military-industrial art direction.
+- esconder UI duplicada de azimute/elevação no mobile;
+- centro e parte inferior da cena ficam livres para tocar as manivelas 3D;
+- manter somente `CARGA` +/- em bloco compacto à direita;
+- `DISPARAR` diretamente abaixo;
+- `AFASTAR-SE` permanece disponível sem reconstruir painel inferior grande;
+- travar free-look no posto de pontaria touch quando necessário para a mão permanecer sobre o mecanismo;
+- desktop/mouse não pode regredir;
+- `mobile-station-ui.css` é o caminho de integração atual.
 
-### SHARED MAMUTE FEEDBACK
-1. Consume `cabin-hit-feedback.js` from actual Mamute hit events.
-2. `war-audio.js` needs a distinct INSIDE-HULL hit signature: sharp transmitted crack + low metal thump + rattling return, stronger for tank/mortar/battery hits than rifle/HMG.
-3. Cabin renderer should consume shake/lampFlicker/dustKick without moving remote players or changing authority. Every local client inside hears/sees the same authoritative Mamute hit event.
-4. Driver and gunner actions must coexist: station ownership controls who can issue each command, while shared Mamute state replicates resulting bearing/elevation/drive/hits.
+## OUTRAS DIRETIVAS QUE NÃO PODEM REGREDIR
 
-### WORLD / AI / TERRITORY
-1. Replace scattered sector seed layout with `theatre-sectors.js`/`theatre-control.js` incrementally. One ordered front boundary only; no allied tactical front behind an enemy front on the same axis.
-2. A capture moves/bends a LOCAL portion of the control line; it does not spawn another disconnected front.
-3. Bind a territory node to each secured area. Construction requires control + secure time + delivered resources.
-4. Spawn/track supply convoys from rear depots/factories. No arrival = no stock = no build. Unsafe/cut route pauses or destroys logistics.
-5. Structures should appear by tier: field outpost/trenches -> depot/mortar/bunker -> garage/heavier support -> factory after long secure control. Factories manufacture material; they do not magically upgrade remote sectors.
-6. Combat AI should use actual local supply/structures for morale, ammo, reinforcements, armor/support availability. Do not give either side global omniscience or free reinforcements.
-7. Shared world time must eventually live under persistent world authority, not the Mamute crew host. Use `persistent-war-clock.js` as scheduler primitive and consume Codex P1 before choosing backend/storage.
+### Mamute físico/imersão
+- impactos externos devem gerar crack/thump/rattle, shake/luz/poeira dentro do Mamute para toda a tripulação;
+- loader usa braço mecânico articulado: adquirir -> prender -> girar -> levar à culatra -> inserir -> travar;
+- extintor precisa spray/foam visível;
+- reparo precisa progresso e resposta mecânica/áudio visíveis;
+- iPhone/Safari áudio continua bug real até QA em aparelho confirmar.
 
-### FP VISUALS + AUDIO
-1. Integrate `loaderArmPose()` into `cabin-view.js` with an actual articulated low-poly arm; shell physically clamped during transfer.
-2. Enhance maintenance with true cabin 3D extinguisher cone/foam/tool motion only without duplicating existing progress overlay.
-3. Preserve PS1/low-poly dirty military aesthetic.
+### Guerra/território/logística
+- uma única guerra persistente compartilhada por ALIADOS/EIXO;
+- ownership canônico absoluto, não guerra duplicada por perspectiva do cliente;
+- front territorial contínuo, sem forças regulares mágicas atrás da linha inimiga;
+- hex grande contém setores; hex só fecha quando todos os setores internos pertencem à mesma facção;
+- captura move/dobra localmente a linha contínua;
+- construção: controle seguro -> rota válida -> entrega física -> estoque local -> construção;
+- rota cortada para entrega/construção; comboio destruído não teleporta carga;
+- fábricas produzem material transportável, não upgrade remoto mágico;
+- IA das duas facções usa as mesmas regras e depende de suprimento/estrutura local real;
+- munição do Mamute é finita; base sem estoque não reabastece magicamente;
+- mapa estratégico não é tracker inimigo onisciente; intel depende de rádio/recon/relatórios e envelhece.
 
-### TABLE MAP / MOBILE
-The sensitivity complaint is implemented. Only revisit after real mobile testing; adjust coarse-pointer helper instead of redesigning map or slowing mouse.
+## FUNDAÇÕES JÁ EXISTENTES — CONSUMIR, NÃO DUPLICAR
 
-## Testing / reporting
+- `crew-replication.js`: 1 local + 2 remotos, validação/interpolação;
+- `crew-session.js`: handshake, room, faction lock, heartbeat, cap 3, station packets;
+- `crew-runtime.js`: fronteira estável de transporte;
+- `crew-broadcast-transport.js`: QA same-origin apenas;
+- `crew-station-authority.js`: posse exclusiva;
+- `crew-lobby-ui.js`: lobby/facção player-facing;
+- `crew-presence.js`, `crew-avatar-visual.js`, `crew-visual-layer.js`: presença visual remota;
+- `cabin-hit-feedback.js`: contrato de feedback interno de impacto;
+- `loader-arm.js`: pose/rig do loader; não criar clock paralelo;
+- `maintenance-feedback.js` + `maintenance-overlay.js`: feedback de manutenção;
+- `theatre-control.js`, `theatre-sectors.js`, `theatre-regions.js`: linha/território coerente;
+- `territory-development.js`, `strategic-logistics.js`, `territory-region-control.js`: desenvolvimento/logística física;
+- `persistent-war-clock.js`: relógio/catch-up somente, não autoridade persistente completa;
+- `world-map-intel.js`: intel estratégica parcial; manter sem onisciência.
 
-- Before a shared-file edit, refetch latest active branch and recent commits.
-- Multiplayer P0 outranks disconnected micro-polish until the first real two-device checkpoint exists.
-- Shared world persistence is NOT complete merely because browser catch-up exists; global continuity requires authoritative storage/backend.
-- Do not label a helper/foundation as player-visible integration until it is consumed by the main game path.
-- If a user-facing change cannot be verified visually in the runtime, state that explicitly.
-- Same stable Pages/PWA URL is the product URL. Do not create a replacement user URL for ordinary updates.
+## CODEX / BLOQUEIOS ESPECIALIZADOS
+
+- P0 real multiplayer transport/signaling: `docs/codex-requests/IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md`.
+- P1 autoridade persistente de guerra: `docs/codex-requests/IR-CODEX-20260912-1620-LEAD-persistent-war-authority.md`.
+- QA iPhone/Safari áudio continua necessário; não ajustar mix subjetivamente às cegas.
+- Codex indisponível não paralisa os workstreams: integração local, regressões e fundações independentes continuam.
+
+## TESTE / PUBLICAÇÃO
+
+- usar somente a branch ativa `iron-rain-v6-1-continuation`; `iron-rain-frontline` é histórica e não deve ser editada;
+- `npm test` antes/depois quando o runtime permitir;
+- QA browser via `tests/v7-browser.mjs` quando Playwright estiver disponível;
+- não rotular helper isolado como mudança visível;
+- manter o MESMO Pages/PWA estável já instalado no iPhone do dono; não criar novo URL de produto;
+- qualquer integração visível deve preservar PC + mobile e a estética low-poly/PS1 militar-industrial.
