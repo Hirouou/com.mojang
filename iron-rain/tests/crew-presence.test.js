@@ -58,10 +58,10 @@ test('per-peer interpolation alpha from crew replication overrides the fallback 
     },
   ], 0);
 
-  assert.equal(visible[0].pose.x, -.7);
+  assert.ok(Math.abs(visible[0].pose.x + .7) < 1e-9);
   assert.ok(Math.abs(visible[0].pose.yaw - .2) < 1e-9);
   assert.ok(Math.abs(visible[0].pose.pitch - .05) < 1e-9);
-  assert.equal(visible[1].pose.z, 4.8);
+  assert.ok(Math.abs(visible[1].pose.z - 4.8) < 1e-9);
   assert.ok(Math.abs(visible[1].pose.yaw + .6) < 1e-9);
   assert.ok(Math.abs(visible[1].pose.pitch + .15) < 1e-9);
 });
