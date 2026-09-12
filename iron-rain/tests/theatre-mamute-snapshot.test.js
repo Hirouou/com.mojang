@@ -51,3 +51,55 @@ test('snapshot preserves tactical budget and fails closed when focus is invalid'
   assert.equal(Object.isFrozen(snapshot.tacticalIds), true);
   assert.equal(buildTheatreMamuteSnapshot({ roster, focusId: 'missing', viewerFaction: 'ALIADOS' }), null);
 });
+
+test('snapshot carries prior nearby ids into tactical retention without bypassing fog', () => {
+  const roster = Object.freeze([
+    Object.freeze({ id: 'focus', faction: 'ALIADOS', x: 0, y: 0 }),
+    Object.freeze({ id: 'retained-enemy', faction: 'EIXO', x: 1090, y: 0 }),
+    Object.freeze({ id: 'new-enemy', faction: 'EIXO', x: 900, y: 0 }),
+  ]);
+
+  const withoutHistory = buildTheatreMamuteSnapshot({
+    roster,
+    focusId: 'focus',
+    viewerFaction: 'ALIADOS',
+    radius: 1000,
+    maxNearby: 1,
+  });
+  assert.deepEqual(withoutHistory.nearby.map(record => record.id), ['new-enemy']);
+
+  const withHistory = buildTheatreMamuteSnapshot({
+    roster,
+    focusId: 'focus',
+    viewerFaction: 'ALIADOS',
+    radius: 1000,
+    maxNearby: 1,
+    previousNearbyIds: ['retained-enemy'],
+  });
+
+  assert.deepEqual(withHistory.nearby.map(record => record.id), ['retained-enemy']);
+  assert.deepEqual(withHistory.distant.map(record => record.id), ['new-enemy']);
+  assert.equal(withHistory.retentionRadius, 1150);
+  assert.equal(withHistory.mapContacts.some(contact => contact.id === 'retained-enemy'), false);
+  assert.equal(withHistory.mapContacts.some(contact => contact.id === 'new-enemy'), false);
+});
+
+test('snapshot drops prior nearby ids after the retention radius is exceeded', () => {
+  const roster = [
+    { id: 'focus', faction: 'ALIADOS', x: 0, y: 0 },
+    { id: 'old', faction: 'EIXO', x: 1200, y: 0 },
+    { id: 'new', faction: 'EIXO', x: 900, y: 0 },
+  ];
+
+  const snapshot = buildTheatreMamuteSnapshot({
+    roster,
+    focusId: 'focus',
+    viewerFaction: 'ALIADOS',
+    radius: 1000,
+    maxNearby: 1,
+    previousNearbyIds: ['old'],
+  });
+
+  assert.deepEqual(snapshot.nearby.map(record => record.id), ['new']);
+  assert.deepEqual(snapshot.distant.map(record => record.id), ['old']);
+});
