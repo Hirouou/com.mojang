@@ -15,6 +15,7 @@ let heartbeatTimer = 0;
 let crewBridge = null;
 let crewFrame = 0;
 let strategicWar = null;
+let crewToastTimer = 0;
 let lastCrewFrameAt = performance.now();
 
 // Keep mobile station overrides isolated from the legacy field UI. This makes
@@ -62,6 +63,28 @@ function setNotice(title, copy = '') {
   const message = root.querySelector('[data-crew-copy]');
   if (status) status.textContent = title;
   if (message && copy) message.textContent = copy;
+}
+
+function showCrewToast(message, source = 'TRIPULAÇÃO') {
+  const shell = document.getElementById('warToast');
+  const label = document.getElementById('warToastSource');
+  const text = document.getElementById('warToastText');
+  if (!shell || !text) return false;
+  if (label) label.textContent = source;
+  text.textContent = message;
+  shell.classList.remove('hidden');
+  clearTimeout(crewToastTimer);
+  crewToastTimer = window.setTimeout(() => shell.classList.add('hidden'), 2600);
+  return true;
+}
+
+function stationGateMessage(detail = {}) {
+  if (detail.ready || detail.reason === 'released') return '';
+  if (detail.reason === 'occupied') return 'POSTO OCUPADO POR OUTRO TRIPULANTE';
+  if (detail.reason === 'pending-host') return 'AGUARDANDO CONFIRMAÇÃO DO POSTO';
+  if (detail.reason === 'not-connected') return 'TRIPULAÇÃO DESCONECTADA';
+  if (detail.reason === 'faction-mismatch') return 'ESTE MAMUTE PERTENCE À OUTRA FACÇÃO';
+  return detail.reason === 'available' ? '' : 'POSTO INDISPONÍVEL';
 }
 
 function sessionDescriptor(status = {}, fallbackMode = 'offline') {
@@ -115,6 +138,10 @@ function attachCrewCabin(cabin) {
 // transport/session logic into the renderer or local movement controller.
 window.addEventListener('ironrain:cabin-ready', event => {
   attachCrewCabin(event.detail?.cabin);
+});
+window.addEventListener('ironrain:station-gate', event => {
+  const message = stationGateMessage(event.detail);
+  if (message) showCrewToast(message, 'POSTO');
 });
 
 async function startGame(status = {}, fallbackMode = 'offline') {
@@ -190,6 +217,7 @@ if (crewQa) setNotice('QA MULTIPLAYER LOCAL', 'Modo de teste: duas abas no mesmo
 
 window.addEventListener('beforeunload', () => {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (crewToastTimer) clearTimeout(crewToastTimer);
   stopCrewFrame();
   runtime.disconnect('page-close');
 }, { once: true });
