@@ -4,7 +4,7 @@ export function createWarAudio() {
   const voices = new Set();
   const MAX_VOICES = 40;
   let context, master, effectsBus, ambientBus, engine, engineFilter, engineGain, noiseBuffer;
-  let muted = false, paused = false, nextFoot = 0, nextCrank = 0;
+  let muted = false, paused = false, nextFoot = 0, nextCrank = 0, resumePending = null;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, Number.isFinite(n) ? n : a));
   // Device loss or denied playback must never escape into the game loop.
   const safely = fn => { try { return fn(); } catch { return undefined; } };
@@ -16,6 +16,34 @@ export function createWarAudio() {
     master.gain.setTargetAtTime(muted || paused ? 0 : levels.master, t, .025);
     effectsBus.gain.setTargetAtTime(levels.effects, t, .025);
     ambientBus.gain.setTargetAtTime(levels.ambient, t, .08);
+  }
+
+  // Safari/iOS can expose `interrupted` in addition to the standard
+  // `suspended`. A tiny already-allocated buffer source started from the same
+  // user gesture primes the output path without adding a second sample buffer.
+  function primeMobileOutput() {
+    if (!context || !noiseBuffer || context.state === 'running') return;
+    safely(() => {
+      const source = context.createBufferSource();
+      const silent = context.createGain();
+      source.buffer = noiseBuffer;
+      silent.gain.value = 0;
+      source.connect(silent); silent.connect(context.destination);
+      source.onended = () => { safely(() => source.disconnect()); safely(() => silent.disconnect()); };
+      source.start(0, 0, Math.min(.01, noiseBuffer.duration || .01));
+    });
+  }
+
+  function resumeContext() {
+    if (!context || context.state === 'running' || context.state === 'closed') return;
+    primeMobileOutput();
+    if (resumePending) return;
+    const result = safely(() => context.resume());
+    if (!result?.then) { safely(applyVolumes); return; }
+    resumePending = result.then(() => {
+      resumePending = null;
+      safely(applyVolumes);
+    }, () => { resumePending = null; });
   }
 
   function wake() {
@@ -48,13 +76,19 @@ export function createWarAudio() {
           noiseBuffer = context.createBuffer(1, Math.ceil(context.sampleRate * 3), context.sampleRate);
           const data = noiseBuffer.getChannelData(0);
           for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+          if ('onstatechange' in context) context.onstatechange = () => {
+            if (context?.state === 'running') safely(applyVolumes);
+          };
         } catch {
           settle(safely(() => context?.close()));
           clearContext();
           return;
         }
       }
-      if (context.state === 'suspended') settle(context.resume());
+      // Resume every non-running state. Safari uses `interrupted` after some
+      // background/foreground and route changes, not only `suspended`.
+      resumeContext();
+      safely(applyVolumes);
     });
   }
 
@@ -108,11 +142,13 @@ export function createWarAudio() {
 
   function clearContext() {
     for (const voice of [...voices]) voice.cleanup();
+    if (context && 'onstatechange' in context) context.onstatechange = null;
     context = master = effectsBus = ambientBus = engine = engineFilter = engineGain = noiseBuffer = null;
-    nextCrank = 0;
+    resumePending = null; nextCrank = 0;
   }
 
   function getVolumes() { return { ...levels, muted }; }
+  function getStatus() { return { state: context?.state || 'uninitialized', muted, paused, ready: context?.state === 'running' && !muted }; }
   function setVolumes(next = {}) {
     if (next.master !== undefined) levels.master = clamp(Number(next.master), 0, 1);
     if (next.effects !== undefined) levels.effects = clamp(Number(next.effects), 0, 1.5);
@@ -122,7 +158,7 @@ export function createWarAudio() {
   }
 
   return {
-    wake, setVolumes, getVolumes,
+    wake, setVolumes, getVolumes, getStatus,
     toggle() {
       muted = !muted;
       if (!muted) wake();
@@ -132,6 +168,7 @@ export function createWarAudio() {
     update({ time = 0, moving = false, inside = true, speed = 0, paused: isPaused = false } = {}) {
       paused = Boolean(isPaused);
       safely(() => {
+        if (!muted && context && context.state !== 'running') resumeContext();
         applyVolumes();
         if (engine && context) {
           const velocity = clamp(speed, 0, 100);
