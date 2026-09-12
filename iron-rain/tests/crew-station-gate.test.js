@@ -42,6 +42,17 @@ test('available station is claimed before cabin interaction becomes ready', () =
   assert.equal(stationGateState(runtime, 'drive').reason, 'available');
 });
 
+test('station release fails closed when multiplayer authority is unavailable', () => {
+  const runtimeWithoutRelease = {
+    status: () => ({ mode: 'host', connected: true, localId: 'local' }),
+    stationOwner: () => 'local',
+    claimStation: () => ({ ok: true, owner: 'local' }),
+  };
+
+  assert.equal(releaseStationGate(runtimeWithoutRelease, 'aim'), false);
+  assert.equal(releaseStationGate(runtimeWithoutRelease, 'teleporter'), false);
+});
+
 test('guest request remains pending until host authority grants ownership', () => {
   const runtime = fakeRuntime({
     mode: 'guest',
