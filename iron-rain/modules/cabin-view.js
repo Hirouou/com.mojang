@@ -32,7 +32,7 @@ export function createCabinView(canvas, options = {}) {
     return crewVisuals.update(remotes, 1, safeDt(dt));
   }
 
-  return {
+  const view = {
     ...core,
     update(dt, data = {}) {
       core.update(dt, data);
@@ -51,4 +51,12 @@ export function createCabinView(canvas, options = {}) {
       core.dispose();
     },
   };
+
+  // Integration seam only: renderer stays transport-agnostic. Bootstrap can
+  // attach the crew runtime after the asynchronously-created cabin is ready.
+  try {
+    globalThis.dispatchEvent?.(new CustomEvent('ironrain:cabin-ready', { detail: { cabin: view } }));
+  } catch {}
+
+  return view;
 }
