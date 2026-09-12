@@ -1,4 +1,8 @@
+import { installTouchAimLayout } from './touch-aim-layout.js';
+
 /** Pointer Events controls for mouse, pen and independent simultaneous touches. */
+installTouchAimLayout();
+
 const noop = () => {};
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
