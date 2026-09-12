@@ -57,7 +57,7 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
       limbs.push({ arm, leg });
     }
     scene.add(root);
-    return { root, headPivot, limbs, id: null, x: 0, z: 0, travelled: 0, assigned: false, entry: null };
+    return { root, headPivot, limbs, id: null, x: 0, z: 0, travelled: 0, stride: 0, assigned: false, entry: null };
   }
 
   for (let i = 0; i < max; i++) slots.push(buildAvatar(i));
@@ -65,16 +65,26 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
   function apply(slot, entry, step) {
     const pose = entry?.pose;
     if (!pose || !Number.isFinite(pose.x) || !Number.isFinite(pose.z)) return false;
+    const samePeer = slot.id === entry.id;
     const dx = pose.x - slot.x, dz = pose.z - slot.z;
-    const moved = slot.id === entry.id ? Math.hypot(dx, dz) : 0;
-    slot.travelled = slot.id === entry.id ? slot.travelled + moved : 0;
+    const moved = samePeer ? Math.hypot(dx, dz) : 0;
+    slot.travelled = samePeer ? slot.travelled + moved : 0;
+    if (!samePeer) slot.stride = 0;
     slot.id = entry.id; slot.x = pose.x; slot.z = pose.z;
     slot.root.visible = true;
     slot.root.position.set(pose.x, 0, pose.z);
     slot.root.rotation.y = finite(pose.yaw);
     slot.headPivot.rotation.x = finite(pose.pitch) * .55;
-    const stride = Math.min(.45, moved / Math.max(.001, step || .016));
-    const swing = Math.sin(slot.travelled * 10) * stride;
+
+    // Network samples do not arrive at a perfectly even cadence. Drive the
+    // walk cycle from displacement, but ease its amplitude so a delayed or
+    // stationary packet does not snap both arms/legs straight in one frame.
+    const animationStep = Math.max(.001, step || .016);
+    const targetStride = Math.min(.45, moved / animationStep);
+    const response = Math.min(1, animationStep * 12);
+    slot.stride += (targetStride - slot.stride) * response;
+    if (slot.stride < .001 && targetStride === 0) slot.stride = 0;
+    const swing = Math.sin(slot.travelled * 10) * slot.stride;
     slot.limbs[0].arm.rotation.x = swing; slot.limbs[1].arm.rotation.x = -swing;
     slot.limbs[0].leg.rotation.x = -swing * .7; slot.limbs[1].leg.rotation.x = swing * .7;
     return true;
@@ -102,6 +112,7 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
       if (!slot.assigned || !apply(slot, slot.entry, step)) {
         slot.root.visible = false;
         slot.id = null;
+        slot.stride = 0;
       }
       slot.entry = null;
     }
@@ -116,6 +127,7 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
       z: slot.root.position.z,
       yaw: slot.root.rotation.y,
       pitch: slot.headPivot.rotation.x,
+      stride: slot.stride,
     })));
   }
 
