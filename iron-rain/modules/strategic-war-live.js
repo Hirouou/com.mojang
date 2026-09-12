@@ -1,1 +1,1 @@
-export { installStrategicWarLive } from './strategic-war-live-v2.js';
+export { installStrategicWarLive } from './strategic-war-live-v3.js';
