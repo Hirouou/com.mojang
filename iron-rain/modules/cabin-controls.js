@@ -129,15 +129,15 @@ export function createCabinMovement() {
         if (canOccupyCabin(nextX, nextZ)) {
           position.x = nextX; position.z = nextZ;
         } else {
-          // When a diagonal step meets a corner, slide along the dominant input
-          // axis instead of always preferring X. This keeps tight aisles feeling
-          // symmetric and prevents the collision response from steering the player.
+          // Slide only along an axis that is at least as intentional as the
+          // blocked one. A tiny diagonal correction must never steer the player
+          // sideways when the dominant forward/back input hits machinery.
           const canX = canOccupyCabin(nextX, position.z), canZ = canOccupyCabin(position.x, nextZ);
           if (canX && canZ) {
             if (Math.abs(sx) >= Math.abs(sz)) position.x = nextX;
             else position.z = nextZ;
-          } else if (canX) position.x = nextX;
-          else if (canZ) position.z = nextZ;
+          } else if (canX && Math.abs(sx) >= Math.abs(sz)) position.x = nextX;
+          else if (canZ && Math.abs(sz) >= Math.abs(sx)) position.z = nextZ;
         }
         travelled += Math.hypot(position.x - oldX, position.z - oldZ);
       }
