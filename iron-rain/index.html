@@ -7,7 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Iron Rain">
-<link rel="manifest" href="manifest-v6.webmanifest">
+<link rel="manifest" href="./manifest-v6.webmanifest">
+<link rel="icon" href="./icons/m47.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="stylesheet" href="style-v6.css">
 <title>Iron Rain — Theatre of Fire</title>
 </head>
@@ -21,83 +23,78 @@
     <div class="hud-right"><b id="windText">VENTO —</b><span id="ammoText">HE 18 • SMK 8 • FRG 8</span></div>
   </div>
 
+  <button id="mapBtn" class="map-btn" aria-label="Abrir mapa de mesa">⌖ <span>MAPA</span></button>
   <button id="menuBtn" class="menu-btn" aria-label="Menu">☰</button>
 
   <button id="missionPill" class="mission-pill hidden">
-    <span class="mission-icon">📡</span>
+    <span class="mission-icon">⌁</span>
     <span><b id="missionTitle">MISSÃO DE FOGO</b><small id="missionText">—</small></span>
   </button>
 
   <div id="marchUi" class="march-ui">
     <div id="joystick" class="joystick"><div class="joy-cross"></div><div id="joyKnob" class="joy-knob"></div></div>
-    <button id="deployBtn" class="deploy-btn"><span>⚙</span> ARTILHARIA</button>
+    <button id="deployBtn" class="deploy-btn"><span>⚙</span> OPERAR M-47</button>
   </div>
 
   <div id="fireDeck" class="fire-deck hidden">
     <div class="handwheel-box">
       <label>AZIMUTE</label>
-      <div id="azWheel" class="handwheel">
+      <div id="azWheel" class="handwheel" role="slider" tabindex="0" aria-label="Manivela de azimute" aria-valuemin="0" aria-valuemax="360">
         <i id="azArm" class="wheel-arm"><em></em></i>
         <strong id="azValue">090.0°</strong>
       </div>
       <small id="azHint">rotação horizontal</small>
     </div>
 
-    <div class="handwheel-box">
+    <div class="handwheel-box elevation-box">
       <label>ELEVAÇÃO</label>
-      <div id="elWheel" class="handwheel">
+      <div id="elWheel" class="handwheel" role="slider" tabindex="0" aria-label="Manivela de elevação" aria-valuemin="15" aria-valuemax="80">
         <i id="elArm" class="wheel-arm"><em></em></i>
         <strong id="elValue">45.0°</strong>
       </div>
-      <small id="rangeReadout">alcance 0 m • ápice 0 m</small>
+      <small id="rangeReadout"><span>ALCANCE <b id="rangeMeters">0 m</b></span><span>ÁPICE <b id="apexMeters">0 m</b></span></small>
     </div>
 
     <div class="charge-box">
       <label>CARGA</label>
-      <button id="chargeUp">+</button>
+      <button id="chargeUp" aria-label="Aumentar carga">+</button>
       <strong id="chargeValue">4</strong>
-      <button id="chargeDown">−</button>
+      <button id="chargeDown" aria-label="Diminuir carga">−</button>
       <small id="chargeRange">faixa —</small>
     </div>
 
     <div class="ammo-box">
-      <button class="ammo active" data-shell="HE">💥<b>HE</b><small id="heCount">18</small></button>
-      <button class="ammo" data-shell="SMOKE">☁️<b>SMK</b><small id="smokeCount">8</small></button>
-      <button class="ammo" data-shell="FRAG">✦<b>FRG</b><small id="fragCount">8</small></button>
+      <button class="ammo active" data-shell="HE" aria-label="Alto explosivo: estruturas e blindagem"><span>◆</span><b>HE</b><small id="heCount">18</small></button>
+      <button class="ammo" data-shell="SMOKE" aria-label="Fumaça: oculta e cobre movimentos"><span>≋</span><b>SMK</b><small id="smokeCount">8</small></button>
+      <button class="ammo" data-shell="FRAG" aria-label="Fragmentação: infantaria exposta"><span>✣</span><b>FRG</b><small id="fragCount">8</small></button>
     </div>
 
     <div class="fire-actions">
-      <button id="notebookBtn" class="notebook-btn">∑ CADERNETA</button>
-      <button id="fireBtn" class="fire-btn">🔥 DISPARAR</button>
+      <button id="notebookBtn" class="notebook-btn">⌖ CADERNETA</button>
+      <button id="fireBtn" class="fire-btn">DISPARAR</button>
       <button id="marchBtn" class="march-btn">↩ MARCHA</button>
     </div>
   </div>
 
-  <div id="notebook" class="sheet hidden">
-    <div class="sheet-card">
-      <div class="sheet-head"><div><b>CADERNETA DE TIRO</b><small>conversão prática da missão atual</small></div><button data-close="notebook">×</button></div>
-      <div id="notebookBody" class="notebook-body"></div>
-      <div class="range-table" id="rangeTable"></div>
-    </div>
-  </div>
+  <div id="notebook" class="sheet hidden" role="dialog" aria-modal="true" aria-label="Mapa de mesa e caderneta de tiro"></div>
 
   <div id="help" class="sheet hidden">
     <div class="sheet-card help-card">
       <div class="sheet-head"><div><b>AJUDA DO OPERADOR</b><small>a guerra pausa enquanto esta tela está aberta</small></div><button data-close="help">×</button></div>
       <div class="help-grid">
-        <section><h3>O mapa gigante</h3><p>O teatro tem dezenas de quilômetros. A câmera continua local e próxima do Mamute. Regiões distantes só aparecem em visitas temporárias de inteligência ou durante o voo do projétil.</p></section>
-        <section><h3>Inteligência</h3><p>Posições inimigas começam desconhecidas. Um observador no front ou um avião de reconhecimento revela alvos e transmite coordenadas. Você não recebe informação que sua força ainda não descobriu.</p></section>
-        <section><h3>Azimute</h3><p>É a direção horizontal: <b>0° norte, 90° leste, 180° sul, 270° oeste</b>. Gire a manivela. A redução mecânica faz o tubo acompanhar mais devagar que sua mão.</p></section>
-        <section><h3>Elevação em metros</h3><p>A roda mostra o ângulo e também o <b>alcance nominal</b> e a <b>altura máxima da trajetória</b> em metros. É assim que você combina elevação e carga para chegar à distância desejada.</p></section>
-        <section><h3>Como calcular</h3><p>Alvo − Mamute = ΔX e ΔY. Depois: <code>dist = √(ΔX² + ΔY²)</code>. A caderneta faz a conta passo a passo, mas você ainda precisa ajustar fisicamente o canhão.</p></section>
-        <section><h3>Depois do disparo</h3><p>A câmera acompanha o projétil, observa o impacto por um instante e retorna automaticamente ao Mamute. O painel de tiro volta junto.</p></section>
+        <section><h3>01 / No campo</h3><p>Mova o Mamute com o joystick; toque <b>OPERAR M-47</b> para assentar a peça. A câmera fica próxima de você. O teatro de guerra se estende por dezenas de quilômetros.</p></section>
+        <section><h3>02 / Escute o rádio</h3><p>Observadores, patrulhas e aviões relatam posições. Uma visita de câmera mostra a origem e o alvo e retorna à peça. Um informe pode envelhecer.</p></section>
+        <section><h3>03 / Abra o mapa de mesa</h3><p>Selecione um informe ou trace uma régua a partir do Mamute. Cada quadrícula mede <b>5.000 m</b>. O mapa registra a inteligência recebida no instante em que é aberto.</p></section>
+        <section><h3>04 / Faça a conta</h3><p>Alvo − Mamute = <b>ΔX e ΔY</b>. Distância = √(ΔX² + ΔY²). Azimute: <b>0° norte · 90° leste · 180° sul · 270° oeste</b>. Y cresce para o sul.</p></section>
+        <section><h3>05 / Opere as manivelas</h3><p>Gire as rodas com o dedo. A redução e a inércia movem o canhão aos poucos. Combine carga e elevação, comparando <b>alcance e ápice em metros</b>.</p></section>
+        <section><h3>06 / Fogo e observação</h3><p><b>HE</b> destrói estruturas; <b>SMK</b> cobre movimentos; <b>FRG</b> atinge infantaria exposta. A câmera segue o tiro e volta sozinha. Considere tropas aliadas antes de disparar.</p></section>
       </div>
     </div>
   </div>
 
   <div id="menu" class="sheet hidden">
     <div class="sheet-card menu-card">
-      <div class="sheet-head"><div><b>IRON RAIN V6</b><small>teatro de fogo</small></div><button data-close="menu">×</button></div>
+      <div class="sheet-head"><div><b>IRON RAIN <em>V6.1</em></b><small>M-47 MAMUTE / TEATRO DE FOGO</small></div><button data-close="menu" aria-label="Fechar menu">×</button></div>
       <div class="menu-grid">
         <button id="resumeBtn">▶ RETOMAR</button>
         <button id="centerBtn">◎ MAMUTE</button>
@@ -116,9 +113,10 @@
   </div>
 
   <div id="intelBanner" class="intel-banner hidden"><b id="intelTitle">RECONHECIMENTO</b><span id="intelText">—</span></div>
+  <div id="cinematicStatus" class="cinematic-status hidden"><span id="flightReadout"></span><button id="returnBtn">↩ VOLTAR À PEÇA</button></div>
 
   <div class="rotate"><div>↻</div><b>GIRE O CELULAR</b><span>Iron Rain foi feito para jogar na horizontal.</span></div>
 </div>
-<script src="game-v6-loader.js"></script>
+<script type="module" src="game-v6.js"></script>
 </body>
 </html>

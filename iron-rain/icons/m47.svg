@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0b100d"/>
+  <path d="M98 172 256 88 414 172v168L256 424 98 340Z" fill="#1b261d" stroke="#c3ae74" stroke-width="5"/>
+  <path d="m116 182 140-74 140 74" fill="none" stroke="#46513c" stroke-width="2"/>
+  <path d="M158 332h196M163 344h186" stroke="#687356" stroke-width="5"/>
+  <path d="m197 257 116-80 17 24-116 80Z" fill="#d8c88e"/>
+  <path d="m305 181 29-20 13 19-29 20Z" fill="#c3ae74"/>
+  <path d="m213 247 24 36-14 13-45-19Z" fill="#788363"/>
+  <path d="M163 281h168l26 35H145Z" fill="#a59b6a"/>
+  <path d="M148 308h210v20H148Z" fill="#29332a" stroke="#c3ae74" stroke-width="4"/>
+  <path d="M166 309v18m23-18v18m23-18v18m23-18v18m23-18v18m23-18v18m23-18v18m23-18v18" stroke="#788363" stroke-width="5"/>
+  <circle cx="223" cy="277" r="18" fill="#263526" stroke="#c3ae74" stroke-width="5"/>
+  <path d="M161 220v26m-13-13h26m169-6v26m-13-13h26" stroke="#667154" stroke-width="3"/>
+  <text x="256" y="380" text-anchor="middle" font-family="monospace" font-size="25" font-weight="700" letter-spacing="5" fill="#d8c88e">M-47</text>
+</svg>
