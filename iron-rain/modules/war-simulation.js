@@ -13,6 +13,18 @@ const canonicalSectors = canonicalHexes.flatMap(hex => hex.sectors.map(sector =>
 const finitePoint = point => point && Number.isFinite(point.x) && Number.isFinite(point.y);
 const playerTeam = () => globalThis.ironRainEntry?.faction === 'axis' ? 'enemy' : 'ally';
 const frontDistance = point => finitePoint(point) ? Math.abs(point.x - controlLineX(point.y)) : Infinity;
+const LEGACY_GAME_SECTORS = new Set(['FALCON', 'BIRCH', 'CINDER', 'DAGGER', 'ECHO', 'FROST', 'LINHA 07']);
+
+function isLiveGameState(state) {
+  if (state?.warSimulation?.strategicIntegration === true) return true;
+  return Boolean(
+    Array.isArray(state?.sectors) &&
+    state.sectors.length === 7 &&
+    state.sectors.every(sector => LEGACY_GAME_SECTORS.has(sector?.name)) &&
+    finitePoint(state?.robot) &&
+    finitePoint(state?.base)
+  );
+}
 
 function locateStrategic(point) {
   if (!finitePoint(point)) return null;
@@ -73,11 +85,13 @@ function alignSector(sec, target) {
 }
 
 function ensureStrategicAlignment(state) {
-  if (!Array.isArray(state?.sectors) || state.sectors.length === 0 || state.warSimulation?.strategicAligned) return;
+  if (!isLiveGameState(state) || state.warSimulation?.strategicAligned) return false;
+  state.warSimulation ||= {};
+  state.warSimulation.strategicIntegration = true;
   const targets = chooseTacticalTargets(state.sectors.length);
   state.sectors.forEach((sector, index) => alignSector(sector, targets[index]));
-  state.warSimulation ||= {};
   state.warSimulation.strategicAligned = true;
+  return true;
 }
 
 function routeInsideFriendly(from, to, team) {
@@ -91,7 +105,7 @@ function routeInsideFriendly(from, to, team) {
 }
 
 function publishWorldBridge(state) {
-  if (!state?.robot) return;
+  if (!isLiveGameState(state) || !state?.robot) return;
   const location = locateStrategic(state.robot);
   const fronts = (state.sectors || []).map(sec => {
     const center = sec.war ? getFrontGeometry(sec).center : sec;
@@ -119,20 +133,22 @@ function publishWorldBridge(state) {
 }
 
 export function updateWar(state, dt) {
-  ensureStrategicAlignment(state);
+  const live = isLiveGameState(state);
+  if (live) ensureStrategicAlignment(state);
   const originalMode = state?.mode;
   const team = playerTeam();
-  const rearSafe = Boolean(state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250);
+  const rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250);
   if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
   try {
     coreUpdateWar(state, dt);
   } finally {
     if (rearSafe && state) state.mode = originalMode;
-    publishWorldBridge(state);
+    if (live) publishWorldBridge(state);
   }
 }
 
 export function assessRoute(state, from, to) {
+  if (!isLiveGameState(state)) return coreAssessRoute(state, from, to);
   ensureStrategicAlignment(state);
   const team = playerTeam();
   if (routeInsideFriendly(from, to, team)) {
