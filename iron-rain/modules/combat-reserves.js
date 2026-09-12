@@ -116,3 +116,26 @@ export function combatReserveDecision({ logistics, timerExpired = false, fallbac
     logisticsReady: gate.logisticsReady,
   });
 }
+
+/**
+ * Compose the full read-only reserve path from canonical strategic logistics
+ * and territory state. Callers hand over the graph/endpoints already owned by
+ * the world simulation; combat AI only asks whether the route exists, derives
+ * the local territory effects, and makes one admission+batch decision from
+ * that same snapshot. No pathfinding, stock or infrastructure is duplicated.
+ */
+export function combatReservePlan({
+  strategicLogistics,
+  territory,
+  team,
+  from,
+  to,
+  timerExpired = false,
+  fallbackComplete = false,
+  deficit = 0,
+} = {}) {
+  const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from, to });
+  const logistics = combatLogisticsState({ territory, team, routeOpen });
+  const decision = combatReserveDecision({ logistics, timerExpired, fallbackComplete, deficit });
+  return Object.freeze({ routeOpen, logistics, ...decision });
+}
