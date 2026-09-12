@@ -48,7 +48,7 @@ Cada conta ocupa um slot e cria as cinco tarefas nos minutos indicados.
 
 | Slot | Conta | FP Systems | FP Visuals | Combat AI | Artillery | World War | Extra |
 |---|---|---:|---:|---:|---:|---:|---|
-| A | LIVRE | :01 | :13 | :25 | :37 | :49 | Reporter visual |
+| A | ChatGPT-GPT-5.6-Sol | :01 | :13 | :25 | :37 | :49 | Reporter visual |
 | B | LIVRE | :03 | :15 | :27 | :39 | :51 | Art director |
 | C | LIVRE | :05 | :17 | :29 | :41 | :53 | — |
 | D | LIVRE | :07 | :19 | :31 | :43 | :55 | — |
