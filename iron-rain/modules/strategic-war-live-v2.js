@@ -1,0 +1,98 @@
+import { createStrategicHexMap, hexControl, neighboringHexIds } from './strategic-hex-map.js';
+import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, stepTerritoryDevelopment, territorySnapshot, DEVELOPMENT_PROJECTS } from './territory-development.js';
+import { chooseTerritoryProject, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
+import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from './strategic-logistics.js';
+import { THEATRE_SIZE } from './theatre-control.js';
+
+const C={ally:'#57aef7',enemy:'#58a66d',contested:'#c2a158',neutral:'#777b74'};
+const NAME={outpost:'POSTO',depot:'DEPÓSITO',mortar:'MORTEIRO',bunker:'BUNKER',garage:'GARAGEM',factory:'FÁBRICA'};
+const d=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const team=()=>window.ironRainEntry?.faction==='axis'?'enemy':'ally';
+const ownerName=o=>o==='ally'?'ALIADOS':o==='enemy'?'EIXO':o==='contested'?'DISPUTADO':'NEUTRO';
+const frontDistance=s=>Math.abs(s.x-THEATRE_SIZE.w*.5);
+
+function createTheatre(){
+  const hexes=createStrategicHexMap().map(h=>({...h,sectors:h.sectors.map(s=>({...s,structures:[]}))}));
+  const records=new Map();
+  for(const hex of hexes)for(const sector of hex.sectors)records.set(sector.id,{hex,sector});
+  const territory=new Map(), logisticsNodes=[];
+  for(const {sector} of records.values()){
+    const owner=['ally','enemy'].includes(sector.owner)?sector.owner:null;
+    const node=createTerritoryNode({id:sector.id,owner});
+    const fd=frontDistance(sector), rear=fd>15500, mid=fd>8500;
+    node.contested=!owner||sector.owner==='contested';
+    node.securedFor=node.contested?0:rear?650:mid?260:90;
+    if(owner&&mid)node.structures.push('outpost');
+    if(owner&&rear)node.structures.push('depot');
+    territory.set(sector.id,node);
+    logisticsNodes.push(createLogisticsNode({id:sector.id,team:owner,x:sector.x,y:sector.y,kind:rear?'depot':mid?'outpost':'front',stock:rear?{materials:560,ammo:170,fuel:190}:{}}));
+  }
+  const routes=[],seen=new Set();
+  for(const hex of hexes){
+    const neighborIds=new Set(neighboringHexIds(hex,hexes));
+    const pool=hexes.filter(h=>h.id===hex.id||neighborIds.has(h.id)).flatMap(h=>h.sectors);
+    for(const sector of hex.sectors){
+      if(!['ally','enemy'].includes(sector.owner))continue;
+      const near=pool.filter(x=>x.id!==sector.id&&x.owner===sector.owner&&d(sector,x)<7600).sort((a,b)=>d(sector,a)-d(sector,b)).slice(0,2);
+      for(const other of near){const key=[sector.id,other.id].sort().join('|');if(seen.has(key))continue;seen.add(key);routes.push(createSupplyRoute({id:`RT-${routes.length+1}`,team:sector.owner,from:sector.id,to:other.id,distance:Math.round(d(sector,other))}));}
+    }
+  }
+  const logistics=createStrategicLogistics({nodes:logisticsNodes,routes});
+  const sources=logisticsNodes.filter(n=>n.kind==='depot').map(n=>n.id);
+  const inFlight=new Map();
+
+  function wanted(node){
+    if(!node?.owner||node.contested||node.activeProject)return null;
+    const missing=x=>!node.structures.includes(x), ready=x=>node.securedFor>=DEVELOPMENT_PROJECTS[x].secureFor;
+    if(missing('outpost')&&ready('outpost'))return'outpost';
+    if(missing('depot')&&ready('depot')&&node.structures.includes('outpost'))return'depot';
+    if(missing('bunker')&&ready('bunker')&&node.structures.includes('outpost'))return'bunker';
+    if(missing('mortar')&&ready('mortar')&&node.structures.includes('outpost'))return'mortar';
+    if(missing('garage')&&ready('garage')&&node.structures.includes('depot'))return'garage';
+    if(missing('factory')&&ready('factory')&&node.structures.includes('depot')&&node.structures.includes('garage'))return'factory';
+    return null;
+  }
+  function sourceFor(t,to,cargo){
+    let best=null;
+    for(const id of sources){const src=logistics.getNode(id);if(!src||src.team!==t)continue;if(!['materials','ammo','fuel'].every(k=>(src.stock[k]||0)>=(cargo[k]||0)))continue;const path=logistics.route(t,id,to);if(!path)continue;const length=path.reduce((n,x)=>n+x.distance,0);if(!best||length<best.length)best={id,length};}
+    return best?.id||null;
+  }
+  function step(seconds){
+    const elapsed=Math.min(8,Math.max(.1,seconds));
+    for(const event of logistics.step(elapsed))if(event.type==='convoy-arrived'){const node=territory.get(event.to);if(node)receiveTerritoryDelivery(node,event);inFlight.delete(event.to);}
+    for(const [id,node]of territory){
+      stepTerritoryDevelopment(node,elapsed,{routeOpen:true,contested:node.contested});
+      const rec=records.get(id);if(rec)rec.sector.structures=[...node.structures];
+      const effects=territoryOperationalEffects(node),pressure=Math.max(0,Math.min(1,(1-frontDistance(rec.sector)/15000)*(.75-effects.defensiveCover)));
+      const plan=chooseTerritoryProject(node,{routeOpen:true,frontPressure:pressure,infantryThreat:pressure,armorThreat:pressure*.75});
+      if(plan){startTerritoryProject(node,plan.type);continue;}
+      const type=wanted(node);if(!type||inFlight.has(id))continue;
+      const request=projectSupplyRequest(node,type);if(!request)continue;
+      const source=sourceFor(node.owner,id,request.cargo);if(!source)continue;
+      const sent=logistics.dispatch({team:node.owner,from:source,to:id,cargo:request.cargo,speed:55});
+      if(sent.ok&&sent.status==='arrived')receiveTerritoryDelivery(node,{team:node.owner,cargo:request.cargo});
+      else if(sent.ok)inFlight.set(id,sent.convoyId);
+    }
+  }
+  return{hexes,records,territory,logistics,step};
+}
+
+function styles(){if(document.getElementById('strategicWarLiveStyles'))return;const s=document.createElement('style');s.id='strategicWarLiveStyles';s.textContent=`
+.strategic-war-btn{position:fixed;left:calc(12px + var(--safeL,0px));top:calc(66px + var(--safeT,0px));z-index:46;border:1px solid #8da78b66;background:#101812e8;color:#d8dfd3;padding:9px 12px;font:700 10px/1 system-ui;letter-spacing:1.2px;border-radius:3px;box-shadow:0 4px 14px #0008}.strategic-war{position:fixed;inset:0;z-index:120;background:#080d09f2;color:#d8dfd3;display:grid;grid-template-rows:auto 1fr;font-family:system-ui,sans-serif}.strategic-war.hidden{display:none}.strategic-war header{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid #9caa8750;background:#101711}.strategic-war header b{font-size:13px;letter-spacing:1.3px}.strategic-war header small{display:block;color:#9ba596;font-size:8px}.strategic-war header button{border:1px solid #a8b29b55;background:#1b241d;color:#dfe6db;padding:8px 10px}.strategic-war-main{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 260px}.strategic-war-map{min-height:0;background:#111713}.strategic-war canvas{width:100%;height:100%;display:block;touch-action:none}.strategic-war-side{padding:11px;overflow:auto;border-left:1px solid #9caa8738;background:#0d130f}.strategic-war-side h3{font-size:11px;margin:0 0 7px}.strategic-war-side p{font-size:10px;line-height:1.45;color:#b7c0b3}.strategic-war-side strong{color:#eef2e9}.war-kpis{display:grid;grid-template-columns:1fr 1fr;gap:5px}.war-kpis div{padding:6px;border:1px solid #91a08b38;background:#151d17}.war-kpis b{display:block;font-size:13px}.war-kpis small{font-size:7px;color:#919d8d}.war-legend{font-size:8px;margin:7px 0;display:flex;gap:8px}.war-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:3px}@media(max-width:720px){.strategic-war-main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 148px}.strategic-war-side{border-left:0;border-top:1px solid #9caa8738;padding:7px 9px}.war-kpis{display:flex}.strategic-war-btn{top:calc(58px + var(--safeT,0px));padding:8px 9px}}
+`;document.head.appendChild(s);}
+function pathHex(ctx,x,y,r){ctx.beginPath();for(let i=0;i<6;i++){const a=i*Math.PI/3,X=x+Math.cos(a)*r,Y=y+Math.sin(a)*r;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.closePath();}
+
+export function installStrategicWarLive({app=document.getElementById('app')}={}){
+  if(!app||document.getElementById('strategicWarBtn'))return null;styles();const theatre=createTheatre();
+  const btn=document.createElement('button');btn.id='strategicWarBtn';btn.className='strategic-war-btn';btn.type='button';btn.textContent='▦ GUERRA';document.body.appendChild(btn);
+  const root=document.createElement('section');root.className='strategic-war hidden';root.innerHTML=`<header><div><b>TEATRO ESTRATÉGICO</b><small>HEXÁGONOS · IA · DESENVOLVIMENTO · LOGÍSTICA FÍSICA</small></div><button data-close>VOLTAR AO MAMUTE ×</button></header><div class="strategic-war-main"><div class="strategic-war-map"><canvas></canvas></div><aside class="strategic-war-side"><div class="war-kpis" data-kpis></div><div class="war-legend"><span><i style="background:${C.ally}"></i>ALIADOS</span><span><i style="background:${C.enemy}"></i>EIXO</span><span><i style="background:${C.contested}"></i>DISPUTADO</span></div><div data-detail><h3>MAPA DA GUERRA</h3><p>Toque num setor. A IA dos dois lados usa as mesmas regras; obras dependem de carga entregue por comboios.</p></div></aside></div>`;document.body.appendChild(root);
+  const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),detail=root.querySelector('[data-detail]'),kpis=root.querySelector('[data-kpis]');
+  let open=false,selected=null,w=1,h=1,dpr=1,raf=0,last=performance.now(),simAcc=0;
+  const tr=p=>({x:22+p.x/THEATRE_SIZE.w*(w-44),y:22+p.y/THEATRE_SIZE.h*(h-44)}),rr=r=>r/THEATRE_SIZE.w*(w-44);
+  function resize(){const r=canvas.getBoundingClientRect();if(r.width<2||r.height<2)return;w=r.width;h=r.height;dpr=Math.min(2,devicePixelRatio||1);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
+  function side(){const t=team(),nodes=[...theatre.territory.values()].map(territorySnapshot),mine=nodes.filter(n=>n.owner===t),ls=theatre.logistics.snapshot(),convoys=ls.convoys.filter(c=>c.team===t&&['moving','blocked'].includes(c.status));kpis.innerHTML=`<div><b>${mine.length}</b><small>SETORES</small></div><div><b>${convoys.length}</b><small>COMBOIOS</small></div><div><b>${mine.filter(n=>n.activeProject).length}</b><small>OBRAS</small></div><div><b>${mine.filter(n=>n.structures.includes('factory')).length}</b><small>FÁBRICAS</small></div>`;if(!selected)return;const rec=theatre.records.get(selected),node=territorySnapshot(theatre.territory.get(selected));if(!rec||!node)return;if(node.owner!==t){detail.innerHTML=`<h3>${rec.hex.name} / ${rec.sector.name}</h3><p><strong>${ownerName(rec.sector.owner)}</strong> · hex ${ownerName(hexControl(rec.hex))}</p><p>Estoque, obras e comboios inimigos permanecem ocultos sem inteligência válida.</p>`;return;}const st=node.structures.length?node.structures.map(x=>NAME[x]||x).join(' · '):'nenhuma',fx=territoryOperationalEffects(node);detail.innerHTML=`<h3>${rec.hex.name} / ${rec.sector.name}</h3><p><strong>${ownerName(node.owner)}</strong> · hex ${ownerName(hexControl(rec.hex))}<br>Estruturas: <strong>${st}</strong><br>Obra: <strong>${node.activeProject?NAME[node.activeProject]||node.activeProject:'—'}</strong><br>MAT ${Math.round(node.stock.materials)} · MUN ${Math.round(node.stock.ammo)} · COMB ${Math.round(node.stock.fuel)}<br>Defesa ${Math.round(fx.defensiveCover*100)}% · reforço ${Math.round(fx.reinforcementSupport*100)}%</p>`;}
+  function draw(){ctx.fillStyle='#111713';ctx.fillRect(0,0,w,h);const t=team(),ls=theatre.logistics.snapshot();for(const route of ls.routes){if(route.team!==t||!route.open)continue;const a=theatre.records.get(route.from)?.sector,b=theatre.records.get(route.to)?.sector;if(!a||!b)continue;const A=tr(a),B=tr(b);ctx.strokeStyle='#d8e0d116';ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();}for(const hex of theatre.hexes){const p=tr(hex),control=hexControl(hex),col=C[control]||C.neutral;pathHex(ctx,p.x,p.y,Math.max(10,rr(hex.radius)));ctx.fillStyle=col+'18';ctx.fill();ctx.strokeStyle=col+'8a';ctx.lineWidth=control==='contested'?2:1;ctx.stroke();ctx.fillStyle='#d6ddd0a6';ctx.textAlign='center';ctx.font='700 8px system-ui';ctx.fillText(hex.name,p.x,p.y-3);}for(const {sector}of theatre.records.values()){const p=tr(sector);ctx.beginPath();ctx.arc(p.x,p.y,selected===sector.id?5.4:3.2,0,Math.PI*2);ctx.fillStyle=C[sector.owner]||C.neutral;ctx.fill();if(selected===sector.id){ctx.strokeStyle='#fff';ctx.stroke();}}for(const cv of ls.convoys){if(cv.team!==t||!['moving','blocked'].includes(cv.status))continue;const leg=cv.path[cv.leg],a=leg&&theatre.records.get(leg.from)?.sector,b=leg&&theatre.records.get(leg.to)?.sector;if(!a||!b)continue;const q=Math.max(0,Math.min(1,cv.legProgress/leg.distance)),p=tr({x:a.x+(b.x-a.x)*q,y:a.y+(b.y-a.y)*q});ctx.fillStyle=cv.status==='blocked'?'#e1ad55':'#f1e9c9';ctx.fillRect(p.x-2.5,p.y-2.5,5,5);}}
+  function frame(now){if(!open)return;const dt=Math.min(.1,(now-last)/1000);last=now;simAcc+=dt;if(simAcc>=.75){theatre.step(simAcc*8);simAcc=0;side();}draw();raf=requestAnimationFrame(frame);}
+  function toggle(v){open=v;root.classList.toggle('hidden',!v);cancelAnimationFrame(raf);if(v){resize();last=performance.now();side();draw();raf=requestAnimationFrame(frame);}}
+  btn.onclick=()=>toggle(true);root.querySelector('[data-close]').onclick=()=>toggle(false);canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let hit=null,best=18;for(const {sector}of theatre.records.values()){const p=tr(sector),dd=Math.hypot(p.x-x,p.y-y);if(dd<best){best=dd;hit=sector.id;}}selected=hit;side();draw();});addEventListener('resize',()=>{if(open){resize();draw();}});return Object.freeze({open:()=>toggle(true),close:()=>toggle(false),theatre});
+}
