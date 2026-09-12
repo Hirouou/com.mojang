@@ -93,8 +93,9 @@ test('look pitch clamps and reset clears locomotion',()=>{
 });
 
 test('crew replication pose is compact, validated and interpolates yaw across wrap',()=>{
-  const from=cabinCrewPose({x:-.4,z:2.4,yaw:Math.PI-.1,pitch:-.2});
-  const to=cabinCrewPose({x:.4,z:2.4,yaw:-Math.PI+.1,pitch:.2});
+  // Keep both samples comfortably clear of the reserve chest collision radius.
+  const from=cabinCrewPose({x:-.15,z:2.4,yaw:Math.PI-.1,pitch:-.2});
+  const to=cabinCrewPose({x:.15,z:2.4,yaw:-Math.PI+.1,pitch:.2});
   assert.ok(from&&to);
   assert.equal(Object.isFrozen(from),true);
   assert.equal(cabinCrewPose({x:99,z:99,yaw:0,pitch:0}),null);
