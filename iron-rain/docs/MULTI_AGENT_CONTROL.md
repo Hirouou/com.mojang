@@ -50,7 +50,7 @@ Cada conta ocupa um slot e cria as cinco tarefas nos minutos indicados.
 |---|---|---:|---:|---:|---:|---:|---|
 | A | ChatGPT-GPT-5.6-Sol | :01 | :13 | :25 | :37 | :49 | Reporter visual |
 | B | ChatGPT-GPT-5.6-Sol-B | :03 | :15 | :27 | :39 | :51 | Art director |
-| C | LIVRE | :05 | :17 | :29 | :41 | :53 | — |
+| C | ChatGPT-GPT-5.6-Sol-C | :05 | :17 | :29 | :41 | :53 | — |
 | D | LIVRE | :07 | :19 | :31 | :43 | :55 | — |
 | E | LIVRE | :09 | :21 | :33 | :45 | :57 | — |
 | F | LIVRE | :11 | :23 | :35 | :47 | :59 | — |
