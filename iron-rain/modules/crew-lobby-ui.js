@@ -1,6 +1,20 @@
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const cleanRoom = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 16);
 
+function ensureLobbyStyles() {
+  if (document.getElementById('iron-rain-crew-lobby-style')) return;
+  const style = document.createElement('style');
+  style.id = 'iron-rain-crew-lobby-style';
+  style.textContent = `
+    .crew-lobby{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));background:radial-gradient(circle at 50% 30%,#273129f2,#090d0bf8);color:#d9d2b1;font-family:ui-monospace,Consolas,monospace}
+    .crew-lobby.hidden{display:none}.crew-lobby-card{width:min(560px,100%);padding:22px;border:1px solid #81785b;background:#111813f5;box-shadow:0 22px 90px #000c}.crew-lobby-card>small{letter-spacing:2px;color:#8e9a86;font-size:9px}.crew-lobby-card h2{margin:8px 0 6px;font-size:26px;letter-spacing:2px;color:#eadcaf}.crew-lobby-card p{margin:0 0 16px;color:#aeb7a4;font-size:10px;line-height:1.5}
+    .crew-lobby-room{display:grid;grid-template-columns:1fr 1fr;gap:8px}.crew-lobby-room label{grid-column:1/-1;font-size:9px;letter-spacing:1px;color:#bdb58f}.crew-lobby-room input{box-sizing:border-box;width:100%;margin-top:6px;padding:13px 12px;border:1px solid #73795f;background:#080e0a;color:#f0dfad;font:700 17px ui-monospace,monospace;letter-spacing:2px;text-transform:uppercase}.crew-lobby button{min-height:46px;border:1px solid #727b61;background:#273124;color:#ddcf9f;font:700 10px ui-monospace,monospace;letter-spacing:1px}.crew-lobby button:disabled{opacity:.35}.crew-lobby button:active{transform:translateY(1px)}
+    .crew-lobby-members{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0 8px}.crew-lobby-members div{min-height:48px;padding:8px;border-left:2px solid #8f7e51;background:#182118}.crew-lobby-members b,.crew-lobby-members span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.crew-lobby-members b{font-size:10px;color:#e0d3aa}.crew-lobby-members span{margin-top:6px;font-size:7px;color:#8e9a87}.crew-lobby-status{padding:8px 10px;background:#0a100c;border:1px solid #414b3b;color:#aebc9f;font-size:9px;letter-spacing:1px}.crew-lobby-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.crew-lobby-actions [data-crew-enter]{background:#4a442a;border-color:#a69055;color:#f2dca0}
+    @media(max-width:720px) and (orientation:landscape){.crew-lobby-card{width:min(600px,92vw);padding:13px}.crew-lobby-card h2{font-size:18px;margin:4px 0}.crew-lobby-card p{margin-bottom:9px}.crew-lobby-room input{padding:8px 10px;font-size:13px}.crew-lobby button{min-height:38px;font-size:9px}.crew-lobby-members{margin:8px 0 5px}.crew-lobby-members div{min-height:36px;padding:6px}.crew-lobby-members span{margin-top:3px}}
+  `;
+  document.head.appendChild(style);
+}
+
 /**
  * DOM-only lobby for one Mamute. It does not choose a network transport.
  * The runtime passed by the caller owns host/join/disconnect and status.
@@ -12,6 +26,7 @@ export function createCrewLobbyUI({
   onOffline = () => {},
   onEnterMamute = () => {},
 } = {}) {
+  ensureLobbyStyles();
   const shell = document.createElement('section');
   shell.className = 'crew-lobby hidden';
   shell.setAttribute('role', 'dialog');
