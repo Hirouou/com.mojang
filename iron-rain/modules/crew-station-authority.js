@@ -61,6 +61,11 @@ export function createCrewStationAuthority() {
     return released;
   }
 
+  function clear() {
+    if (!claims.size) return false;
+    claims.clear(); revision += 1; return true;
+  }
+
   function apply(authoritative) {
     const nextRevision = Number(authoritative?.revision);
     if (!Number.isFinite(nextRevision) || nextRevision < revision || !Array.isArray(authoritative?.claims)) return false;
@@ -77,7 +82,7 @@ export function createCrewStationAuthority() {
   }
 
   return Object.freeze({
-    claim, release, releaseAll, apply, snapshot, ownerOf, canUse,
+    claim, release, releaseAll, clear, apply, snapshot, ownerOf, canUse,
     stations: CREW_EXCLUSIVE_STATIONS,
   });
 }
