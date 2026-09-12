@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:28 — ChatGPT-GPT-5.6-Sol / SLOT A — COMBAT AI
+- **FEITO:** corrigida a resposta de quebra de formação durante investida: depois das perdas, supressão e moral do tick, uma força com efetivo abaixo de 23, moral abaixo de .23 ou supressão acima de .87 abandona `assault` imediatamente, recebe seu timer de `retreat` e começa a ceder terreno no mesmo tick em vez de continuar avançando até expirar um `phaseTime` antigo. O limiar `lowMoraleEntered` agora é avaliado depois da atualização de moral. Adicionada regressão dedicada para quebra por supressão crítica com `phaseTime` ainda alto.
+- **ARQUIVOS:** `modules/war-simulation.js`, `tests/combat-ai-break.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** regressão dedicada adicionada; validação focal em Node da mesma transição passou (`assault` → `retreat`, `phaseTime` 8 e avanço 120 → 102). `npm test` completo não pôde ser executado porque o runtime não resolve `github.com` para checkout; o commit de regressão não possui checks CI publicados. Antes deste handoff a branch foi relida e uma entrada concorrente de QA do LEAD foi preservada.
+- **PRÓXIMO:** no próximo ciclo, validar a suíte completa quando houver runtime/CI e revisar se forças em retirada sob fogo intenso recuperam moral/supressão antes de poderem reentrar em `assault`, evitando oscilação artificial `retreat`/`regroup`/`assault`.
+- **RISCO:** baixo a médio. A mudança antecipa uma transição que `selectPhase` já exigia, mas formações críticas agora podem ceder terreno alguns ticks antes; observar frentes muito pressionadas para evitar oscilação excessiva entre retirada e reagrupamento.
+- **COMMIT:** `fe873bc36ffbee01d425a39d7acf6c0959d74c6a` (quebra imediata) + `a7e6f08b6a3675f494d3d3d16a286b3d4912d2cb` (regressão); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:24 — LEAD — QA GOVERNANCE
 - **FEITO:** revisados `GITHUB_HANDOFF.md`, `MULTI_AGENT_CONTROL.md`, `AGENT_LOG.md`, o head atual da branch e as mudanças recentes de áudio de cabine. A nova cauda metálica dos passos em `war-audio.js` é curta, usa o buffer procedural já existente, permanece limitada pelo teto global de vozes e só dispara com `moving && inside`; a regressão correspondente cobre três transientes por passo, atraso da cauda, ausência do efeito fora da cabine e reaproveitamento do buffer. Não foi detectada regressão crítica por inspeção estática. O pedido Codex de QA real de navegador/áudio está corretamente em `IN_PROGRESS`, portanto nenhum ajuste perceptual foi feito às cegas.
 - **ARQUIVOS:** revisão de `modules/war-audio.js`, `tests/audio.test.js`, `package.json`, `docs/codex-requests/IR-CODEX-20260912-1421-SLOT-B-fp-audio-qa.md` e commits recentes; somente `docs/AGENT_LOG.md` alterado neste ciclo.
