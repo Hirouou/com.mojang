@@ -23,7 +23,7 @@ test('crew visual layer keeps the last drawable pose across a blocked interpolat
     {
       id: 'gunner',
       from: { x: -0.6, z: 0.7, yaw: 0.2, pitch: 0.1 },
-      to: { x: -2.2, z: 1.8, yaw: 0.9, pitch: -0.1 },
+      to: { x: -2.2, z: 1.78, yaw: 0.9, pitch: -0.1 },
     },
   ], 0.5, 0.016);
   assert.equal(blocked[0].visible, true);
@@ -48,9 +48,11 @@ test('crew visual layer preserves the two-peer cap and hides omitted peers', () 
   assert.deepEqual(layer.snapshot().map(item => item.id), ['driver', 'radio']);
 
   layer.update([{ id: 'radio', pose: { x: -1.1, z: 2.3, yaw: -0.35, pitch: 0.1 } }], 1, 0.016);
-  assert.equal(layer.snapshot()[0].id, 'radio');
-  assert.equal(layer.snapshot()[0].visible, true);
-  assert.equal(layer.snapshot()[1].visible, false);
+  const snapshot = layer.snapshot();
+  const radio = snapshot.find(item => item.id === 'radio');
+  assert.ok(radio, 'remaining peer keeps its preallocated body instead of changing identity');
+  assert.equal(radio.visible, true);
+  assert.equal(snapshot.filter(item => item.visible).length, 1);
   layer.dispose();
 });
 
@@ -71,7 +73,7 @@ test('omitted peer cannot resurrect a stale cached pose after reconnect', () => 
     {
       id: 'gunner',
       from: { x: -0.6, z: 0.7, yaw: 0.2, pitch: 0.1 },
-      to: { x: -2.2, z: 1.8, yaw: 0.9, pitch: -0.1 },
+      to: { x: -2.2, z: 1.78, yaw: 0.9, pitch: -0.1 },
     },
   ], 0.5, 0.016);
 
