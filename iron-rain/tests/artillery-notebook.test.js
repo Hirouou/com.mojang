@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ballistics } from '../modules/ballistics.js';
+import { ballistics, chargeBand } from '../modules/ballistics.js';
 import { artilleryNotebookRows, artilleryNotebookTableRows } from '../modules/artillery-notebook.js';
 
 const close = (actual, expected, epsilon = 1e-6) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} ~= ${expected}`);
@@ -53,10 +53,27 @@ test('artillery notebook preserves every overlapping manual option in determinis
   for (const row of rows) {
     assert.ok(range >= row.min && range <= row.max, `C${row.charge} must contain the plotted range`);
     assert.ok(row.arcs.length >= 1 && row.arcs.length <= 2);
-    assert.deepEqual(row.arcs.map(arc => arc.kind), row.arcs.length === 2 ? ['low', 'high'] : ['single']);
+    assert.deepEqual(row.arcs.map(arc => arc.kind), row.arcs.length === 2 ? ['low', 'high'] : [row.arcs[0].elevation === 45 ? 'single' : row.arcs[0].elevation > 45 ? 'high' : 'low']);
     assert.deepEqual(row.arcs.map(arc => arc.elevation), [...row.arcs.map(arc => arc.elevation)].sort((a, b) => a - b));
     for (const arc of row.arcs) close(ballistics(row.charge, arc.elevation).range, range);
   }
+});
+
+test('single notebook arc keeps its physical branch when a mechanical stop removes its complement', () => {
+  const charge = 4;
+  const shortRange = chargeBand(charge).min;
+  const shortRow = artilleryNotebookRows(shortRange, charge).find(row => row.charge === charge);
+  assert.ok(shortRow);
+  assert.equal(shortRow.arcs.length, 1);
+  assert.equal(shortRow.arcs[0].kind, 'high');
+  assert.ok(shortRow.arcs[0].elevation > 45);
+
+  const maxRange = chargeBand(charge).max;
+  const maxRow = artilleryNotebookRows(maxRange, charge).find(row => row.charge === charge);
+  assert.ok(maxRow);
+  assert.equal(maxRow.arcs.length, 1);
+  assert.equal(maxRow.arcs[0].kind, 'single');
+  close(maxRow.arcs[0].elevation, 45);
 });
 
 test('full notebook table keeps all seven nominal charge rows while only reachable rows expose arcs', () => {
