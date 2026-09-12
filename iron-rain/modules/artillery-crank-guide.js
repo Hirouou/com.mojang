@@ -5,6 +5,11 @@ const finite = (value, name) => {
   return value;
 };
 
+const movementLabel = delta => {
+  if (Math.abs(delta) < 1e-7) return 'SEGURE';
+  return `${delta > 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(1)}°`;
+};
+
 /**
  * Read-only hand-crank guide for the charge already inserted in the gun.
  *
@@ -27,6 +32,7 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
       tof: arc.tof,
       delta,
       direction: Math.abs(delta) < 1e-7 ? 'hold' : delta > 0 ? 'up' : 'down',
+      movementLabel: movementLabel(delta),
     });
   }));
 }
