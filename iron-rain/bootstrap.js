@@ -4,6 +4,7 @@ import { createCrewBroadcastTransport } from './modules/crew-broadcast-transport
 import { createCrewMqttTransport } from './modules/crew-mqtt-transport.js';
 import { createCrewCabinBridge } from './modules/crew-cabin-bridge.js';
 import { normalizeFaction, factionInfo } from './modules/factions.js';
+import { installStrategicWarLive } from './modules/strategic-war-live.js';
 
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
@@ -13,6 +14,7 @@ let lobby = null;
 let heartbeatTimer = 0;
 let crewBridge = null;
 let crewFrame = 0;
+let strategicWar = null;
 let lastCrewFrameAt = performance.now();
 
 // Keep mobile station overrides isolated from the legacy field UI. This makes
@@ -128,6 +130,7 @@ async function startGame(status = {}, fallbackMode = 'offline') {
   app.classList.toggle('faction-allies', entry.faction === 'allies');
   app.classList.toggle('faction-axis', entry.faction === 'axis');
   lobby.hide();
+  strategicWar ||= installStrategicWarLive({ app });
   try {
     await import('./game-v6.js');
   } catch (error) {
