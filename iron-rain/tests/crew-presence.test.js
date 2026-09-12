@@ -43,6 +43,29 @@ test('blocked interpolation holds the last drawable pose instead of clipping thr
   assert.ok(resumed[0].pose.x > initial.x);
 });
 
+test('per-peer interpolation alpha from crew replication overrides the fallback blend', () => {
+  const presence = createCabinCrewPresence();
+  const visible = presence.update([
+    {
+      id: 'driver', alpha: .25,
+      from: { x: -.8, z: -2.1, yaw: 0, pitch: 0 },
+      to: { x: -.4, z: -2.1, yaw: .8, pitch: .2 },
+    },
+    {
+      id: 'radio', alpha: .75,
+      from: { x: 0, z: 4.5, yaw: 0, pitch: 0 },
+      to: { x: 0, z: 4.9, yaw: -.8, pitch: -.2 },
+    },
+  ], 0);
+
+  assert.equal(visible[0].pose.x, -.7);
+  assert.ok(Math.abs(visible[0].pose.yaw - .2) < 1e-9);
+  assert.ok(Math.abs(visible[0].pose.pitch - .05) < 1e-9);
+  assert.equal(visible[1].pose.z, 4.8);
+  assert.ok(Math.abs(visible[1].pose.yaw + .6) < 1e-9);
+  assert.ok(Math.abs(visible[1].pose.pitch + .15) < 1e-9);
+});
+
 test('invalid or absent peers never create visual ghosts and cached poses can be cleared', () => {
   const presence = createCabinCrewPresence();
   assert.deepEqual(presence.update([{ id: 'bad', pose: { x: NaN, z: 0, yaw: 0, pitch: 0 } }]), []);
