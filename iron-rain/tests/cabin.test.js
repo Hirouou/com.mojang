@@ -62,7 +62,8 @@ test('corner sliding follows the dominant movement axis instead of steering side
   c.setPose({x:.25,z:-.9,yaw:0,pitch:0});
   const before={...c.position};
   c.update(.1,{x:.25,y:-1});
-  assert.ok(Math.abs(c.position.x-before.x)<.03,'dominant forward input should not be steered hard sideways');
+  const intendedLateral=.1*1.65*(.25/Math.hypot(.25,1));
+  assert.ok(Math.abs(c.position.x-before.x)<=intendedLateral+.005,'collision response must not add sideways steering beyond the requested strafe component');
 });
 
 test('station interaction requires physical proximity and looking toward the station',()=>{
