@@ -1,6 +1,7 @@
 import { createCrewLobbyUI } from './modules/crew-lobby-ui.js';
 import { createCrewRuntime } from './modules/crew-runtime.js';
 import { createCrewBroadcastTransport } from './modules/crew-broadcast-transport.js';
+import { createCrewMqttTransport } from './modules/crew-mqtt-transport.js';
 import { createCrewCabinBridge } from './modules/crew-cabin-bridge.js';
 import { normalizeFaction, factionInfo } from './modules/factions.js';
 
@@ -25,20 +26,27 @@ if (!document.querySelector('link[data-iron-rain-mobile-station]')) {
 }
 
 function localPlayerId() {
-  const key = 'iron-rain-player-id';
+  const tabKey = 'iron-rain-crew-tab-id';
   try {
-    const existing = localStorage.getItem(key);
+    const existing = sessionStorage.getItem(tabKey);
     if (existing) return existing;
-    const created = `crew-${globalThis.crypto?.randomUUID?.().slice(0, 8) || Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(key, created);
+    let device = localStorage.getItem('iron-rain-device-id');
+    if (!device) {
+      device = globalThis.crypto?.randomUUID?.().slice(0, 8) || Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('iron-rain-device-id', device);
+    }
+    const created = `crew-${device}-${Math.random().toString(36).slice(2, 7)}`;
+    sessionStorage.setItem(tabKey, created);
     return created;
   } catch {
-    return `crew-${Math.random().toString(36).slice(2, 10)}`;
+    return `crew-${Math.random().toString(36).slice(2, 12)}`;
   }
 }
 
 const localId = localPlayerId();
-const transportFactory = crewQa ? options => createCrewBroadcastTransport(options) : null;
+const transportFactory = crewQa
+  ? options => createCrewBroadcastTransport(options)
+  : options => createCrewMqttTransport(options);
 const runtime = createCrewRuntime({
   localId,
   transportFactory,
@@ -135,25 +143,26 @@ function ensureHeartbeat() {
   }, 1000);
 }
 
+function beginCrew(mode, room, faction) {
+  const result = mode === 'host' ? runtime.host(room, faction) : runtime.join(room, faction);
+  lobby.setStatus(result.status);
+  if (!result.ok) {
+    setNotice('CONEXÃO INDISPONÍVEL', 'Não foi possível iniciar o transporte multiplayer neste navegador. Jogar sozinho continua disponível.');
+    return result;
+  }
+  ensureHeartbeat();
+  if (!crewQa && mode === 'host') setNotice('SALA ABERTA · CONECTANDO', 'Compartilhe o mesmo código e a mesma facção. O segundo jogador aparece quando a conexão pública responder.');
+  if (!crewQa && mode === 'guest') setNotice('PROCURANDO MAMUTE', 'Aguardando resposta do host pelo código informado.');
+  return result;
+}
+
 lobby = createCrewLobbyUI({
   root: document.body,
   onHost(room, faction) {
-    if (!crewQa) {
-      setNotice('MULTIPLAYER ONLINE · EM PREPARAÇÃO', 'Sala, facção e limite de 3 tripulantes já estão prontos. Falta somente o transporte público entre dispositivos; jogar sozinho continua disponível.');
-      return;
-    }
-    const result = runtime.host(room, faction);
-    lobby.setStatus(result.status);
-    ensureHeartbeat();
+    beginCrew('host', room, faction);
   },
   onJoin(room, faction) {
-    if (!crewQa) {
-      setNotice('MULTIPLAYER ONLINE · EM PREPARAÇÃO', 'O código de Mamute já faz parte do fluxo. A conexão pública entre celulares/PC ainda está sendo ligada.');
-      return;
-    }
-    const result = runtime.join(room, faction);
-    lobby.setStatus(result.status);
-    ensureHeartbeat();
+    beginCrew('guest', room, faction);
   },
   onOffline(faction) {
     startGame({ mode: 'offline', faction, room: '', seat: 0, capacity: 3, count: 1 }, 'offline');
@@ -167,8 +176,7 @@ lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, ca
 setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado antes de criar uma tripulação, entrar por código ou jogar sozinho.');
 lobby.show();
 
-// The production URL never exposes the same-browser QA transport as public multiplayer.
-if (crewQa) setNotice('QA MULTIPLAYER LOCAL', 'Modo de teste: duas abas/PWAs no mesmo navegador podem criar/entrar na mesma sala. Isso ainda não é o transporte público entre dispositivos.');
+if (crewQa) setNotice('QA MULTIPLAYER LOCAL', 'Modo de teste: duas abas no mesmo computador podem criar/entrar na mesma sala sem usar a internet pública.');
 
 window.addEventListener('beforeunload', () => {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
