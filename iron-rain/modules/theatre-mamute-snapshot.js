@@ -7,7 +7,9 @@ import { planMamuteMaterialization } from './theatre-mamute-materialization.js';
  *
  * `materialization` keeps canonical positions for simulation/render spawning.
  * `mapContacts` is independently fog-gated and must be the only list handed to
- * player-facing strategic map UI.
+ * player-facing strategic map UI. `previousNearbyIds` carries only simulation-
+ * side materialization state between snapshots so the planner can apply its
+ * retention hysteresis without making enemy coordinates visible to the map.
  */
 export function buildTheatreMamuteSnapshot({
   roster,
@@ -16,12 +18,16 @@ export function buildTheatreMamuteSnapshot({
   intelEntries = [],
   radius = 3200,
   maxNearby,
+  previousNearbyIds = [],
 } = {}) {
   const materialization = planMamuteMaterialization(
     roster,
     focusId,
     radius,
-    maxNearby === undefined ? undefined : { maxNearby },
+    {
+      ...(maxNearby === undefined ? {} : { maxNearby }),
+      previousNearbyIds,
+    },
   );
   if (!materialization) return null;
 
@@ -32,6 +38,7 @@ export function buildTheatreMamuteSnapshot({
   return Object.freeze({
     focus: materialization.focus,
     radius: materialization.radius,
+    retentionRadius: materialization.retentionRadius,
     maxNearby: materialization.maxNearby,
     nearby: materialization.nearby,
     distant: materialization.distant,
