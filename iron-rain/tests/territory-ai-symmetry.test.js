@@ -25,3 +25,16 @@ test('built structures grant identical operational effects to either faction', (
   enemy.structures.push('mortar', 'bunker', 'garage');
   assert.deepEqual(territoryOperationalEffects(ally), territoryOperationalEffects(enemy));
 });
+
+test('empty territory grants no free combat bonuses or reinforcement support', () => {
+  const effects = territoryOperationalEffects({ structures: [] });
+  assert.deepEqual(effects, {
+    supplyCapacity: 1,
+    defensiveCover: 0,
+    indirectFire: 0,
+    repairSupport: 0,
+    armorStaging: false,
+    localProduction: false,
+    reinforcementSupport: 0,
+  });
+});
