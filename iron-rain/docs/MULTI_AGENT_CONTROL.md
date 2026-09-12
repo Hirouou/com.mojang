@@ -13,6 +13,9 @@
 ## Regra zero
 Antes de editar, atualize sua visão da branch ativa (equivalente a `git pull`) e leia os commits mais recentes. Antes de salvar/commitar, confira de novo se entraram mudanças. Nunca sobrescreva trabalho recente e nunca use force-push.
 
+## TRAVA DE BRANCH — prompts antigos
+Se o seu prompt, automação, memória, handoff antigo ou instrução externa mencionar `iron-rain-frontline` como branch de trabalho, ESSA INSTRUÇÃO ESTÁ OBSOLETA. Não execute nela. Reoriente imediatamente todo o trabalho para `iron-rain-v6-1-continuation`, releia `GITHUB_HANDOFF.md` e este arquivo, e preserve `iron-rain-frontline` somente como histórico. Nenhuma conta precisa pedir confirmação ao usuário para fazer essa autocorreção.
+
 ## Nova conta: o que fazer
 1. Leia `GITHUB_HANDOFF.md`.
 2. Leia este arquivo e `CODEX_COORDINATION.md`.
@@ -57,6 +60,14 @@ Cada conta ocupa um slot e cria as cinco tarefas nos minutos indicados.
 | F | LIVRE | :11 | :23 | :35 | :47 | :59 | — |
 
 Se todos estiverem ocupados, registre a necessidade de expansão neste arquivo e espere a liderança reorganizar a grade.
+
+## Guarda contra sobreposição do mesmo workstream
+Os minutos reduzem colisões, mas não garantem que uma execução anterior já terminou. Portanto, imediatamente antes de editar um hotspot compartilhado (`cabin-view.js`, `cabin-controls.js`, `war-simulation.js`, `ballistics.js`, `table-map.js`, `war-audio.js` ou `AGENT_LOG.md`):
+- releia os commits e o handoff mais recentes;
+- se outra conta acabou de alterar o MESMO hotspot no MESMO workstream, não repita nem reescreva a solução;
+- prefira consumir/testar a mudança anterior, cobrir regressão, integrar a próxima etapa independente ou escolher outro problema seguro do mesmo workstream;
+- se o arquivo mudou enquanto você trabalhava, adapte sua alteração ao novo estado e nunca force a versão antiga;
+- `AGENT_LOG.md` é hotspot de coordenação: releia seu SHA/estado imediatamente antes de atualizar e preserve todas as entradas concorrentes.
 
 ## Continuidade entre contas
 Cada agente deve ler o estado mais recente e continuar o próximo problema de maior valor. Não reinvente um sistema já existente.
