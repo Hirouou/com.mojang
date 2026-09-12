@@ -1,3 +1,5 @@
+import { combatRecoveryPhase } from './combat-recovery.js';
+
 /** Persistent fronts, with tactical soldiers instantiated only where detail is needed. */
 export const WAR_LIMITS = Object.freeze({ detailRadius: 2400, maxDetailedFronts: 3, soldiersPerFront: 17, maxTracers: 180, strategicStep: 1, captureBound: 640, maxBasesPerFront: 6, maxSupport: 96, maxEvents: 40, enemyIntelLifetime: 12 });
 /**
@@ -203,16 +205,18 @@ function assetSupport(sec, team) {
   return { fire: .38 + guns * .075 + level * .035 + armor, supply: clamp(supply + (depot ? .12 : 0), .08, 1) };
 }
 
-function selectPhase(sec, team, force, foe) {
+function selectPhase(sec, team, force, foe, supply) {
   const strength = sec[strengthKey(team)], enemyStrength = sec[strengthKey(team === 'ally' ? 'enemy' : 'ally')];
-  if (strength < 23 || force.morale < .23 || force.suppression > .87) {
-    // A newly broken unit must enter retreat even if a stale previous phase
-    // happened to say retreat. On the following strategic tick it can move to
-    // regroup, which keeps the retreat → regroup rhythm deterministic.
-    if (force.morale < .23 && force.lowMoraleEntered) return 'retreat';
-    return force.phase === 'retreat' ? 'regroup' : 'retreat';
-  }
-  if (force.phase === 'retreat' || force.ammo < .2) return 'regroup';
+  const recoveryPhase = combatRecoveryPhase({
+    phase: force.phase,
+    strength,
+    morale: force.morale,
+    suppression: force.suppression,
+    ammo: force.ammo,
+    supply
+  });
+  if (recoveryPhase) return recoveryPhase;
+  if (force.ammo < .2) return 'regroup';
   if (enemyStrength < 12 && force.suppression < .65 && force.phase !== 'consolidate') return 'assault';
   if (force.phase === 'assault') return strength * force.morale > enemyStrength * foe.morale * .8 ? 'consolidate' : 'retreat';
   if (force.suppression > .65) return 'hold';
@@ -293,7 +297,7 @@ function strategicStep(state) {
       synchronizeSlots(sec, team, reinforced);
       force.phaseTime--;
       if (force.phaseTime <= 0) {
-        force.phase = selectPhase(sec, team, force, foe);
+        force.phase = selectPhase(sec, team, force, foe, support.supply);
         force.phaseTime = phaseDuration[force.phase] + war.index % 4;
         force.cycles++;
       }
@@ -303,8 +307,9 @@ function strategicStep(state) {
       const canOccupy = sec[key] >= 23 && force.morale >= .23 && force.suppression < .68 && force.ammo > .18 &&
         (enemyStrength < 12 || ownPower > enemyPower * 1.3);
       // A cleared line is exploited immediately, independent of the old
-      // suppress/wait loop. The next 640 m becomes persistent territory.
-      if (enemyStrength < 12 && canOccupy && force.phase !== 'consolidate') {
+      // suppress/wait loop. The next 640 m becomes persistent territory, but
+      // a withdrawing/reorganizing formation cannot bypass its recovery gate.
+      if (enemyStrength < 12 && canOccupy && !['regroup', 'retreat', 'consolidate'].includes(force.phase)) {
         force.phase = 'assault';
         force.phaseTime = Math.max(force.phaseTime, 4);
       }
