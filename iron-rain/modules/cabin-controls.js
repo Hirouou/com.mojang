@@ -67,9 +67,21 @@ export function createCabinMovement() {
       const dz = (-Math.sin(yaw) * mx + Math.cos(yaw) * my) / magnitude * distance;
       const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / .035));
       for (let i = 0; i < steps; i++) {
-        const oldX = position.x, oldZ = position.z;
-        if (canOccupyCabin(position.x + dx / steps, position.z)) position.x += dx / steps;
-        if (canOccupyCabin(position.x, position.z + dz / steps)) position.z += dz / steps;
+        const oldX = position.x, oldZ = position.z, sx = dx / steps, sz = dz / steps;
+        const nextX = position.x + sx, nextZ = position.z + sz;
+        if (canOccupyCabin(nextX, nextZ)) {
+          position.x = nextX; position.z = nextZ;
+        } else {
+          // When a diagonal step meets a corner, slide along the dominant input
+          // axis instead of always preferring X. This keeps tight aisles feeling
+          // symmetric and prevents the collision response from steering the player.
+          const canX = canOccupyCabin(nextX, position.z), canZ = canOccupyCabin(position.x, nextZ);
+          if (canX && canZ) {
+            if (Math.abs(sx) >= Math.abs(sz)) position.x = nextX;
+            else position.z = nextZ;
+          } else if (canX) position.x = nextX;
+          else if (canZ) position.z = nextZ;
+        }
         travelled += Math.hypot(position.x - oldX, position.z - oldZ);
       }
     },
