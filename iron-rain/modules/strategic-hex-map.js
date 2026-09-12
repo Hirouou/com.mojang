@@ -1,4 +1,4 @@
-import { THEATRE_SIZE, territoryAt } from './theatre-control.js';
+import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
 
 const SQRT3 = Math.sqrt(3);
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
@@ -31,11 +31,25 @@ const hexName = index => {
 };
 
 /**
- * Strategic world regions inspired by a hex-map war, while keeping Iron Rain's
- * own theatre scale and rules. Every hex contains seven capturable sectors.
+ * The strategic map starts with a coherent west/east split plus one contiguous
+ * no-man's-land corridor. The innermost strip is actively contested; the wider
+ * strip is neutral/unclaimed. This avoids arbitrary enemy pockets behind lines.
+ */
+export function strategicOwnerAt({ x, y } = {}) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return 'neutral';
+  const delta = x - controlLineX(y);
+  const distance = Math.abs(delta);
+  if (distance <= 1_350) return 'contested';
+  if (distance <= 5_250) return 'neutral';
+  return delta < 0 ? 'ally' : 'enemy';
+}
+
+/**
+ * Strategic world regions inspired by large persistent-war maps, while keeping
+ * Iron Rain's own theatre scale/rules. Every large hex contains seven sectors.
  */
 export function createStrategicHexMap({ width = THEATRE_SIZE.w, height = THEATRE_SIZE.h, radius = STRATEGIC_HEX.radius } = {}) {
-  const margin = radius * .9;
+  const margin = radius * .92;
   const hexes = [];
   let serial = 0;
   for (let q = 0; ; q++) {
@@ -54,7 +68,7 @@ export function createStrategicHexMap({ width = THEATRE_SIZE.w, height = THEATRE
           name: STRATEGIC_HEX.sectorNames[index],
           x: sx,
           y: sy,
-          owner: territoryAt({ x: sx, y: sy }),
+          owner: strategicOwnerAt({ x: sx, y: sy }),
           controlProgress: 0,
           radio: false,
           structures: [],
@@ -71,10 +85,11 @@ function freezeHex(hex) {
 }
 
 export function hexControl(hex) {
-  const owners = (hex?.sectors || []).map(sector => sector.owner).filter(owner => owner === 'ally' || owner === 'enemy' || owner === 'contested');
+  const owners = (hex?.sectors || []).map(sector => sector.owner);
   if (!owners.length) return 'neutral';
   if (owners.every(owner => owner === 'ally')) return 'ally';
   if (owners.every(owner => owner === 'enemy')) return 'enemy';
+  if (owners.every(owner => owner === 'neutral')) return 'neutral';
   return 'contested';
 }
 
@@ -86,8 +101,8 @@ export function canCaptureHex(hex, team) {
 
 export function setSectorOwner(hex, sectorId, owner) {
   if (!hex?.sectors?.some?.(sector => sector.id === sectorId)) return null;
-  const team = ['ally', 'enemy', 'contested'].includes(owner) ? owner : 'contested';
-  const sectors = hex.sectors.map(sector => sector.id === sectorId ? { ...sector, owner: team, controlProgress: team === 'contested' ? sector.controlProgress : 1 } : { ...sector });
+  const team = ['ally', 'enemy', 'contested', 'neutral'].includes(owner) ? owner : 'neutral';
+  const sectors = hex.sectors.map(sector => sector.id === sectorId ? { ...sector, owner: team, controlProgress: team === 'ally' || team === 'enemy' ? 1 : sector.controlProgress } : { ...sector });
   return freezeHex({ ...hex, sectors });
 }
 
@@ -99,14 +114,14 @@ export function neighboringHexIds(hex, allHexes) {
 }
 
 /**
- * Regular armies may fight in own/contested regions connected to their line.
- * Deep hostile territory is reserved for explicitly partisan/recon units.
+ * Regular armies may fight in own/contested/neutral frontier regions connected
+ * to their line. Deep hostile territory is reserved for partisan/recon units.
  */
 export function deploymentAllowed({ team, role = 'regular', destinationHex, allHexes = [] } = {}) {
   if (!['ally', 'enemy'].includes(team) || !destinationHex) return false;
   const control = hexControl(destinationHex);
   if (role === 'partisan' || role === 'recon') return true;
-  if (control === team || control === 'contested') return true;
+  if (control === team || control === 'contested' || control === 'neutral') return true;
   const neighbors = new Set(neighboringHexIds(destinationHex, allHexes));
   return allHexes.some(hex => neighbors.has(hex.id) && hexControl(hex) === team);
 }
