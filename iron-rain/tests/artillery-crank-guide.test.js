@@ -64,17 +64,21 @@ test('guide preserves a single apex arc label without inventing low or high sele
   assert.equal(guide[0].instructionLabel, 'ÚNICO · ↑ 5.0°');
 });
 
-test('notebook rows decorate only the inserted charge with matching crank cues', () => {
+test('notebook rows preserve the full seven-charge table and decorate only the inserted charge', () => {
   const range = ballistics(5, 30).range;
   const rows = artilleryCrankNotebookRows(range, 5, 40);
   const current = rows.find(row => row.current);
   const other = rows.find(row => !row.current && row.arcs.length);
+  const unreachable = rows.find(row => !row.arcs.length);
 
+  assert.equal(rows.length, 7);
   assert.ok(current);
   assert.deepEqual(current.arcs.map(arc => arc.kind), ['low', 'high']);
   assert.deepEqual(current.arcs.map(arc => arc.crankCue?.instructionLabel), ['BAIXO · ↓ 10.0°', 'ALTO · ↑ 20.0°']);
   assert.ok(other);
   assert.ok(other.arcs.every(arc => arc.crankCue === null));
+  assert.ok(unreachable);
+  assert.deepEqual(unreachable.arcs, []);
   assert.ok(Object.isFrozen(rows));
   assert.ok(rows.every(Object.isFrozen));
   assert.ok(rows.every(row => Object.isFrozen(row.arcs) && row.arcs.every(Object.isFrozen)));
