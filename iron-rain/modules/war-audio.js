@@ -36,8 +36,8 @@ export function createWarAudio() {
 
   function resumeContext() {
     if (!context || context.state === 'running' || context.state === 'closed') return;
-    primeMobileOutput();
     if (resumePending) return;
+    primeMobileOutput();
     const result = safely(() => context.resume());
     if (!result?.then) { safely(applyVolumes); return; }
     resumePending = result.then(() => {
