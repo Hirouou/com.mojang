@@ -114,6 +114,20 @@ test('inside engine rumble becomes brighter and stronger with speed without addi
   assert.equal(engineGain.gain.value, .065);
 });
 
+test('inside footsteps get a short delayed metallic hull return only while walking in the cabin', t => {
+  const { audio, contexts } = fixture(t); audio.wake();
+  const ctx = contexts[0], baseCount = ctx.nodes.length;
+  audio.update({ moving: true, inside: true, time: 10 });
+  const footSources = ctx.nodes.slice(baseCount).filter(n => n.started && n.stopped !== undefined);
+  assert.equal(footSources.length, 3, 'step creates contact, low thump and one bounded hull return');
+  assert.ok(footSources.some(n => n.kind === 'noise' && n.started[0] > ctx.currentTime), 'metallic return is delayed');
+  assert.ok(footSources.every(n => n.stopped < ctx.currentTime + .3), 'footstep voices remain short');
+  const afterInside = ctx.nodes.length;
+  audio.update({ moving: true, inside: false, time: 11 });
+  assert.equal(ctx.nodes.length, afterInside, 'outside movement does not synthesize cabin footsteps');
+  assert.equal(ctx.bufferAllocations, 1, 'footstep return reuses the shared noise buffer');
+});
+
 test('cannon combines transient, bass and hull rattle with bounded, cleaned-up voices', t => {
   const { audio, contexts } = fixture(t); audio.wake(); audio.fire();
   const ctx = contexts[0];
