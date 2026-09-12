@@ -17,16 +17,19 @@ This file is the current short-horizon integration handoff. It does not replace 
 
 - Mobile Safari audio wake hardened in `modules/war-audio.js` (resume interrupted/suspended states and prime output on a user gesture).
 - Installed/PWA app keeps the same URL and uses network-first refresh; service-worker cache version has been bumped so the home-screen icon can receive current modules.
+- Mobile cabin clarity pass landed in `style-v7.css`: quieter HUD/mission chrome, smaller translucent joystick, compact interaction button, lighter grain and a clearer low-profile reticle/prompt so the actual cabin occupies more of the iPhone screen. Do not recreate a competing mobile HUD pass unless new screenshots show a regression.
+- Table-map touch precision is now integrated in `modules/table-map.js` using `modules/map-touch-precision.js`: coarse pointers get an 8 px deadzone, reduced plot/pan drag gain and exact tap-to-place; mouse and anchored pinch behavior remain unchanged. This is now implementation, not pending work.
 - `modules/loader-arm.js`: visual-only articulated robotic loader choreography (grab -> lift -> rotate -> align -> ram -> lock). This exists specifically to replace straight-line/floating shell presentation. Consume it in the cabin renderer; do not recreate a competing loader clock.
 - `modules/maintenance-feedback.js`: presentation state for extinguisher spray, repair progress ring, repair motion/sparks and danger pulse. Engine rules stay in `engine-system.js`; renderer/UI should consume this helper instead of duplicating timings.
+- `modules/maintenance-overlay.js` is now wired through `engine-system.js`: repair/extinguish actions publish live progress and show an in-view circular percentage indicator; extinguisher mode has visible white foam/bubble feedback and repair mode has small mechanical spark feedback. Do not build a second progress overlay. Cabin 3D foam/tool geometry can still be added later as an enhancement.
 - `modules/crew-replication.js`: transport-agnostic three-seat replication state (1 local + 2 remotes), ordered packets, stale-peer pruning and renderer from/to samples. It intentionally does NOT choose WebSocket/WebRTC authority.
-- Focused tests exist for the three helpers under `tests/`.
+- Focused tests exist for the helper modules under `tests/`. LEAD also ran a local Node smoke test of the updated engine maintenance path; browser/iPhone visual QA still requires the deployed build/user device.
 
 ## Next integration order — do not duplicate helpers
 
 ### FP VISUALS + AUDIO
 1. Integrate `loaderArmPose()` into `cabin-view.js` with an actual articulated low-poly arm. The shell must appear physically clamped to the arm during transfer; do not keep a second free-floating shell path.
-2. Integrate `maintenanceFeedback()` into the cabin: visible extinguisher cone/foam while `kind === 'extinguish'`; visible circular/progress cue for both extinguish and repair; subtle repair tool/mechanical motion while repairing.
+2. Enhance the already-landed maintenance overlay with true cabin 3D extinguisher cone/foam/tool motion only if it can be done without duplicating the progress overlay.
 3. Preserve the PS1/low-poly dirty military aesthetic. Do not add glossy futuristic UI.
 
 ### FP SYSTEMS
@@ -40,7 +43,7 @@ This file is the current short-horizon integration handoff. It does not replace 
 3. Never allow remote input to drive local camera/movement. Do not add a fourth crew slot.
 
 ### TABLE MAP / MOBILE
-Tune touch precision rather than redesigning the map. Preferred behavior: small deadzone, lower drag gain on coarse pointers, tap-to-place remains precise, pinch stays anchored. Desktop mouse behavior should remain fast.
+The sensitivity complaint is implemented now. Only revisit after real mobile testing. If further tuning is needed, adjust the coarse-pointer helper rather than redesigning the map or touching desktop mouse behavior.
 
 ## Testing / reporting
 
