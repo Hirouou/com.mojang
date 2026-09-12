@@ -63,11 +63,28 @@ export function createCrewRuntime({
     return publish();
   }
 
+  function claimStation(station) {
+    const result = session.claimStation(station);
+    publish();
+    return result;
+  }
+
+  function releaseStation(station) {
+    const result = session.releaseStation(station);
+    publish();
+    return result;
+  }
+
   return Object.freeze({
     host: room => connect('host', room),
     join: room => connect('guest', room),
     disconnect,
     update,
+    claimStation,
+    releaseStation,
+    canUseStation: station => session.canUseStation(station),
+    stationOwner: station => session.stationOwner(station),
+    stationSnapshot: session.stationSnapshot,
     receive(packet) { const accepted = session.receive(packet); if (accepted) publish(); return accepted; },
     renderSamples: (at = now(), delay = .1) => session.renderSamples(at, delay),
     status: () => lastStatus || publish(),
