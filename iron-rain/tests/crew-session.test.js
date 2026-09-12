@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrewSession, CREW_MAX_PLAYERS } from '../modules/crew-session.js';
+import { FACTIONS } from '../modules/factions.js';
 
 const pose = (x = 0, z = 2.4, yaw = 0) => ({ x, z, yaw, pitch: 0 });
 
@@ -38,6 +39,26 @@ test('host authority admits exactly two remote crew and rejects a fourth player'
   c.session.receive(denial);
   assert.match(c.session.status().lastEvent, /^denied:/);
   assert.equal(host.session.status().count, 3);
+});
+
+test('Mamute crew is locked to one faction', () => {
+  const clock = { value: 14 };
+  const host = fixture('host', clock), ally = fixture('ally', clock), axis = fixture('axis', clock);
+  host.session.host('FRONT7', FACTIONS.ALLIES); host.out.length = 0;
+
+  ally.session.join('FRONT7', FACTIONS.ALLIES); deliver(ally.out, host.session);
+  deliver(host.out, ally.session);
+  assert.equal(ally.session.status().connected, true);
+  assert.equal(ally.session.status().faction, FACTIONS.ALLIES);
+  assert.equal(host.session.status().count, 2);
+
+  axis.session.join('FRONT7', FACTIONS.AXIS); deliver(axis.out, host.session);
+  const denial = host.out.find(packet => packet.kind === 'crew-deny' && packet.target === 'axis');
+  assert.equal(denial?.reason, 'faction-mismatch');
+  axis.session.receive(denial);
+  assert.equal(axis.session.status().connected, false);
+  assert.equal(axis.session.status().lastEvent, 'denied:faction-mismatch');
+  assert.equal(host.session.status().count, 2, 'opposing faction never occupies an allied Mamute seat');
 });
 
 test('crew pose packets stay collision-validated and renderer-ready', () => {
