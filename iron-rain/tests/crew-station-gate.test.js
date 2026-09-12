@@ -53,7 +53,7 @@ test('guest request remains pending until host authority grants ownership', () =
   assert.equal(stationGateMessage(result), 'AGUARDANDO CONFIRMAÇÃO DO POSTO');
 });
 
-test('occupied or disconnected stations fail closed with player-facing reasons', () => {
+test('occupied, disconnected or faction-mismatched stations fail closed with player-facing reasons', () => {
   const occupied = fakeRuntime({ owner: 'other-player' });
   const occupiedResult = requestStationGate(occupied, 'radio');
   assert.equal(occupiedResult.ok, false);
@@ -65,6 +65,12 @@ test('occupied or disconnected stations fail closed with player-facing reasons',
   const disconnectedResult = requestStationGate(disconnected, 'engine');
   assert.equal(disconnectedResult.reason, 'not-connected');
   assert.equal(stationGateMessage(disconnectedResult), 'TRIPULAÇÃO DESCONECTADA');
+
+  const mismatch = fakeRuntime({ claimResult: { ok: false, reason: 'faction-mismatch', station: 'aim', owner: null } });
+  const mismatchResult = requestStationGate(mismatch, 'aim');
+  assert.equal(mismatchResult.reason, 'faction-mismatch');
+  assert.equal(mismatchResult.ready, false);
+  assert.equal(stationGateMessage(mismatchResult), 'ESTE MAMUTE PERTENCE À OUTRA FACÇÃO');
 
   const invalid = requestStationGate(occupied, 'teleporter');
   assert.equal(invalid.reason, 'invalid-station');
