@@ -138,3 +138,35 @@ test('crew cabin bridge exposes pending and occupied station feedback without en
   });
   assert.equal(occupiedBridge.stationMessage(occupied), 'POSTO OCUPADO POR OUTRO TRIPULANTE');
 });
+
+test('crew cabin bridge keeps a guest claim pending until canonical ownership resolves', () => {
+  let owner = null;
+  let connected = true;
+  let claimCalls = 0;
+  const runtime = {
+    status() { return { mode: 'guest', connected, localId: 'guest-a' }; },
+    stationOwner() { return owner; },
+    claimStation(station) { claimCalls++; return { ok: false, pending: true, reason: 'pending-host', station, owner: null }; },
+    releaseStation() { return false; },
+  };
+  const bridge = createCrewCabinBridge({ runtime });
+
+  assert.equal(bridge.requestStation('radio').pending, true);
+  assert.deepEqual(bridge.stationState('radio'), {
+    ok: false, ready: false, pending: true, reason: 'pending-host', station: 'radio', owner: null,
+  });
+  assert.equal(bridge.requestStation('radio').pending, true);
+  assert.equal(claimCalls, 1, 'pending UI state must not resend duplicate claims');
+
+  owner = 'guest-a';
+  assert.deepEqual(bridge.stationState('radio'), {
+    ok: true, ready: true, pending: false, reason: 'owned', station: 'radio', owner: 'guest-a',
+  });
+
+  owner = null;
+  bridge.requestStation('radio');
+  connected = false;
+  assert.deepEqual(bridge.stationState('radio'), {
+    ok: false, ready: false, pending: false, reason: 'not-connected', station: 'radio', owner: null,
+  });
+});
