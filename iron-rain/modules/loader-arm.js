@@ -80,6 +80,38 @@ export function loaderArmPose(cycle) {
   return Object.freeze({ baseYaw, shoulder, elbow, claw, extension, rammer, gripping, shellVisible, phase });
 }
 
+/**
+ * Renderer-facing rig state derived from the same loader clock.
+ *
+ * The shell ownership is explicit so cabin renderers do not invent a second
+ * free-floating shell trajectory: while visible it belongs to the claw until
+ * the lock phase releases it into the breech. Geometry dimensions and world
+ * anchors remain renderer concerns.
+ */
+export function loaderRigState(cycle) {
+  const pose = loaderArmPose(cycle);
+  const active = pose.phase !== 'idle' && !(cycle?.complete);
+  const shellOwner = !pose.shellVisible ? null : pose.gripping ? 'claw' : 'breech';
+  return Object.freeze({
+    active,
+    phase: pose.phase,
+    joints: Object.freeze({
+      baseYaw: pose.baseYaw,
+      shoulder: pose.shoulder,
+      elbow: pose.elbow,
+      claw: pose.claw,
+      extension: pose.extension,
+      rammer: pose.rammer,
+    }),
+    shell: Object.freeze({
+      visible: pose.shellVisible,
+      owner: shellOwner,
+      clamped: shellOwner === 'claw',
+      seated: shellOwner === 'breech',
+    }),
+  });
+}
+
 /** Mechanical activity for sound/VFX without allocating extra state. */
 export function loaderActivity(cycle) {
   const pose = loaderArmPose(cycle);
