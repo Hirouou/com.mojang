@@ -1,46 +1,34 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-<meta name="theme-color" content="#0b110d" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b110d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Iron Rain">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style-v4.css">
 <title>Iron Rain: Frontline</title>
-<link rel="stylesheet" href="style-v3.min.css" />
 </head>
 <body>
 <div id="gameShell" class="game-shell">
   <canvas id="game" width="1280" height="720" aria-label="Campo de batalha"></canvas>
   <header class="hud-top">
-    <div class="hud-chip left"><b>M-47 MAMUTE</b><span id="robotCoord">X0000 Y0000 • BLINDAGEM 100%</span></div>
-    <div class="hud-chip objective"><b id="objectiveHud">BRAVO • DEFESAS 3/3</b><span id="frontHud">FRONT 1/4 • A:0 E:0</span></div>
-    <div class="hud-chip wind"><b id="windHud">VENTO —</b><span id="modeHud">MARCHA</span></div>
+    <div class="hud-chip"><b>M-47 MAMUTE</b><span id="robotCoord">X0000 Y0000 • 100%</span></div>
+    <div class="hud-chip objective"><b id="objectiveHud">ALFA</b><span id="phaseHud">REAGRUPANDO</span></div>
+    <div class="hud-chip right"><b id="windHud">VENTO —</b><span id="frontHud">A:0 • E:0</span></div>
   </header>
-  <div class="top-actions"><button id="centerBtn" class="icon-btn" type="button" aria-label="Centralizar no Mamute">◎</button><button id="radioBtn" class="icon-btn" type="button" aria-label="Abrir rádio">📻</button><button id="helpBtn" class="icon-btn" type="button" aria-label="Ajuda e pausa">?</button></div>
-  <button id="requestCard" class="request-card hidden" type="button"><span class="req-icon">📡</span><span class="req-main"><b id="requestTitle">SUPORTE SOLICITADO</b><small id="requestText">X0000 Y0000</small></span><span id="requestAge" class="req-age">AGORA</span></button>
-  <div id="marchControls" class="march-controls"><div id="joystick" class="joystick" aria-label="Controle de movimento"><div class="joy-cross"></div><div id="joyKnob" class="joy-knob"></div></div><button id="deployBtn" class="deploy-btn" type="button"><span>⚙</span><b>ARTILHARIA</b><small id="speedHud">0 km/h</small></button></div>
-  <div id="artilleryControls" class="artillery-controls hidden">
-    <div class="fire-computer"><div class="fc-title"><b>COMPUTADOR DE TIRO</b><span>sem previsão de impacto</span></div><div class="fc-row">
-      <div class="nudge-group wide"><span class="nudge-label">AZIMUTE</span><div class="nudge-line"><button class="nudge" data-nudge="bearing:-5" type="button">−5</button><button class="nudge minor" data-nudge="bearing:-1" type="button">−1</button><output id="bearingOut">090°</output><button class="nudge minor" data-nudge="bearing:1" type="button">+1</button><button class="nudge" data-nudge="bearing:5" type="button">+5</button></div></div>
-      <div class="nudge-group"><span class="nudge-label">ELEVAÇÃO</span><div class="nudge-line"><button class="nudge minor" data-nudge="elevation:-1" type="button">−</button><output id="elevationOut">45°</output><button class="nudge minor" data-nudge="elevation:1" type="button">+</button></div></div>
-      <div class="nudge-group charge"><span class="nudge-label">CARGA</span><div class="nudge-line"><button class="nudge minor" data-nudge="charge:-1" type="button">−</button><output id="chargeOut">3</output><button class="nudge minor" data-nudge="charge:1" type="button">+</button></div></div>
-    </div></div>
-    <div class="fire-actions"><div class="shell-strip"><button class="shell-btn active" data-shell="HE" type="button"><span>💥</span><b>HE</b><small id="heAmmo">10</small></button><button class="shell-btn" data-shell="SMOKE" type="button"><span>☁</span><b>FUMAÇA</b><small id="smokeAmmo">5</small></button><button class="shell-btn" data-shell="CLUSTER" type="button"><span>✦</span><b>FRAG</b><small id="fragAmmo">4</small></button></div><button id="fireBtn" class="fire-btn" type="button">🔥 <b>DISPARAR</b></button><button id="undeployBtn" class="fold-btn" type="button">↩ MARCHA</button></div>
-  </div>
-  <div id="radioDrawer" class="drawer hidden" aria-live="polite"><div class="drawer-head"><div><b>RÁDIO DE COMBATE</b><small>relatórios do front</small></div><button id="closeRadio" type="button">×</button></div><div id="radioLog" class="radio-log"></div></div>
-  <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Ajuda tática"><div class="modal-card"><div class="modal-head"><div><b>PAUSA TÁTICA</b><small>A batalha fica congelada enquanto esta tela estiver aberta.</small></div><button id="closeHelp" type="button">×</button></div><div class="help-grid">
-    <section><h3>Seu trabalho</h3><p>Você não comanda a infantaria. Observe onde ela trava e destrua as armas que fecham a passagem. Cada arma derrubada cria uma abertura maior para o avanço.</p><div id="helpExample" class="example">Sem pedido ativo.</div></section>
-    <section><h3>Coordenadas</h3><p><code>ΔX = alvoX − seuX</code><br><code>ΔY = alvoY − seuY</code><br><code>dist = √(ΔX² + ΔY²)</code></p><p>Azimute: <b>0° N • 90° L • 180° S • 270° O</b>.</p></section>
-    <section><h3>Tabela de tiro</h3><p>Em 45° e sem vento: <b>C1≈240m • C2≈390m • C3≈560m • C4≈730m • C5≈910m</b>.</p><p>Segure os botões <b>+ / −</b> para ajustar rapidamente. Não há linha de queda nem círculo de previsão.</p></section>
-    <section><h3>O que usar</h3><p><b>HE</b>: melhor contra metralhadoras, morteiros e canhões entrincheirados.<br><b>Fumaça</b>: reduz a precisão inimiga e pode permitir que a infantaria atravesse uma zona ainda perigosa.<br><b>FRAG</b>: excelente contra tropas expostas — e também contra aliados, então cuidado.</p></section>
-    <section><h3>Câmera</h3><p>Arraste o campo com um dedo para observar o front. Use pinça com dois dedos para zoom. O botão <b>◎</b> volta ao Mamute. Durante um disparo a câmera acompanha o projétil automaticamente.</p></section>
-    <section><h3>Ritmo da batalha</h3><p>Unidades procuram abrigo, esperam apoio e recebem reforços em ondas. Elas não devem se exterminar em segundos. Se você ignorar uma defesa, alguns soldados ainda tentarão avançar — e provavelmente vão morrer.</p></section>
-  </div><div class="help-foot"><button id="restartBtnHelp" class="secondary" type="button">NOVA BATALHA</button><button id="resumeHelp" type="button">RETOMAR</button></div></div></div>
-  <div id="rotateGate" class="rotate-gate"><div>▯</div><b>GIRE O CELULAR</b><span>Iron Rain foi pensado para jogar na horizontal.</span></div>
-  <div id="endOverlay" class="end-overlay hidden"><div><b id="endTitle">BATALHA ENCERRADA</b><span id="endText"></span><button id="restartBtn" type="button">NOVA BATALHA</button></div></div>
+  <div class="top-actions"><button id="centerBtn" class="icon-btn" type="button">◎</button><button id="radioBtn" class="icon-btn" type="button">📻</button><button id="menuBtn" class="icon-btn" type="button">☰</button></div>
+  <button id="requestCard" class="request-card hidden" type="button"><span class="req-tag">MISSÃO DE FOGO</span><b id="requestTitle">HMG BLOQUEANDO</b><span id="requestText">X0000 Y0000</span><small id="requestHint">Ataque aliado aguardando seu fogo</small></button>
+  <div id="marchControls" class="march-controls"><div id="joystick" class="joystick"><div class="joy-ring"></div><div id="joyKnob" class="joy-knob"></div></div><div class="march-stack"><button id="deployBtn" class="big-action deploy" type="button"><span>⚙</span><b>ARTILHARIA</b></button><div class="mini-readout"><span>MARCHA</span><b id="speedHud">0 km/h</b></div></div></div>
+  <div id="artilleryControls" class="artillery-controls hidden"><div class="fire-computer"><div class="fire-head"><b>COMPUTADOR DE TIRO</b><span id="calcHint">sem previsão de impacto</span></div><div class="fire-grid"><div class="step-control"><span>AZIMUTE</span><div><button data-step="bearing:-10">−10</button><button data-step="bearing:-1">−1</button><b id="bearingOut">090°</b><button data-step="bearing:1">+1</button><button data-step="bearing:10">+10</button></div></div><div class="step-control compact"><span>ELEVAÇÃO</span><div><button data-step="elevation:-1">−</button><b id="elevationOut">45°</b><button data-step="elevation:1">+</button></div></div><div class="step-control compact"><span>CARGA</span><div><button data-step="charge:-1">−</button><b id="chargeOut">3</b><button data-step="charge:1">+</button></div></div></div></div><div class="fire-actions"><div class="shell-row"><button class="shell-btn active" data-shell="HE" type="button">💥<span>HE</span><small id="heAmmo">10</small></button><button class="shell-btn" data-shell="SMOKE" type="button">☁️<span>FUMAÇA</span><small id="smokeAmmo">5</small></button><button class="shell-btn" data-shell="CLUSTER" type="button">✦<span>FRAG</span><small id="fragAmmo">4</small></button></div><button id="fireBtn" class="fire-btn" type="button">🔥 DISPARAR</button><button id="undeployBtn" class="march-btn" type="button">↩ MARCHA</button></div></div>
+  <div id="radioDrawer" class="drawer hidden"><div class="drawer-head"><b>RÁDIO</b><button id="closeRadio" type="button">×</button></div><div id="radioLog" class="radio-log"></div></div>
+  <div id="menuModal" class="modal hidden"><div class="menu-card"><b>IRON RAIN</b><span id="menuStatus">Batalha pausada</span><button id="resumeBtn" type="button">▶ RETOMAR</button><button id="restartBtn" type="button">↻ REINICIAR BATALHA</button><button id="helpBtn" type="button">? AJUDA / BALÍSTICA</button><button id="cleanBtn" type="button">▣ TELA LIMPA</button></div></div>
+  <div id="helpModal" class="modal hidden"><div class="help-card"><div class="modal-title"><b>PAUSA TÁTICA</b><button id="closeHelp" type="button">×</button></div><div class="help-grid"><section><h3>Ritmo da batalha</h3><p>Os aliados agora passam por <b>reagrupamento → reconhecimento → preparação → assalto → consolidação</b>. Quando pedem artilharia, a investida principal espera.</p></section><section><h3>Coordenadas</h3><p id="helpExample">Sem missão ativa.</p><p><code>dist = √(ΔX² + ΔY²)</code><br>0° N • 90° L • 180° S • 270° O.</p></section><section><h3>Defesas</h3><p>HMG segura infantaria. Autocanhão pune áreas abertas. Morteiro força dispersão. Você não precisa destruir tudo, mas cada arma removida abre mais espaço para a investida.</p></section><section><h3>Tela limpa no iPhone</h3><p>O Safari não deixa a página esconder permanentemente a barra do navegador. Toque em <b>Compartilhar → Adicionar à Tela de Início</b>. O jogo abrirá como web-app sem a barra.</p></section></div><button id="resumeHelp" class="resume-help" type="button">RETOMAR</button></div></div>
+  <div id="installModal" class="modal hidden"><div class="install-card"><b>TELA LIMPA</b><p>No iPhone: toque em <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b>. Depois abra pelo ícone IRON RAIN. A barra do Safari desaparece.</p><button id="closeInstall" type="button">ENTENDI</button></div></div>
+  <div id="endOverlay" class="end-overlay hidden"><div><b id="endTitle">BATALHA ENCERRADA</b><span id="endText"></span><button id="endRestart" type="button">↻ REINICIAR</button></div></div><div id="rotateGate" class="rotate-gate"><b>GIRE O CELULAR</b><span>Iron Rain foi feito para jogar na horizontal.</span></div>
 </div>
-<script src="game-v3a.js"></script>
-<script src="game-v3b.js"></script>
+<script src="game-v4-01.js"></script><script src="game-v4-02.js"></script><script src="game-v4-03.js"></script><script src="game-v4-04.js"></script><script src="game-v4-05.js"></script><script src="game-v4-06.js"></script><script src="game-v4-07.js"></script><script src="game-v4-08.js"></script><script src="game-v4-09.js"></script><script src="game-v4-10.js"></script><script src="game-v4-11.js"></script><script src="game-v4-12.js"></script><script src="game-v4-13.js"></script>
 </body>
 </html>
