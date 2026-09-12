@@ -1,4 +1,5 @@
 import { crewLocalPoseFromCabinSnapshot } from './crew-local-pose.js';
+import { releaseStationGate, requestStationGate, stationGateState } from './crew-station-gate.js';
 
 const clampDelay = value => Math.max(0, Number.isFinite(value) ? value : .1);
 const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
@@ -8,8 +9,9 @@ const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
  *
  * The renderer stays transport-agnostic: this bridge publishes only the
  * compact collision-safe local crew pose and feeds renderer-ready remote
- * samples back into cabin-view. The game loop owns when this runs and which
- * transport/runtime is active.
+ * samples back into cabin-view. Station interaction also crosses this same
+ * boundary so cabin input never needs to know about session packets or
+ * transport authority.
  */
 export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 } = {}) {
   const delay = clampDelay(interpolationDelay);
@@ -34,5 +36,12 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     cabin?.updateRemoteCrew?.([], 0);
   }
 
-  return Object.freeze({ update, clear, interpolationDelay: delay });
+  return Object.freeze({
+    update,
+    clear,
+    stationState: station => stationGateState(runtime, station),
+    requestStation: station => requestStationGate(runtime, station),
+    releaseStation: station => releaseStationGate(runtime, station),
+    interpolationDelay: delay,
+  });
 }
