@@ -18,11 +18,11 @@ function node(kind) {
   };
 }
 
-test('mobile wake coalesces priming while an interrupted context is resuming', async t => {
+function installAudioContext(t, initialState = 'interrupted') {
   const previous = globalThis.window;
   let context;
   class AudioContext {
-    state = 'interrupted'; currentTime = 0; sampleRate = 8000; destination = {};
+    state = initialState; currentTime = 0; sampleRate = 8000; destination = {};
     resumeCalls = 0; bufferSources = [];
     constructor() { context = this; }
     createGain() { return node('gain'); }
@@ -41,10 +41,17 @@ test('mobile wake coalesces priming while an interrupted context is resuming', a
     close() { this.state = 'closed'; return Promise.resolve(); }
   }
   globalThis.window = { AudioContext };
+  t.after(() => { globalThis.window = previous; });
+  return () => context;
+}
+
+test('mobile wake coalesces priming while an interrupted context is resuming', async t => {
+  const getContext = installAudioContext(t);
   const audio = createWarAudio();
-  t.after(() => { audio.dispose(); globalThis.window = previous; });
+  t.after(() => audio.dispose());
 
   audio.wake();
+  const context = getContext();
   assert.equal(context.resumeCalls, 1);
   assert.equal(context.bufferSources.length, 1, 'first wake primes the interrupted output path once');
   assert.ok(context.bufferSources[0].started, 'prime source starts from the user gesture');
@@ -58,4 +65,26 @@ test('mobile wake coalesces priming while an interrupted context is resuming', a
   await Promise.resolve();
   assert.equal(audio.getStatus().state, 'running');
   assert.equal(audio.getStatus().ready, true);
+});
+
+test('passive frames do not occupy the Safari resume gate before the next operator gesture', async t => {
+  const getContext = installAudioContext(t);
+  const audio = createWarAudio();
+  t.after(() => audio.dispose());
+
+  audio.wake();
+  const context = getContext();
+  context.finishResume();
+  await Promise.resolve();
+  assert.equal(context.resumeCalls, 1);
+
+  context.state = 'interrupted';
+  audio.update({ time: 1, inside: true });
+  audio.update({ time: 2, inside: true });
+  assert.equal(context.resumeCalls, 1, 'animation frames never start autoplay-gated resume attempts');
+  assert.equal(context.bufferSources.length, 1, 'passive frames do not allocate prime sources');
+
+  audio.wake();
+  assert.equal(context.resumeCalls, 2, 'the next explicit gesture owns the retry');
+  assert.equal(context.bufferSources.length, 2, 'the gesture primes the interrupted output path');
 });
