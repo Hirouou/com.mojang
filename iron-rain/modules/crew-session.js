@@ -23,7 +23,8 @@ export function createCrewSession({
   staleAfter = 6,
 } = {}) {
   const id = cleanId(localId) || 'local';
-  const replication = createCrewReplication({ localId: id, capacity: CREW_MAX_PLAYERS, staleAfter });
+  const staleSeconds = Math.max(.5, finite(staleAfter, 6));
+  const replication = createCrewReplication({ localId: id, capacity: CREW_MAX_PLAYERS, staleAfter: staleSeconds });
   const peers = new Map();
   let mode = 'offline';
   let room = '';
@@ -186,7 +187,10 @@ export function createCrewSession({
       if (mode === 'guest' && seat < 0) return false;
       const peer = peers.get(sender);
       if (peer) peers.set(sender, { ...peer, lastSeen: at });
-      return replication.receive({ ...packet, id: sender, at: finite(packet.at, at) });
+      // performance.now() clocks are local to each device and are not
+      // comparable across phones/PCs. Normalize every remote pose to the local
+      // receipt clock before interpolation; sender timestamps remain diagnostic.
+      return replication.receive({ ...packet, id: sender, at });
     }
     return false;
   }
@@ -194,7 +198,7 @@ export function createCrewSession({
   function prune(at) {
     let changed = false;
     for (const [peerId, peer] of peers) {
-      if (at - peer.lastSeen <= staleAfter) continue;
+      if (at - peer.lastSeen <= staleSeconds) continue;
       peers.delete(peerId); replication.remove(peerId); changed = true;
       if (peerId === hostId && mode === 'guest') { seat = -1; lastEvent = 'host-timeout'; }
     }
