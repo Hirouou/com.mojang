@@ -74,3 +74,21 @@ test('a healthy assault does not falsely break before its phase timer expires', 
   assert.equal(force.phase, 'assault');
   assert.ok(force.phaseTime > 0, 'healthy assault keeps its active phase timer');
 });
+
+test('a broken force gets a full regroup window instead of bouncing straight back to retreat', () => {
+  const state = makeState();
+  const sector = state.sectors[0];
+  const force = sector.war.ally;
+  sector.allyStrength = 22;
+  force.phase = 'retreat';
+  force.phaseTime = 1;
+  force.advance = -90;
+
+  updateWar(state, 1);
+  assert.equal(force.phase, 'regroup', 'expired retreat transitions into regroup while still understrength');
+  const regroupTime = force.phaseTime;
+
+  updateWar(state, 1);
+  assert.equal(force.phase, 'regroup', 'persistent weakness does not immediately cancel the regroup phase');
+  assert.equal(force.phaseTime, regroupTime - 1, 'regroup timer advances normally instead of being reset by break logic');
+});
