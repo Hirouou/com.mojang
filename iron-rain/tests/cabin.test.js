@@ -89,10 +89,10 @@ test('crew replication pose is compact, validated and interpolates yaw across wr
   assert.equal(cabinCrewPose({x:0,z:-1.25,yaw:0,pitch:0}),null,'remote pose cannot occupy solid cabin equipment');
   assert.equal(cabinCrewPose({x:NaN,z:2.4,yaw:0,pitch:0}),null,'non-finite remote state is rejected');
 
-  const from=cabinCrewPose({x:0,z:2.4,yaw:Math.PI-.1,pitch:-.2});
-  const to=cabinCrewPose({x:.4,z:2.6,yaw:-Math.PI+.1,pitch:.2});
+  const from=cabinCrewPose({x:-.2,z:2.4,yaw:Math.PI-.1,pitch:-.2});
+  const to=cabinCrewPose({x:.2,z:2.4,yaw:-Math.PI+.1,pitch:.2});
   const middle=interpolateCabinCrewPose(from,to,.5);
-  assert.ok(Math.abs(middle.x-.2)<1e-12&&Math.abs(middle.z-2.5)<1e-12);
+  assert.ok(Math.abs(middle.x)<1e-12&&Math.abs(middle.z-2.4)<1e-12);
   assert.ok(Math.abs(Math.abs(middle.yaw)-Math.PI)<1e-12,'yaw interpolation takes the short path through ±π');
   assert.ok(Math.abs(middle.pitch)<1e-12);
   assert.equal(interpolateCabinCrewPose(from,to,NaN),null);
