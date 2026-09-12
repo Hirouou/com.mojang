@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ballistics } from '../modules/ballistics.js';
-import { artilleryCrankGuide } from '../modules/artillery-crank-guide.js';
+import { artilleryCrankGuide, artilleryCrankNotebookRows } from '../modules/artillery-crank-guide.js';
 
 const close = (actual, expected, tolerance = 1e-6) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`);
 
@@ -64,6 +64,36 @@ test('guide preserves a single apex arc label without inventing low or high sele
   assert.equal(guide[0].instructionLabel, 'ÚNICO · ↑ 5.0°');
 });
 
+test('notebook rows decorate only the inserted charge with matching crank cues', () => {
+  const range = ballistics(5, 30).range;
+  const rows = artilleryCrankNotebookRows(range, 5, 40);
+  const current = rows.find(row => row.current);
+  const other = rows.find(row => !row.current && row.arcs.length);
+
+  assert.ok(current);
+  assert.deepEqual(current.arcs.map(arc => arc.kind), ['low', 'high']);
+  assert.deepEqual(current.arcs.map(arc => arc.crankCue?.instructionLabel), ['BAIXO · ↓ 10.0°', 'ALTO · ↑ 20.0°']);
+  assert.ok(other);
+  assert.ok(other.arcs.every(arc => arc.crankCue === null));
+  assert.ok(Object.isFrozen(rows));
+  assert.ok(rows.every(Object.isFrozen));
+  assert.ok(rows.every(row => Object.isFrozen(row.arcs) && row.arcs.every(Object.isFrozen)));
+});
+
+test('notebook crank decoration preserves shared ballistics values', () => {
+  const range = ballistics(5, 30).range;
+  const row = artilleryCrankNotebookRows(range, 5, 40).find(entry => entry.current);
+  const low = row.arcs.find(arc => arc.kind === 'low');
+  const high = row.arcs.find(arc => arc.kind === 'high');
+
+  close(low.elevation, 30);
+  close(high.elevation, 60);
+  close(low.apex, ballistics(5, 30).apex);
+  close(high.apex, ballistics(5, 60).apex);
+  close(low.tof, ballistics(5, 30).tof);
+  close(high.tof, ballistics(5, 60).tof);
+});
+
 test('guide fails closed when the inserted charge cannot reach the plotted range', () => {
   const range = ballistics(7, 45).range;
   assert.deepEqual(artilleryCrankGuide(range, 1, 45), []);
@@ -71,4 +101,5 @@ test('guide fails closed when the inserted charge cannot reach the plotted range
 
 test('guide rejects non-finite current elevation', () => {
   assert.throws(() => artilleryCrankGuide(1000, 1, Number.NaN), /currentElevation must be finite/);
+  assert.throws(() => artilleryCrankNotebookRows(1000, 1, Number.NaN), /currentElevation must be finite/);
 });
