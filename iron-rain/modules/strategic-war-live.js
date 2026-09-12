@@ -1,3 +1,5 @@
+import './integration-live.js';
+import { installMobileUXReview } from './mobile-ux-review.js';
 import { installStrategicWarLive as installBaseStrategicWarLive } from './strategic-war-live-v2.js';
 import { createStrategicHexMap, hexControl } from './strategic-hex-map.js';
 import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
@@ -77,11 +79,13 @@ export function installStrategicWarLive(options = {}) {
   const locationBox = document.createElement('div');
   locationBox.className = 'strategic-world-location';
   const frontLayer = document.createElement('div');
+  frontLayer.className = 'strategic-real-front-layer';
   frontLayer.style.cssText = 'position:absolute;inset:0;z-index:6;pointer-events:none';
   map.append(frontLayer, marker, locationBox);
 
   const toScreen = (point) => {
-    const width = map.clientWidth, height = map.clientHeight;
+    const canvas = map.querySelector('canvas');
+    const width = canvas?.clientWidth || map.clientWidth, height = canvas?.clientHeight || map.clientHeight;
     return { x: 22 + point.x / THEATRE_SIZE.w * Math.max(1, width - 44), y: 22 + point.y / THEATRE_SIZE.h * Math.max(1, height - 44) };
   };
 
@@ -119,11 +123,12 @@ export function installStrategicWarLive(options = {}) {
   const notebook = document.getElementById('notebook');
   const notebookObserver = notebook ? new MutationObserver(update) : null;
   notebookObserver?.observe(notebook, { attributes: true, attributeFilter: ['class'] });
-  const timer = window.setInterval(update, 500);
+  const timer = window.setInterval(update, 350);
   addEventListener('resize', update);
   update();
+  const mobileUx = installMobileUXReview(document);
 
-  globalThis.ironRainStrategicMap = Object.freeze({ locate, open: () => base.open?.() });
+  globalThis.ironRainStrategicMap = Object.freeze({ locate, open: () => base.open?.(), mobileUx });
   return Object.freeze({
     ...base,
     locate,
