@@ -63,6 +63,7 @@ export function elevationsForRange(charge, range) {
   const band = chargeBand(charge);
   const tolerance = 1e-7;
   if (range < band.min - tolerance || range > band.max + tolerance) return Object.freeze([]);
+  if (Math.abs(range - band.max) <= tolerance) return Object.freeze([45]);
 
   const ratio = clamp(range / CHARGES[charge].maxRange, -1, 1);
   const low = degrees(Math.asin(ratio)) / 2;
