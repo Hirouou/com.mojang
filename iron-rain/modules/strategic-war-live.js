@@ -2,7 +2,7 @@ import './integration-live.js';
 import { installMobileUXReview } from './mobile-ux-review.js';
 import { installStrategicWarLive as installBaseStrategicWarLive } from './strategic-war-live-v2.js';
 import { createStrategicHexMap, hexControl } from './strategic-hex-map.js';
-import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
+import { controlLineX } from './theatre-control.js';
 
 const hexes = createStrategicHexMap();
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -56,11 +56,7 @@ function syncNotebook(current) {
   const title = notebook?.querySelector('.map-head-title');
   if (!title) return;
   let chip = title.querySelector('.map-location-chip');
-  if (!chip) {
-    chip = document.createElement('span');
-    chip.className = 'map-location-chip';
-    title.appendChild(chip);
-  }
+  if (!chip) { chip = document.createElement('span'); chip.className = 'map-location-chip'; title.appendChild(chip); }
   const text = current ? `TEATRO: ${current.hex.name} / ${current.sector?.name || 'SETOR'} · ${current.zone}` : 'TEATRO: LOCALIZAÇÃO INDISPONÍVEL';
   if (chip.textContent !== text) chip.textContent = text;
 }
@@ -74,73 +70,33 @@ export function installStrategicWarLive(options = {}) {
   if (!root || !map) return base;
   map.style.position = 'relative';
 
-  const marker = document.createElement('div');
-  marker.className = 'strategic-world-marker';
-  const locationBox = document.createElement('div');
-  locationBox.className = 'strategic-world-location';
-  const frontLayer = document.createElement('div');
-  frontLayer.className = 'strategic-real-front-layer';
-  frontLayer.style.cssText = 'position:absolute;inset:0;z-index:6;pointer-events:none';
+  const marker = document.createElement('div'); marker.className = 'strategic-world-marker';
+  const locationBox = document.createElement('div'); locationBox.className = 'strategic-world-location';
+  const frontLayer = document.createElement('div'); frontLayer.className = 'strategic-real-front-layer'; frontLayer.style.cssText = 'position:absolute;inset:0;z-index:6;pointer-events:none';
   map.append(frontLayer, marker, locationBox);
 
-  const toScreen = (point) => {
-    const canvas = map.querySelector('canvas');
-    const width = canvas?.clientWidth || map.clientWidth, height = canvas?.clientHeight || map.clientHeight;
-    return { x: 22 + point.x / THEATRE_SIZE.w * Math.max(1, width - 44), y: 22 + point.y / THEATRE_SIZE.h * Math.max(1, height - 44) };
-  };
+  const toScreen = point => typeof base.worldToScreen === 'function' ? base.worldToScreen(point) : { x: 0, y: 0 };
 
   function update() {
     const position = parseOwnPosition();
     const current = locate(position);
     if (position && current) {
       const p = toScreen(position);
-      marker.hidden = false;
-      marker.style.left = `${p.x}px`;
-      marker.style.top = `${p.y}px`;
-      marker.title = `M-47 · ${current.hex.name} / ${current.sector?.name || 'SETOR'}`;
+      marker.hidden = false; marker.style.left = `${p.x}px`; marker.style.top = `${p.y}px`; marker.title = `M-47 · ${current.hex.name} / ${current.sector?.name || 'SETOR'}`;
       locationBox.innerHTML = `<small>POSIÇÃO REAL DO M-47</small><b>★ ${current.hex.name} · ${current.sector?.name || 'SETOR'}</b><small>X ${Math.round(position.x).toString().padStart(5, '0')} · Y ${Math.round(position.y).toString().padStart(5, '0')} · ${ownerLabel(current.owner)}</small><em>${current.zone}</em>`;
-    } else {
-      marker.hidden = true;
-      locationBox.innerHTML = '<small>POSIÇÃO REAL DO M-47</small><b>AGUARDANDO COORDENADAS</b>';
-    }
-
+    } else { marker.hidden = true; locationBox.innerHTML = '<small>POSIÇÃO REAL DO M-47</small><b>AGUARDANDO COORDENADAS</b>'; }
     const fronts = Array.isArray(globalThis.ironRainWarBridge?.fronts) ? globalThis.ironRainWarBridge.fronts : [];
-    frontLayer.replaceChildren(...fronts.map(front => {
-      const node = document.createElement('i');
-      node.className = 'strategic-real-front';
-      const p = toScreen(front);
-      node.style.left = `${p.x}px`;
-      node.style.top = `${p.y}px`;
-      node.title = `FRENTE TÁTICA · ${front.name} · ${front.status}`;
-      return node;
-    }));
+    frontLayer.replaceChildren(...fronts.map(front => { const node=document.createElement('i');node.className='strategic-real-front';const p=toScreen(front);node.style.left=`${p.x}px`;node.style.top=`${p.y}px`;node.title=`FRENTE TÁTICA · ${front.name} · ${front.status}`;return node; }));
     syncNotebook(current);
   }
 
   const own = document.getElementById('ownCoord');
-  const ownObserver = own ? new MutationObserver(update) : null;
-  ownObserver?.observe(own, { childList: true, characterData: true, subtree: true });
+  const ownObserver = own ? new MutationObserver(update) : null; ownObserver?.observe(own, { childList: true, characterData: true, subtree: true });
   const notebook = document.getElementById('notebook');
-  const notebookObserver = notebook ? new MutationObserver(update) : null;
-  notebookObserver?.observe(notebook, { attributes: true, attributeFilter: ['class'] });
-  const timer = window.setInterval(update, 350);
-  addEventListener('resize', update);
-  update();
+  const notebookObserver = notebook ? new MutationObserver(update) : null; notebookObserver?.observe(notebook, { attributes: true, attributeFilter: ['class'] });
+  const timer = window.setInterval(update, 350); addEventListener('resize', update); update();
   const mobileUx = installMobileUXReview(document);
 
   globalThis.ironRainStrategicMap = Object.freeze({ locate, open: () => base.open?.(), mobileUx });
-  return Object.freeze({
-    ...base,
-    locate,
-    destroy() {
-      clearInterval(timer);
-      ownObserver?.disconnect();
-      notebookObserver?.disconnect();
-      marker.remove();
-      locationBox.remove();
-      frontLayer.remove();
-      delete globalThis.ironRainStrategicMap;
-      base.destroy?.();
-    },
-  });
+  return Object.freeze({ ...base, locate, destroy() { clearInterval(timer); ownObserver?.disconnect(); notebookObserver?.disconnect(); marker.remove(); locationBox.remove(); frontLayer.remove(); delete globalThis.ironRainStrategicMap; base.destroy?.(); } });
 }
