@@ -1,0 +1,11 @@
+function alive(team){return state.units.filter(u=>u.alive&&u.team===team)}
+function objective(){return state.points[state.operation.objective]||null}
+function activeDefs(p){return p?p.defenses.filter(d=>d.alive&&d.hp>0):[]}
+function nearestEnemy(u,r){let b=null,bd=r;for(const v of state.units){if(!v.alive||v.team===u.team)continue;const d=dist(u,v);if(d<bd){bd=d;b=v}}return b}
+function inCover(u){return state.covers.some(c=>u.x>c.x-10&&u.x<c.x+c.w+10&&u.y>c.y-18&&u.y<c.y+c.h+18)}
+function nearestCover(u,t,max=230){let b=null,bs=1e9;for(const c of state.covers){const x=c.x+c.w/2,y=c.y+c.h/2,d=Math.hypot(u.x-x,u.y-y);if(d>max)continue;const s=d-Math.hypot(t.x-x,t.y-y)*.08;if(s<bs){bs=s;b={x,y:y-8}}}return b}
+function smokeAt(x,y){return state.smokes.some(s=>Math.hypot(x-s.x,y-s.y)<s.r)}
+function moveToward(u,g,dt,s){const dx=g.x-u.x,dy=g.y-u.y,d=Math.hypot(dx,dy)||1;u.aim=Math.atan2(dy,dx);u.x=clamp(u.x+dx/d*s*dt,25,WORLD.w-25);u.y=clamp(u.y+dy/d*s*dt,25,WORLD.h-25);u.step+=dt*s*.1}
+function fireBullet(u,v){u.cool=rand(1.15,1.75)*(u.role==='support'?.8:1);u.aim=Math.atan2(v.y-u.y,v.x-u.x);u.muzzle=.08;const smokePenalty=(smokeAt(u.x,u.y)||smokeAt(v.x,v.y))?.3:0;const hit=Math.random()<Math.max(.08,u.acc-smokePenalty-u.supp*.25-(v.coverBonus||0))*(1-clamp(dist(u,v)/u.range,0,1)*.35);const miss=hit?rand(-4,4):rand(-23,23);state.tracers.push({x:u.x,y:u.y,x2:v.x+miss,y2:v.y+miss,life:.17,max:.17,team:u.team});if(hit){v.hp-=u.role==='support'?rand(22,32):rand(15,25);v.supp=clamp(v.supp+.24,0,1);if(v.hp<=0)v.alive=false}else v.supp=clamp(v.supp+.07,0,1)}
+function defenseTarget(d){let b=null,bd=d.range;for(const u of alive('ally')){const dd=dist(d,u);if(dd<bd){bd=dd;b=u}}return b}
+function defenseFire(d,u){d.cool=d.rate*rand(.95,1.22);d.aim=Math.atan2(u.y-d.y,u.x-d.x);d.muzzle=.1;if(d.type==='MORTAR'){state.effects.push({type:'incoming',x:u.x+rand(-45,45),y:u.y+rand(-45,45),t:1.15});return}const cover=u.coverBonus||0,sm=smokeAt(d.x,d.y)||smokeAt(u.x,u.y),smokePenalty=sm?.38:0,hit=Math.random()<Math.max(.07,d.acc-smokePenalty-cover)*(1-clamp(dist(d,u)/d.range,0,1)*.25);const miss=hit?rand(-4,4):rand(-28,28);state.tracers.push({x:d.x,y:d.y,x2:u.x+miss,y2:u.y+miss,life:.18,max:.18,team:'enemy',heavy:true});if(hit){u.hp-=d.damage*(1-cover*.5);u.supp=clamp(u.supp+.38,0,1);if(u.hp<=0)u.alive=false}else u.supp=clamp(u.supp+.13,0,1)}
