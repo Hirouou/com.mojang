@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loaderArmPose, loaderActivity, LOADER_ARM_HOME } from '../modules/loader-arm.js';
+import { loaderArmPose, loaderActivity, loaderRigState, LOADER_ARM_HOME } from '../modules/loader-arm.js';
 
 const cycle = (progress, phase) => ({ progress, phase, complete: progress >= 1 });
 
@@ -31,14 +31,22 @@ test('loader visibly grabs, swings and rams instead of linearly floating a shell
   assert.equal(loaderActivity(cycle(.82, 'ram')).heavyMotion, true);
 });
 
-test('lock phase releases only after seating and retracts toward home', () => {
-  const early = loaderArmPose(cycle(.905, 'lock'));
+test('lock phase seats the round before releasing and retracting', () => {
+  const held = loaderArmPose(cycle(.915, 'lock'));
+  const released = loaderArmPose(cycle(.94, 'lock'));
   const late = loaderArmPose(cycle(.985, 'lock'));
-  finitePose(early); finitePose(late);
-  assert.equal(early.gripping, true, 'claw keeps hold at the start of lock');
-  assert.equal(late.gripping, false, 'claw releases after seating');
-  assert.ok(Math.abs(late.baseYaw - LOADER_ARM_HOME.baseYaw) < Math.abs(early.baseYaw - LOADER_ARM_HOME.baseYaw));
-  assert.ok(late.extension < early.extension, 'arm retracts instead of leaving the round floating');
+  finitePose(held); finitePose(released); finitePose(late);
+
+  assert.equal(held.gripping, true, 'claw keeps hold during the lock dwell');
+  assert.equal(held.baseYaw, 1.34, 'arm does not swing home while still gripping');
+  assert.equal(held.extension, .42, 'ram remains fully seated during the lock dwell');
+  assert.equal(held.rammer, 1, 'rammer stays engaged until the claw release point');
+
+  assert.equal(released.gripping, false, 'claw releases after seating');
+  assert.ok(released.extension < held.extension, 'retraction begins only after release');
+  assert.equal(loaderRigState(cycle(.94, 'lock')).shell.owner, null, 'released shell is no longer carried by the claw');
+  assert.ok(Math.abs(late.baseYaw - LOADER_ARM_HOME.baseYaw) < Math.abs(released.baseYaw - LOADER_ARM_HOME.baseYaw));
+  assert.ok(late.extension < released.extension, 'arm continues retracting toward home');
 });
 
 test('malformed progress clamps safely', () => {
