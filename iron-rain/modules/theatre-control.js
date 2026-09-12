@@ -2,18 +2,19 @@ export const THEATRE_SIZE = Object.freeze({ w: 80_000, h: 60_000 });
 
 /**
  * One continuous north/south front. Allied territory is west/left of the line;
- * enemy territory is east/right. The line can later be persisted/moved by the
- * strategic simulation without scattering independent fronts behind each other.
+ * enemy territory is east/right. The initial line deliberately crosses the
+ * middle of the theatre so a new war begins approximately divided rather than
+ * spawning one faction with almost the entire strategic map.
  */
 export const DEFAULT_CONTROL_LINE = Object.freeze([
-  Object.freeze({ y: 0, x: 17_400 }),
-  Object.freeze({ y: 8_000, x: 18_600 }),
-  Object.freeze({ y: 16_000, x: 17_100 }),
-  Object.freeze({ y: 24_000, x: 19_100 }),
-  Object.freeze({ y: 32_000, x: 18_000 }),
-  Object.freeze({ y: 40_000, x: 20_200 }),
-  Object.freeze({ y: 48_000, x: 18_900 }),
-  Object.freeze({ y: 60_000, x: 20_000 }),
+  Object.freeze({ y: 0, x: 39_000 }),
+  Object.freeze({ y: 8_000, x: 41_200 }),
+  Object.freeze({ y: 16_000, x: 38_600 }),
+  Object.freeze({ y: 24_000, x: 42_000 }),
+  Object.freeze({ y: 32_000, x: 39_400 }),
+  Object.freeze({ y: 40_000, x: 42_600 }),
+  Object.freeze({ y: 48_000, x: 39_800 }),
+  Object.freeze({ y: 60_000, x: 41_000 }),
 ]);
 
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
