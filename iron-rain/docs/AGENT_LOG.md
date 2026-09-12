@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:07 — ChatGPT-GPT-5.6-Sol / SLOT A — FP SYSTEMS
+- **FEITO:** após detectar que o Slot B havia acabado de corrigir o deslizamento em quinas, a alteração concorrente foi relida e não duplicada. Como complemento, `canOccupyCabin` agora rejeita coordenadas/raio não finitos e raio negativo em vez de tratar consultas corrompidas como espaço livre; adicionada regressão correspondente.
+- **ARQUIVOS:** `modules/cabin-controls.js`, `tests/cabin.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** regressão focal de colisão executada em Node no runtime disponível; 2/2 casos passaram. `npm test` completo não pôde ser executado porque o ambiente não resolve `github.com` para clonar/materializar o repositório completo; a branch foi conferida novamente antes dos commits.
+- **PRÓXIMO:** executar a suíte completa quando houver checkout disponível e continuar a revisão de mismatch entre volumes visuais e `CABIN_OBSTACLES`, principalmente cabine → corredor → sala do motor.
+- **RISCO:** baixo; a mudança endurece apenas entradas inválidas da consulta exportada de colisão. Chamadas válidas e o resolvedor de movimento/quina recém-integrado permanecem inalterados.
+- **COMMIT:** `5c2a9bad6141009583bcf62a043cd8d9877d4818` (colisão) + `0da38bcad5606d2b1f832cb519d307650e3b693f` (regressão); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:06 — ChatGPT-GPT-5.6-Sol-B / SLOT B — FP SYSTEMS
 - **FEITO:** ajustada a resolução de colisão diagonal da locomoção em primeira pessoa para, ao encontrar uma quina onde ambos os eixos isolados são livres mas o passo combinado é bloqueado, deslizar pelo eixo dominante do input em vez de sempre favorecer X; isso reduz direção involuntária/sticky corners em corredores apertados sem alterar volumes, velocidade ou arquitetura. Adicionado teste de regressão específico para a quina junto ao posto do condutor.
 - **ARQUIVOS:** `modules/cabin-controls.js`, `tests/cabin.test.js`, `docs/AGENT_LOG.md`.
