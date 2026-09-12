@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ballistics, chargeBand, sampleTrajectory, CHARGES, MIN_ELEVATION, MAX_ELEVATION, WIND_ACCELERATION } from '../modules/ballistics.js';
+import { ballistics, bearingVector, chargeBand, sampleTrajectory, CHARGES, MIN_ELEVATION, MAX_ELEVATION, WIND_ACCELERATION } from '../modules/ballistics.js';
 
 const close = (actual, expected, tolerance = 1e-7) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} ≠ ${expected}`);
 const origin = { x: 8200, y: 30000 };
@@ -58,6 +58,18 @@ test('bearing convention is correct in all quadrants, with no world-border clamp
   close(beyondMap.x, 134000);
   assert.equal(beyondMap.landed, true);
   close(beyondMap.z, 0);
+});
+
+test('renderer bearing vector and projectile bearing share the same map direction', () => {
+  const origin = { x: 1200, y: 3400 }, solution = ballistics(4, 45);
+  for (const bearing of [0, 37, 90, 143, 180, 251, 270, 359]) {
+    const vector = bearingVector(bearing);
+    const start = sampleTrajectory(solution, origin, bearing, { x: 0, y: 0 }, 0);
+    const end = sampleTrajectory(solution, origin, bearing, { x: 0, y: 0 }, solution.tof);
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    close((end.x - start.x) / length, vector.x);
+    close((end.y - start.y) / length, vector.y);
+  }
 });
 
 test('a flight is independent of sample cadence, including low-frame-rate overshoot', () => {

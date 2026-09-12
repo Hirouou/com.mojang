@@ -1,4 +1,4 @@
-import { ballistics, chargeBand, sampleTrajectory, MIN_ELEVATION, MAX_ELEVATION } from './modules/ballistics.js';
+import { ballistics, bearingVector, chargeBand, sampleTrajectory, MIN_ELEVATION, MAX_ELEVATION } from './modules/ballistics.js';
 import { bindJoystick, bindHandwheel } from './modules/pointer-controls.js';
 import { initializeSector, updateWar, applyWarImpact, trenchPath, phaseLabels } from './modules/war-simulation.js';
 import { createTableMap } from './modules/table-map.js';
@@ -207,7 +207,11 @@ import { cinematicActive, smooth, cameraAnchor, beginReturn, finishCamera, stepC
     if(state.mode==='artillery'){ctx.strokeStyle='#6f705c';ctx.lineWidth=7*z;for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(-s*.55,side*s*.4);ctx.lineTo(-s*.7,side*s);ctx.lineTo(-s*.3,side*s);ctx.stroke();}}
     ctx.restore();
     const el=rad(state.mode==='artillery'?state.elev:12),length=(78-(r.recoil||0)*13)*z;
-    const bx=Math.cos(r.turret)*length*Math.cos(el), by=Math.sin(r.turret)*length*Math.cos(el)-Math.sin(el)*34*z;
+    // Top-down rendering has no vertical screen axis for shell altitude. Keep
+    // the tube's map-plane projection on the exact same bearing as the shell;
+    // elevation only shortens that projection instead of bending it sideways.
+    const direction=bearingVector(state.mode==='artillery'?state.bearing:deg(r.turret+Math.PI/2));
+    const bx=direction.x*length*Math.cos(el), by=direction.y*length*Math.cos(el);
     ctx.save();ctx.translate(p.x,p.y);
     ctx.fillStyle='#525e40';ctx.beginPath();ctx.ellipse(0,0,23*z,18*z,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#343d2c';ctx.lineCap='round';ctx.lineWidth=14*z;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(bx,by);ctx.stroke();
@@ -220,7 +224,7 @@ import { cinematicActive, smooth, cameraAnchor, beginReturn, finishCamera, stepC
   function drawObserver(){if(!state.intel||state.intel.source==='plane')return;const p=worldToScreen(state.intel.sourcePos.x,state.intel.sourcePos.y),z=state.cam.zoom;ctx.fillStyle='#273a2b';ctx.fillRect(p.x-11*z,p.y-6*z,12*z,17*z);ctx.strokeStyle='#cfbd73';ctx.lineWidth=2*z;ctx.beginPath();ctx.moveTo(p.x-9*z,p.y);ctx.lineTo(p.x-9*z,p.y-28*z);ctx.stroke();ctx.fillStyle=COLORS.ally;ctx.beginPath();ctx.arc(p.x,p.y,7*z,0,Math.PI*2);ctx.fill();}
 
   function drawTracers(){for(const t of state.tracers){const a=worldToScreen(t.x,t.y),b=worldToScreen(t.x2,t.y2);ctx.strokeStyle=t.team==='ally'?`rgba(173,225,255,${t.life/t.max})`:`rgba(255,176,167,${t.life/t.max})`;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}}
-  function drawEffects(){for(const e of state.effects){const p=worldToScreen(e.x,e.y);if(e.type==='blast'){const r=(e.max||100)*(1-e.life/e.start)*state.cam.zoom;ctx.fillStyle=`rgba(255,164,71,${Math.max(0,e.life/e.start)*.55})`;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();}else if(e.type==='mark'){ctx.strokeStyle=`rgba(255,221,120,${Math.max(0,e.life/e.start)})`;ctx.setLineDash([7,6]);ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,38*state.cam.zoom,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}}}
+  function drawEffects(){for(const e of state.effects){const p=worldToScreen(e.x,e.y),progress=1-e.life/e.start;if(e.type==='blast'){const r=(e.max||100)*progress*state.cam.zoom;ctx.fillStyle=`rgba(255,164,71,${Math.max(0,e.life/e.start)*.55})`;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();}else if(e.type==='fragments'){const fade=Math.max(0,e.life/e.start),r=e.max*(.12+.88*progress)*state.cam.zoom;ctx.strokeStyle=`rgba(255,218,117,${fade*.85})`;ctx.lineWidth=Math.max(1,1.6*state.cam.zoom);ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.stroke();for(let i=0;i<14;i++){const a=i*Math.PI*2/14+.18,inner=r*(.16+.08*Math.sin(i*2.4)),outer=r*(.72+.2*Math.sin(i*4.1+1.3));ctx.beginPath();ctx.moveTo(p.x+Math.cos(a)*inner,p.y+Math.sin(a)*inner);ctx.lineTo(p.x+Math.cos(a)*outer,p.y+Math.sin(a)*outer);ctx.stroke();}}else if(e.type==='mark'){ctx.strokeStyle=`rgba(255,221,120,${Math.max(0,e.life/e.start)})`;ctx.setLineDash([7,6]);ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,38*state.cam.zoom,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}}}
   function drawCrater(){for(const c of state.craters){const p=worldToScreen(c.x,c.y);ctx.fillStyle='rgba(40,29,21,.35)';ctx.beginPath();ctx.ellipse(p.x,p.y,c.r*state.cam.zoom*1.3,c.r*state.cam.zoom,0,0,Math.PI*2);ctx.fill();}}
   function drawSmokes(){for(const s of state.smokes){const p=worldToScreen(s.x,s.y);ctx.fillStyle=`rgba(224,229,225,${Math.min(.35,s.life/8*.35)})`;ctx.beginPath();ctx.arc(p.x,p.y,s.r*state.cam.zoom,0,Math.PI*2);ctx.fill();}}
   function drawShell(){if(!state.shell)return;const s=state.shell,p=worldToScreen(s.x,s.y);ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.fillText(`ALT ${Math.max(0,Math.round(s.z))} m`,p.x+12,p.y-10);}
@@ -294,9 +298,11 @@ import { cinematicActive, smooth, cameraAnchor, beginReturn, finishCamera, stepC
   function applyImpact(x,y,type){
     const result=applyWarImpact(state,x,y,type);
     state.effects.push({type:'blast',x,y,life:type==='SMOKE'?.7:1.1,start:type==='SMOKE'?.7:1.1,max:type==='FRAG'?210:type==='HE'?145:80});
+    if(type==='FRAG')state.effects.push({type:'fragments',x,y,life:1.25,start:1.25,max:330});
     if(type!=='SMOKE'){state.craters.push({x,y,r:rand(22,38)});if(state.craters.length>140)state.craters.shift();}
     for(const {asset,sector} of result.destroyed){if(asset.known)log(`<b>OBSERVADOR:</b> ${asset.type} neutralizado em ${sector.name}.`,'good');}
     if(result.friendlyHits||result.robotDamage)log('<b>RÁDIO:</b> fogo amigo! Nossa linha foi atingida. Confira as coordenadas.','bad');
+    if(type==='FRAG'&&result.affected.some(hit=>hit.team==='enemy'))log(`<b>FO:</b> fragmentação atingiu a trincheira inimiga — ${result.enemyCasualties?`${result.enemyCasualties} combatente(s) fora de combate`:'infantaria suprimida; baixa não confirmada'}.`,'good');
     if(x<0||x>WORLD.w||y<0||y>WORLD.h){log('<b>RÁDIO:</b> disparo além dos limites do teatro. Sem observador para corrigir.');return;}
     if(type==='SMOKE')log(`<b>RÁDIO:</b> cortina de fumaça em X${fmt(x)} Y${fmt(y)}; bloqueia linhas de tiro.`);
     if(state.mission){
@@ -321,7 +327,7 @@ import { cinematicActive, smooth, cameraAnchor, beginReturn, finishCamera, stepC
   function updateCamera(dt){stepCamera(state,dt,SW);syncControls();}
 
   function updateRobot(dt){if(state.mode!=='march'||cinematicActive(state)||sheetOpen)return;const sp=38;state.robot.speed=Math.hypot(joy.x,joy.y)*sp;state.robot.x=clamp(state.robot.x+joy.x*sp*dt,400,WORLD.w-400);state.robot.y=clamp(state.robot.y+joy.y*sp*dt,400,WORLD.h-400);if(Math.hypot(joy.x,joy.y)>.08)state.robot.facing=Math.atan2(joy.y,joy.x);if(state.mode==='march')state.robot.turret+=angDiff(state.robot.turret,state.robot.facing)*.12;}
-  function updateGun(dt){if(state.mode!=='artillery'||cinematicActive(state)||sheetOpen)return;const bd=((state.azTarget-state.bearing+540)%360)-180;state.bearing=(state.bearing+clamp(bd,-16*dt,16*dt)+360)%360;state.elev+=clamp(state.elTarget-state.elev,-8*dt,8*dt);state.robot.turret=rad(state.bearing)-Math.PI/2;}
+  function updateGun(dt){if(state.mode!=='artillery'||cinematicActive(state)||sheetOpen)return;const bd=((state.azTarget-state.bearing+540)%360)-180;state.bearing=(state.bearing+clamp(bd,-16*dt,16*dt)+360)%360;state.elev+=clamp(state.elTarget-state.elev,-8*dt,8*dt);const direction=bearingVector(state.bearing);state.robot.turret=Math.atan2(direction.y,direction.x);}
 
   function updateEffects(dt){for(const e of state.effects)e.life-=dt;state.effects=state.effects.filter(e=>e.life>0);for(const s of state.smokes)s.life-=dt;state.smokes=state.smokes.filter(s=>s.life>0);}
 

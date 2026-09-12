@@ -62,6 +62,22 @@ test('materialization and camera travel preserve persistent casualties and intel
   assert.ok(sec.assets.every(asset => asset.known === false));
 });
 
+test('blast casualties select the nearest materialized trench slots', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  state.cam = { x: sec.x, y: sec.y };
+  updateWar(state, .01);
+  const target = trenchSlot(sec, 'enemy', 2);
+  const impact = applyWarImpact(state, target.x, target.y, 'FRAG');
+  assert.equal(impact.enemyCasualties, 2);
+  const down = sec.units.filter(unit => unit.team === 'enemy' && unit.inactive).map(unit => unit.slot);
+  assert.ok(down.includes(2));
+  assert.ok(down.includes(3));
+  assert.equal(sec.war.enemy.activeSlots, 5);
+  state.cam = { x: 0, y: 0 }; updateWar(state, .01);
+  state.cam = { x: sec.x, y: sec.y }; updateWar(state, .01);
+  assert.deepEqual(sec.units.filter(unit => unit.team === 'enemy' && unit.inactive).map(unit => unit.slot), down);
+});
+
 test('aggregate casualties disable representative soldiers and empty fronts cannot fire', () => {
   const sec = makeSector(0), state = makeState([sec]);
   state.cam = { x: sec.x, y: sec.y };

@@ -47,24 +47,53 @@ export function initializeSector(sec, index = 0) {
   sec.progress ||= 0;
   sec.status ||= 'stalemate';
   sec.units = [];
-  const force = (team, phaseTime) => ({
-    phase: 'hold', phaseTime, morale: team === 'ally' ? .72 : .75,
-    ammo: .8, fortification: .78, suppression: .08, pressure: 0,
-    support: .5, advance: 0, reinforcementsIn: 34 + (index * 7 + (team === 'enemy' ? 11 : 0)) % 25,
-    casualties: 0, reinforcements: 0, cycles: 0, fire: 0,
-    activeSlots: representativeCount(sec, team)
-  });
+  const force = (team, phaseTime) => {
+    const activeSlots = representativeCount(sec, team);
+    return {
+      phase: 'hold', phaseTime, morale: team === 'ally' ? .72 : .75,
+      ammo: .8, fortification: .78, suppression: .08, pressure: 0,
+      support: .5, advance: 0, reinforcementsIn: 34 + (index * 7 + (team === 'enemy' ? 11 : 0)) % 25,
+      casualties: 0, reinforcements: 0, cycles: 0, fire: 0,
+      activeSlots, downSlots: Array.from({ length: teamSize(team) }, (_, slot) => slot).filter(slot => slot >= activeSlots)
+    };
+  };
   sec.war = { index, detailed: false, ticks: 0, ally: force('ally', 7 + index % 5), enemy: force('enemy', 11 + index % 4) };
   return sec;
 }
 
-function synchronizeSlots(sec, team, reinforcement = false) {
-  const force = sec.war[team], survivors = representativeCount(sec, team);
-  force.activeSlots = reinforcement ? survivors : Math.min(force.activeSlots, survivors);
+function synchronizeSlots(sec, team, reinforcement = false, impactPoint = null) {
+  const force = sec.war[team], total = teamSize(team), survivors = representativeCount(sec, team);
+  force.activeSlots = reinforcement ? survivors : Math.min(force.activeSlots ?? survivors, survivors);
+  const wantedDown = total - force.activeSlots;
+  const down = new Set(Array.isArray(force.downSlots) ? force.downSlots : []);
+  for (const slot of down) if (slot < 0 || slot >= total) down.delete(slot);
+  if (down.size > wantedDown) {
+    // Replacements arrive in a free trench slot. Preserve impact casualties
+    // first and restore the highest-index slot when the aggregate recovers.
+    for (const slot of [...down].sort((a, b) => b - a)) {
+      if (down.size <= wantedDown) break;
+      down.delete(slot);
+    }
+  } else if (down.size < wantedDown) {
+    const candidates = Array.from({ length: total }, (_, slot) => slot).filter(slot => !down.has(slot));
+    candidates.sort((a, b) => {
+      if (impactPoint) {
+        const homeA = trenchSlot(sec, team, a), homeB = trenchSlot(sec, team, b);
+        homeA.x += teamSign(team) * force.advance; homeB.x += teamSign(team) * force.advance;
+        return dist(homeA, impactPoint) - dist(homeB, impactPoint);
+      }
+      return b - a;
+    });
+    for (const slot of candidates) {
+      if (down.size >= wantedDown) break;
+      down.add(slot);
+    }
+  }
+  force.downSlots = [...down].sort((a, b) => a - b);
   for (const unit of sec.units) {
     if (unit.team !== team) continue;
     const wasInactive = unit.inactive;
-    unit.inactive = unit.slot >= force.activeSlots;
+    unit.inactive = down.has(unit.slot);
     unit.downed = unit.inactive;
     if (unit.inactive) { unit.pop = 0; unit.duck = 1; unit.action = 'downed'; }
     else if (wasInactive) {
@@ -180,12 +209,13 @@ function materialize(sec) {
   sec.war.detailed = true;
   sec.units = teams.flatMap(team => Array.from({ length: teamSize(team) }, (_, slot) => {
     const home = trenchSlot(sec, team, slot);
+    const down = sec.war[team].downSlots?.includes(slot) ?? slot >= sec.war[team].activeSlots;
     return {
       team, role: slot === (team === 'ally' ? 2 : 3) ? 'mg' : slot === 0 ? 'scout' : 'rifle', slot,
       x: home.x + teamSign(team) * sec.war[team].advance, y: home.y,
       cool: .2 + noise(sec.war.index * 23 + slot + (team === 'enemy' ? 11 : 0)) * 2,
       duck: .7, pop: 0, supp: sec.war[team].suppression, action: sec.war[team].phase,
-      inactive: slot >= sec.war[team].activeSlots, downed: slot >= sec.war[team].activeSlots
+      inactive: down, downed: down
     };
   }));
 }
@@ -265,7 +295,7 @@ export function updateWar(state, dt) {
 export function applyWarImpact(state, x, y, type) {
   const sim = simulation(state);
   const point = { x, y };
-  const result = { destroyed: [], friendlyHits: 0, affected: [], robotDamage: 0 };
+  const result = { destroyed: [], friendlyHits: 0, friendlyCasualties: 0, enemyCasualties: 0, affected: [], robotDamage: 0 };
   if (![x, y].every(Number.isFinite)) return result;
   sim.impacts.push({ x, y, until: sim.clock + 4 });
   sim.impacts = sim.impacts.slice(-4);
@@ -300,7 +330,12 @@ export function applyWarImpact(state, x, y, type) {
       const key = strengthKey(team);
       const loss = Math.min(sec[key], exposure * (frag ? 72 : 42) * (1 - force.fortification * (frag ? .48 : .25)));
       sec[key] -= loss;
-      synchronizeSlots(sec, team);
+      const downBefore = force.downSlots?.length ?? Math.max(0, teamSize(team) - (force.activeSlots ?? representativeCount(sec, team)));
+      // Pick the nearest trench slots for this particular blast. Aggregate
+      // strength still drives the strategic layer, while the local casualties
+      // now match what the operator sees around the impact point.
+      synchronizeSlots(sec, team, false, point);
+      const newCasualties = Math.max(0, (force.downSlots?.length ?? 0) - downBefore);
       force.casualties += loss;
       const suppression = Math.min(1 - force.suppression, exposure * (frag ? 2.1 : 1.6));
       force.suppression += suppression;
@@ -308,6 +343,8 @@ export function applyWarImpact(state, x, y, type) {
       force.fortification = clamp(force.fortification - exposure * (frag ? .04 : .24), .1, 1);
       force.phaseTime = Math.min(force.phaseTime, 2);
       if (team === 'ally') result.friendlyHits++;
+      if (team === 'ally') result.friendlyCasualties += newCasualties;
+      else result.enemyCasualties += newCasualties;
       result.affected.push({ sector: sec, team, loss, suppression });
       for (const unit of sec.units.filter(unit => unit.team === team)) unit.supp = Math.max(unit.supp, force.suppression);
     }

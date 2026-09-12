@@ -40,6 +40,11 @@ Duplicações e falhas identificadas:
 
 Validação: testes numéricos e de estados, testes de navegador com dimensões landscape e Pointer Events, inspeção visual e checagem offline/PWA. Emulação não equivale a validação física de Safari no iPhone.
 
+## Correções pós-feedback
+
+- `bearingVector()` agora é compartilhado pelo projétil e pelo desenho do tubo. A elevação encurta a projeção no plano do mapa sem deslocar o canhão para um azimute diferente.
+- FRAG mantém slots de baixas persistentes e escolhe os soldados mais próximos do ponto de impacto; o efeito de fragmentação e o rádio confirmam a ação na trincheira.
+
 ## Abrir no Windows
 
 Não abra `index.html` diretamente pelo Explorer: o protocolo `file://` bloqueia os módulos e o service worker. Execute `ABRIR-IRON-RAIN.cmd` nesta pasta ou rode `npm start`; depois acesse `http://localhost:4173/`.

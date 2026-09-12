@@ -21,6 +21,12 @@ function finite(value, name) {
   return value;
 }
 
+/** Bearing unit vector in the same east-positive/south-positive world as the renderer. */
+export function bearingVector(bearing) {
+  const direction = radians(finite(bearing, 'bearing'));
+  return Object.freeze({ x: Math.sin(direction), y: -Math.cos(direction) });
+}
+
 /** The one solution shared by the readout, table and projectile. */
 export function ballistics(charge, elevation) {
   if (!Number.isInteger(charge) || !CHARGES[charge]) throw new RangeError('Unknown propellant charge');
@@ -54,14 +60,14 @@ export function chargeBand(charge) {
  */
 export function sampleTrajectory(solution, origin, bearing, wind = { x: 0, y: 0 }, time = 0) {
   const t = clamp(finite(time, 'time'), 0, solution.tof);
-  const direction = radians(finite(bearing, 'bearing'));
+  const direction = bearingVector(bearing);
   const accelerationX = finite(wind?.x ?? 0, 'wind.x') * WIND_ACCELERATION;
   const accelerationY = finite(wind?.y ?? 0, 'wind.y') * WIND_ACCELERATION;
   const distance = solution.horizontalVelocity * t;
   const landed = time >= solution.tof;
   return {
-    x: finite(origin.x, 'origin.x') + Math.sin(direction) * distance + 0.5 * accelerationX * t * t,
-    y: finite(origin.y, 'origin.y') - Math.cos(direction) * distance + 0.5 * accelerationY * t * t,
+    x: finite(origin.x, 'origin.x') + direction.x * distance + 0.5 * accelerationX * t * t,
+    y: finite(origin.y, 'origin.y') + direction.y * distance + 0.5 * accelerationY * t * t,
     z: landed ? 0 : Math.max(0, solution.verticalVelocity * t - 0.5 * solution.gravity * t * t),
     t,
     landed,
