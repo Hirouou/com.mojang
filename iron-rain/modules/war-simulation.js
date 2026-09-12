@@ -42,6 +42,44 @@ function locateStrategic(point) {
   return sector ? { hexId: hex.id, hexName: hex.name, sectorId: sector.id, sectorName: sector.name, owner: sector.owner, distanceToFront: frontDistance(point) } : null;
 }
 
+function validSpawn(spawn, team = playerTeam()) {
+  if (!finitePoint(spawn) || !spawn.id) return false;
+  const hex = canonicalHexes.find(candidate => candidate.id === spawn.id);
+  if (!hex) return false;
+  return hex.sectors.every(sector => sector.owner === team) && Math.hypot(hex.x - spawn.x, hex.y - spawn.y) < 10;
+}
+
+function placeMamuteAtSpawn(state, spawn, reason = 'entry') {
+  if (!isLiveGameState(state) || !validSpawn(spawn)) return false;
+  const x = Math.max(600, Math.min(THEATRE_SIZE.w - 600, Number(spawn.x)));
+  const y = Math.max(600, Math.min(THEATRE_SIZE.h - 600, Number(spawn.y)));
+  const rear = playerTeam() === 'ally' ? -450 : 450;
+  state.robot.x = x; state.robot.y = y; state.robot.speed = 0;
+  if (state.cam) { state.cam.x = x + rear * -.65; state.cam.y = y; state.cam.manualX = 0; state.cam.manualY = 0; }
+  if (state.base) { state.base.x = x + rear; state.base.y = y; }
+  state.warSimulation ||= {};
+  state.warSimulation.spawnApplied = spawn.id;
+  state.warSimulation.spawnReason = reason;
+  state.warSimulation.spawnAt = { x, y };
+  return true;
+}
+
+function ensureChosenSpawn(state) {
+  if (!isLiveGameState(state)) return false;
+  const entry = globalThis.ironRainEntry;
+  const pending = entry?.pendingRespawn;
+  if (pending && validSpawn(pending)) {
+    const applied = placeMamuteAtSpawn(state, pending, 'respawn');
+    if (applied) { entry.spawn = { ...pending }; entry.pendingRespawn = null; }
+    return applied;
+  }
+  const spawn = entry?.spawn || globalThis.ironRainSpawnChoice;
+  if (!spawn || state.warSimulation?.spawnApplied === spawn.id) return false;
+  const applied = placeMamuteAtSpawn(state, spawn, 'entry');
+  if (applied && entry) entry.spawn = { ...spawn };
+  return applied;
+}
+
 function chooseTacticalTargets(count) {
   const picked = [], used = new Set();
   for (let index = 0; index < count; index++) {
@@ -58,11 +96,7 @@ function chooseTacticalTargets(count) {
   return picked;
 }
 
-function shiftPoint(point, dx, dy) {
-  if (!finitePoint(point)) return;
-  point.x += dx;
-  point.y += dy;
-}
+function shiftPoint(point, dx, dy) { if (!finitePoint(point)) return; point.x += dx; point.y += dy; }
 
 function alignSector(sec, target) {
   if (!sec || !target || sec.__ironRainStrategicAligned) return;
@@ -123,25 +157,25 @@ function publishWorldBridge(state) {
     };
   });
   globalThis.ironRainWarBridge = {
-    version: 1,
+    version: 2,
     position: { x: state.robot.x, y: state.robot.y },
     location,
     playerTeam: playerTeam(),
     safeRear: Boolean(location && location.owner === playerTeam() && location.distanceToFront > 5_250),
+    spawn: state.warSimulation?.spawnApplied || null,
     fronts,
   };
 }
 
 export function updateWar(state, dt) {
   const live = isLiveGameState(state);
-  if (live) ensureStrategicAlignment(state);
+  if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); }
   const originalMode = state?.mode;
   const team = playerTeam();
   const rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250);
   if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
-  try {
-    coreUpdateWar(state, dt);
-  } finally {
+  try { coreUpdateWar(state, dt); }
+  finally {
     if (rearSafe && state) state.mode = originalMode;
     if (live) publishWorldBridge(state);
   }
