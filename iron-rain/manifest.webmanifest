@@ -1,0 +1,9 @@
+{
+  "name":"Iron Rain: Frontline",
+  "short_name":"Iron Rain",
+  "start_url":"./index.html",
+  "display":"standalone",
+  "background_color":"#0b110d",
+  "theme_color":"#0b110d",
+  "orientation":"landscape"
+}
