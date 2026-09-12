@@ -39,3 +39,7 @@ Duplicações e falhas identificadas:
 5. game-v6.js: preserva renderer e orquestração; câmera possui término comum e proteção contra sobreposição.
 
 Validação: testes numéricos e de estados, testes de navegador com dimensões landscape e Pointer Events, inspeção visual e checagem offline/PWA. Emulação não equivale a validação física de Safari no iPhone.
+
+## Abrir no Windows
+
+Não abra `index.html` diretamente pelo Explorer: o protocolo `file://` bloqueia os módulos e o service worker. Execute `ABRIR-IRON-RAIN.cmd` nesta pasta ou rode `npm start`; depois acesse `http://localhost:4173/`.
