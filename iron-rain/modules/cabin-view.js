@@ -1,6 +1,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { createCabinView as createCabinViewCore } from './cabin-view-core.js';
 import { createCabinCrewVisualLayer } from './crew-visual-layer.js';
+import { maintenanceFeedback } from './maintenance-feedback.js';
+import './maintenance-overlay.js';
 
 /**
  * Public cabin renderer with the remote-crew visual layer attached.
@@ -79,6 +81,20 @@ export function createCabinView(canvas, options = {}) {
     return crewVisuals.update(remotes, 1, safeDt(dt));
   }
 
+  function publishMaintenance(engine) {
+    const detail = maintenanceFeedback(engine);
+    try {
+      globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail }));
+    } catch {}
+    return detail;
+  }
+
+  function clearMaintenance() {
+    try {
+      globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } }));
+    } catch {}
+  }
+
   function leaveCrewStation() {
     // Entering the drive station switches the main game to field view, which
     // synchronously asks the cabin renderer to leave its local interaction.
@@ -96,6 +112,7 @@ export function createCabinView(canvas, options = {}) {
     leaveStation: leaveCrewStation,
     update(dt, data = {}) {
       core.update(dt, data);
+      if (own(data, 'engine')) publishMaintenance(data.engine);
       if (own(data, 'crewRemotes')) updateRemoteCrew(data.crewRemotes, dt);
     },
     updateRemoteCrew,
@@ -103,6 +120,7 @@ export function createCabinView(canvas, options = {}) {
     reset() {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null;
+      clearMaintenance();
       core.reset();
       crewVisuals.clear();
     },
@@ -112,6 +130,7 @@ export function createCabinView(canvas, options = {}) {
     dispose() {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null;
+      clearMaintenance();
       crewVisuals.dispose();
       core.dispose();
     },
