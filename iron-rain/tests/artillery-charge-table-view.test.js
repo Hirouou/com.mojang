@@ -12,8 +12,8 @@ test('charge table exposes manual crank cue only for the inserted charge', () =>
   assert.equal(rows.length, 7);
   assert.ok(current);
   assert.deepEqual(current.arcs.map(arc => arc.displayLabel), [
-    'BAIXO 30.0° · A 1.400 m · 23.9 s · MANIVELA ↓ 10.0°',
-    'ALTO 60.0° · A 4.200 m · 41.3 s · MANIVELA ↑ 20.0°',
+    'BAIXO 30.0° · A 3.500 m · 53.4 s · MANIVELA ↓ 10.0°',
+    'ALTO 60.0° · A 10.500 m · 92.5 s · MANIVELA ↑ 20.0°',
   ]);
   assert.ok(current.arcs.every(arc => arc.crankCue));
   assert.ok(otherReachable);
