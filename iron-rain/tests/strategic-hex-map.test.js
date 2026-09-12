@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createStrategicHexMap, hexControl, canCaptureHex, setSectorOwner, deploymentAllowed } from '../modules/strategic-hex-map.js';
+import { createStrategicHexMap, hexControl, canCaptureHex, setSectorOwner, deploymentAllowed, sectorCaptureAllowed } from '../modules/strategic-hex-map.js';
 
 test('the theatre is divided into multi-sector strategic hexes', () => {
   const map = createStrategicHexMap();
@@ -26,4 +26,35 @@ test('regular forces do not magically spawn deep behind enemy lines, but partisa
   assert.ok(enemyDeep);
   assert.equal(deploymentAllowed({ team: 'ally', role: 'regular', destinationHex: enemyDeep, allHexes: map }), false);
   assert.equal(deploymentAllowed({ team: 'ally', role: 'partisan', destinationHex: enemyDeep, allHexes: map }), true);
+});
+
+test('sector capture advances through adjacent sectors instead of creating isolated pockets', () => {
+  const sectors = Array.from({ length: 7 }, (_, index) => ({ id: `HX-A-S${index}`, owner: 'neutral' }));
+  const hex = { id: 'HX-A', q: 0, r: 0, sectors };
+
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S0', allHexes: [] }), false);
+
+  sectors[1].owner = 'ally';
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S0', allHexes: [] }), true);
+
+  sectors[1].owner = 'neutral';
+  sectors[5].owner = 'ally';
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S3', allHexes: [] }), false);
+
+  sectors[0].owner = 'ally';
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S3', allHexes: [] }), true);
+});
+
+test('a border sector can only be entered from its matching fully controlled neighboring hex', () => {
+  const sectors = Array.from({ length: 7 }, (_, index) => ({ id: `HX-A-S${index}`, owner: 'neutral' }));
+  const hex = { id: 'HX-A', q: 0, r: 0, sectors };
+  const friendlySectors = Array.from({ length: 7 }, (_, index) => ({ id: `HX-B-S${index}`, owner: 'ally' }));
+  const matchingNeighbor = { id: 'HX-B', q: 1, r: 0, sectors: friendlySectors };
+  const wrongNeighbor = { id: 'HX-C', q: 0, r: -1, sectors: friendlySectors };
+
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S3', allHexes: [wrongNeighbor] }), false);
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S3', allHexes: [matchingNeighbor] }), true);
+
+  matchingNeighbor.sectors[0].owner = 'contested';
+  assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S3', allHexes: [matchingNeighbor] }), false);
 });
