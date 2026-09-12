@@ -41,3 +41,20 @@ test('artillery notebook ignores invalid current-charge markers instead of selec
   assert.ok(rows.length > 0);
   assert.equal(rows.some(row => row.current), false);
 });
+
+test('artillery notebook preserves every overlapping manual option in deterministic order', () => {
+  const range = ballistics(5, 45).range * 0.72;
+  const rows = artilleryNotebookRows(range, 6);
+
+  assert.ok(rows.length >= 2, 'expected overlapping charges at the chosen range');
+  assert.deepEqual(rows.map(row => row.charge), [...rows.map(row => row.charge)].sort((a, b) => a - b));
+  assert.equal(rows.filter(row => row.current).length, rows.some(row => row.charge === 6) ? 1 : 0);
+
+  for (const row of rows) {
+    assert.ok(range >= row.min && range <= row.max, `C${row.charge} must contain the plotted range`);
+    assert.ok(row.arcs.length >= 1 && row.arcs.length <= 2);
+    assert.deepEqual(row.arcs.map(arc => arc.kind), row.arcs.length === 2 ? ['low', 'high'] : ['single']);
+    assert.deepEqual(row.arcs.map(arc => arc.elevation), [...row.arcs.map(arc => arc.elevation)].sort((a, b) => a - b));
+    for (const arc of row.arcs) close(ballistics(row.charge, arc.elevation).range, range);
+  }
+});
