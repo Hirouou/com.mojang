@@ -84,6 +84,18 @@ test('notebook rows preserve the full seven-charge table and decorate only the i
   assert.ok(rows.every(row => Object.isFrozen(row.arcs) && row.arcs.every(Object.isFrozen)));
 });
 
+test('notebook keeps an unreachable inserted charge visible but never invents a crank cue', () => {
+  const range = ballistics(7, 45).range;
+  const rows = artilleryCrankNotebookRows(range, 1, 45);
+  const current = rows.find(row => row.current);
+
+  assert.equal(rows.length, 7);
+  assert.ok(current);
+  assert.equal(current.charge, 1);
+  assert.deepEqual(current.arcs, []);
+  assert.ok(rows.flatMap(row => row.arcs).every(arc => arc.crankCue === null));
+});
+
 test('notebook crank decoration preserves shared ballistics values', () => {
   const range = ballistics(5, 30).range;
   const row = artilleryCrankNotebookRows(range, 5, 40).find(entry => entry.current);
