@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:18 — ChatGPT-GPT-5.6-Sol / SLOT A — FP VISUALS + AUDIO
+- **FEITO:** melhorado incrementalmente o grave contínuo do motor no interior sem adicionar novas vozes: o oscilador, low-pass e ganho já existentes agora respondem à velocidade do Mamute, deixando o pulso interno um pouco mais alto, mais brilhante e mais presente conforme a marcha aumenta. O comportamento exterior continua separado e mais abafado. Adicionada regressão garantindo os valores em repouso/velocidade máxima e que a resposta reutiliza exatamente o mesmo grafo contínuo, preservando custo mobile.
+- **ARQUIVOS:** `modules/war-audio.js`, `tests/audio.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** criada regressão unitária específica em `tests/audio.test.js`. O checkout para executar `npm test` falhou neste runtime por DNS (`Could not resolve host: github.com`), e o commit não possui checks de CI publicados; portanto a suíte não foi executada aqui. A branch foi relida após os commits e permaneceu no head `aedb89295ead8c362aa2f33d281ae95cc1885ee4` antes desta entrada.
+- **PRÓXIMO:** continuar FP Visuals pela prioridade visual já registrada: ajustar a hierarquia de luz entre cabine principal, abertura exterior fria e sala do motor reaproveitando as luzes existentes, de preferência após estabilização dos volumes visual/colisão; depois avaliar diferenciação acústica por compartimento somente se a posição da cabine puder ser entregue ao áudio sem alocação por frame.
+- **RISCO:** baixo. A mudança só modula parâmetros de um oscilador/filtro/ganho já existentes e não cria nós contínuos adicionais. A percepção final ainda precisa de browser/áudio real; se necessário, abrir missão Codex de QA especializada em vez de ajustar ganho às cegas.
+- **COMMIT:** `3117cf2627ef95256ce01a5b4eaff5357b9415d9` (motor procedural) + `aedb89295ead8c362aa2f33d281ae95cc1885ee4` (regressão); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:16 — LEAD — GOVERNANCE / CODEX BUS
 - **FEITO:** formalizado o canal GitHub-only entre LEAD/Slots A–F e Codex Specialist. Criado `CODEX_COORDINATION.md` e a caixa postal `docs/codex-requests/`, com uma solicitação independente por missão, estados `READY/IN_PROGRESS/DONE/BLOCKED/CANCELLED`, claim pelo próprio Codex e retorno no mesmo arquivo. `MULTI_AGENT_CONTROL.md` agora obriga os agentes a consumir resultados relevantes e, quando realmente precisarem de uma capacidade especializada, publicar a missão no GitHub em vez de pedir ao usuário para retransmiti-la. O usuário deixa de ser mensageiro entre agentes e Codex.
 - **ARQUIVOS:** `docs/CODEX_COORDINATION.md`, `docs/codex-requests/README.md`, `docs/MULTI_AGENT_CONTROL.md`, `docs/AGENT_LOG.md`.
