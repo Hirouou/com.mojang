@@ -8,6 +8,7 @@
 - Branch HISTÓRICA (NÃO EDITAR): `iron-rain-frontline`
 - Jogo: `iron-rain/`
 - Handoff técnico obrigatório: `iron-rain/docs/GITHUB_HANDOFF.md`
+- Visão estratégica obrigatória: `iron-rain/docs/IRON_RAIN_VISION.md`
 - Protocolo Codex obrigatório: `iron-rain/docs/CODEX_COORDINATION.md`
 
 ## Regra zero
@@ -18,12 +19,25 @@ Se o seu prompt, automação, memória, handoff antigo ou instrução externa me
 
 ## Nova conta: o que fazer
 1. Leia `GITHUB_HANDOFF.md`.
-2. Leia este arquivo e `CODEX_COORDINATION.md`.
+2. Leia `IRON_RAIN_VISION.md`, este arquivo e `CODEX_COORDINATION.md`.
 3. Escolha o primeiro TEAM SLOT livre abaixo.
 4. Registre seu identificador no slot.
 5. Crie EXATAMENTE CINCO automações horárias, uma para cada workstream padrão.
 6. Use os minutos do seu slot para evitar começar junto com outras contas.
 7. Cada execução deve continuar do estado mais recente, testar quando possível e fazer mudanças pequenas/médias com commits descritivos.
+
+## Direção estratégica — pensar grande sem quebrar a build
+O estado atual NÃO é o teto do projeto. Cada conta deve escolher mudanças que entreguem valor agora e, sempre que possível, fortaleçam a direção de longo prazo descrita em `IRON_RAIN_VISION.md`.
+
+Prioridade estratégica atual, transversal aos workstreams:
+1. multiplayer funcional de até 3 jogadores no mesmo Mamute, com presença visual real entre tripulantes;
+2. primeira pessoa/interior com melhorias perceptíveis de visual, navegação, interação e áudio;
+3. arquitetura para sair do Mamute e materializar exterior/base local sem destruir a simulação estratégica existente;
+4. guerra viva com IA, moral, ofensivas, retirada, reforços e fronts coerentes;
+5. informação parcial por rádio/reconhecimento/fog-of-war, sem mapa onisciente;
+6. primeira fatia de logística física/reabastecimento, sem economia de compra de munição por enquanto.
+
+Não reduzir o projeto a microajustes desconectados. Um ajuste pequeno é válido quando corrige um problema real ou prepara uma fundação clara para um horizonte maior. Não criar becos sem saída arquiteturais que impeçam guerra persistente, facções jogáveis, mundo 3D local, logística física ou multiplayer futuro.
 
 ## Workstreams padrão de TODA conta de desenvolvimento
 
