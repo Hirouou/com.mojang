@@ -78,6 +78,16 @@ Agentes e LEAD devem usar esse canal para QA visual real, browser/mobile, reprod
 
 Não criar pedido Codex para trabalho normal já pertencente a um workstream. Antes de criar pedido, verificar se já existe missão `READY` ou `IN_PROGRESS` equivalente.
 
+### Fallback quando o Codex estiver temporariamente indisponível
+O Codex pode ficar indisponível por limite de uso ou ausência de executor. Nessa situação, nenhum Slot deve parar o desenvolvimento normal esperando o Codex.
+
+- pedidos `READY` permanecem enfileirados sem duplicação;
+- pedidos já `IN_PROGRESS` não devem ser tomados por outro agente nem ter o status falsificado; aguardar o executor retornar ou a liderança decidir depois;
+- workstreams continuam com tarefas que possam ser verificadas por inspeção, testes locais disponíveis e regressões automatizadas;
+- não fazer ajuste visual/auditivo subjetivo às cegas só para substituir QA real;
+- quando a missão especializada for bloqueante, registrar claramente o bloqueio e avançar outra prioridade independente;
+- assim que o Codex voltar, ele relê a branch atual e continua pelo protocolo normal, nunca a partir de estado antigo.
+
 ## Reporter visual — Slot A
 Além das cinco tarefas, produz checkpoint visual quando o ambiente permitir:
 - link da build;
