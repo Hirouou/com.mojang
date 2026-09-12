@@ -1,4 +1,32 @@
+import { territoryOperationalEffects } from './territory-ai.js';
+
 const bool = value => value === true;
+const validTeam = team => team === 'ally' || team === 'enemy';
+
+/**
+ * Read-only bridge from canonical territory/route state to the reserve gate.
+ * It never creates supply, opens routes or builds structures; callers provide
+ * route reachability already earned from the strategic logistics simulation.
+ */
+export function combatLogisticsState({ territory, team, routeOpen = false } = {}) {
+  const friendly = validTeam(team) && territory?.owner === team && territory?.contested === false;
+  const connected = friendly && bool(routeOpen);
+  const structures = new Set(friendly && Array.isArray(territory?.structures) ? territory.structures : []);
+  const hasOutpost = structures.has('outpost');
+  const hasDepot = structures.has('depot');
+  const hasGarage = structures.has('garage');
+  const effects = territoryOperationalEffects(friendly ? territory : null);
+  const canReceiveReinforcements = connected && (hasOutpost || hasDepot || hasGarage) && effects.reinforcementSupport > 0;
+
+  return Object.freeze({
+    connected,
+    hasOutpost,
+    hasDepot,
+    hasGarage,
+    canReceiveReinforcements,
+    reinforcementSupport: friendly ? effects.reinforcementSupport : 0,
+  });
+}
 
 /**
  * Pure admission gate for aggregate infantry reserves.
