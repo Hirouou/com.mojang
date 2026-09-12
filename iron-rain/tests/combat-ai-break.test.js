@@ -130,3 +130,25 @@ test('a supplied and recovered formation can leave regroup through the normal ph
 
   assert.equal(force.phase, 'hold', 'healthy local supply returns control to the existing tactical phase selector');
 });
+
+test('low local supply blocks a prepared suppress-to-assault transition on a contested front', () => {
+  const state = makeState();
+  const sector = state.sectors[0];
+  const force = sector.war.ally;
+  const foe = sector.war.enemy;
+  sector.allyStrength = 65;
+  sector.enemyStrength = 50;
+  force.phase = 'suppress';
+  force.phaseTime = 1;
+  force.morale = .7;
+  force.suppression = .2;
+  force.ammo = .8;
+  foe.morale = .75;
+  foe.suppression = .4;
+  for (const base of sector.war.bases) if (base.team === 'ally') base.supply = .05;
+
+  updateWar(state, 1);
+
+  assert.equal(force.phase, 'wait_support', 'a tactically ready force does not assault while local supply is below readiness');
+  assert.ok(force.advance <= 0, 'the supply-starved formation does not begin a covered bound');
+});
