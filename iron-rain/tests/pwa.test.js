@@ -65,7 +65,7 @@ test('PWA is scoped relatively, standalone landscape, with all required icon siz
 test('offline installation includes every runtime module and every listed file exists', async () => {
   const instance = await worker();
   await instance.lifecycle('install');
-  assert.equal(instance.installed.length, 13);
+  assert.equal(instance.installed.length, 22);
   for (const asset of instance.installed) {
     assert.ok(asset.startsWith(scope));
     assert.equal(new URL(asset).search, '');
@@ -83,7 +83,7 @@ test('activation removes only obsolete IRON RAIN caches within this deployment s
     await instance.cacheAPI.open(name);
   }
   await instance.lifecycle('activate');
-  assert.deepEqual(instance.deleted, ['iron-rain:/iron-rain/:v6.0']);
+  assert.deepEqual(instance.deleted, ['iron-rain:/iron-rain/:v6.0', 'iron-rain:/iron-rain/:v6.1']);
 });
 
 test('HTML is network-first and an offline root navigation falls back to installed index', async () => {

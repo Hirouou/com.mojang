@@ -11,11 +11,27 @@
 <link rel="icon" href="./icons/m47.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="stylesheet" href="style-v6.css">
+<link rel="stylesheet" href="style-v7.css">
 <title>Iron Rain — Theatre of Fire</title>
 </head>
 <body>
 <div id="app">
   <canvas id="game"></canvas>
+  <canvas id="cabinCanvas" aria-label="Interior tridimensional do M-47 Mamute"></canvas>
+  <div class="cabin-grain" aria-hidden="true"></div>
+  <div id="cabinUi" class="cabin-ui hidden">
+    <div class="compartment-label"><span class="live-dot"></span> M–47 MAMUTE <small>COMPARTIMENTO DE COMBATE / 07</small></div>
+    <div id="cabinReticle" class="cabin-reticle" aria-hidden="true">+</div>
+    <div id="cabinPrompt" class="cabin-prompt">ARRASTE PARA OLHAR</div>
+    <div id="cabinJoystick" class="joystick cabin-joystick mobile-only"><div class="joy-cross"></div><div id="cabinJoyKnob" class="joy-knob"></div></div>
+    <div id="cabinWalkHint" class="cabin-walk-hint"><span class="pc-only">WASD · CAMINHAR<br>MOUSE · OLHAR</span><span class="mobile-only">JOYSTICK · CAMINHAR<br>ARRASTE · OLHAR</span></div>
+    <button id="interactBtn" class="interact-btn"><span class="pc-only">E · INTERAGIR</span><span class="mobile-only">INTERAGIR</span></button>
+    <button id="leaveStationBtn" class="leave-station hidden">↩ AFASTAR-SE <kbd class="pc-only">Esc</kbd></button>
+    <div id="stationHeader" class="station-header hidden"><small>POSTO DO OPERADOR</small><b id="stationName">CONTROLE DE TIRO</b><span id="stationDescription"></span></div>
+  </div>
+  <div id="bootStatus" class="boot-status"><span>M–47 / SISTEMAS</span><b>ABRINDO COMPARTIMENTO</b><small>Preparando instrumentos…</small></div>
+  <div id="fieldStatus" class="field-status hidden"><b>MARCHA / VISTA LOCAL</b><span id="routeText">Aguardando verificação de rota.</span></div>
+  <div id="warToast" class="war-toast hidden" role="status"><b id="warToastSource">RÁDIO</b><span id="warToastText"></span></div>
 
   <div id="hud" class="hud">
     <div class="hud-left"><b>M-47</b><span id="ownCoord">X00000 Y00000</span></div>
@@ -32,8 +48,8 @@
   </button>
 
   <div id="marchUi" class="march-ui">
-    <div id="joystick" class="joystick"><div class="joy-cross"></div><div id="joyKnob" class="joy-knob"></div></div>
-    <button id="deployBtn" class="deploy-btn"><span>⚙</span> OPERAR M-47</button>
+    <div id="joystick" class="joystick mobile-only"><div class="joy-cross"></div><div id="joyKnob" class="joy-knob"></div></div>
+    <button id="deployBtn" class="deploy-btn"><span>↳</span> ENTRAR NO MAMUTE</button>
   </div>
 
   <div id="fireDeck" class="fire-deck hidden">
@@ -63,6 +79,8 @@
       <small id="chargeRange">faixa —</small>
     </div>
 
+    <div id="loadingText" class="loading-text">CULATRA TRAVADA</div>
+
     <div class="ammo-box">
       <button class="ammo active" data-shell="HE" aria-label="Alto explosivo: estruturas e blindagem"><span>◆</span><b>HE</b><small id="heCount">18</small></button>
       <button class="ammo" data-shell="SMOKE" aria-label="Fumaça: oculta e cobre movimentos"><span>≋</span><b>SMK</b><small id="smokeCount">8</small></button>
@@ -70,9 +88,9 @@
     </div>
 
     <div class="fire-actions">
-      <button id="notebookBtn" class="notebook-btn">⌖ CADERNETA</button>
+      <button id="notebookBtn" class="notebook-btn">⌖ MESA DE MAPA</button>
       <button id="fireBtn" class="fire-btn">DISPARAR</button>
-      <button id="marchBtn" class="march-btn">↩ MARCHA</button>
+      <button id="marchBtn" class="march-btn">↩ AFASTAR-SE</button>
     </div>
   </div>
 
@@ -82,11 +100,11 @@
     <div class="sheet-card help-card">
       <div class="sheet-head"><div><b>AJUDA DO OPERADOR</b><small>a guerra pausa enquanto esta tela está aberta</small></div><button data-close="help">×</button></div>
       <div class="help-grid">
-        <section><h3>01 / No campo</h3><p>Mova o Mamute com o joystick; toque <b>OPERAR M-47</b> para assentar a peça. A câmera fica próxima de você. O teatro de guerra se estende por dezenas de quilômetros.</p></section>
-        <section><h3>02 / Escute o rádio</h3><p>Observadores, patrulhas e aviões relatam posições. Uma visita de câmera mostra a origem e o alvo e retorna à peça. Um informe pode envelhecer.</p></section>
-        <section><h3>03 / Abra o mapa de mesa</h3><p>Selecione um informe ou trace uma régua a partir do Mamute. Cada quadrícula mede <b>5.000 m</b>. O mapa registra a inteligência recebida no instante em que é aberto.</p></section>
+        <section><h3>01 / Dentro do Mamute</h3><p><span class="pc-only">Use <b>WASD</b> para caminhar. Clique no cenário para capturar o mouse e olhar em 360°. <b>E</b> interage; <b>Esc</b> libera o mouse e afasta você do posto.</span><span class="mobile-only">Use o <b>joystick</b> para caminhar e arraste o cenário para olhar. Aproxime-se de um posto e toque <b>INTERAGIR</b>. Toque <b>AFASTAR-SE</b> para voltar a caminhar.</span> A porta do corredor abre ao se aproximar.</p></section>
+        <section><h3>02 / Escute o rádio</h3><p>Escolha <b>COMANDO, INFANTARIA ou INFORMAÇÕES</b>. Ordens e prioridades aparecem em vermelho. Clique num informe para ver a origem e o alvo; a câmera volta sozinha. Descobertas são opcionais. Depois de uma missão, a próxima ordem chega após <b>10 minutos</b>.</p></section>
+        <section><h3>03 / Mesa e direção</h3><p>Caminhe até a <b>mesa</b> para consultar informes e traçar a régua. Cada quadrícula mede 5.000 m. No posto de <b>direção</b>, você passa à vista de cima para deslocar o Mamute.</p></section>
         <section><h3>04 / Faça a conta</h3><p>Alvo − Mamute = <b>ΔX e ΔY</b>. Distância = √(ΔX² + ΔY²). Azimute: <b>0° norte · 90° leste · 180° sul · 270° oeste</b>. Y cresce para o sul.</p></section>
-        <section><h3>05 / Opere as manivelas</h3><p>Gire as rodas com o dedo. A redução e a inércia movem o canhão aos poucos. Combine carga e elevação, comparando <b>alcance e ápice em metros</b>.</p></section>
+        <section><h3>05 / Preparação e pontaria</h3><p>No <b>paiol</b>, selecione a munição. Na <b>pontaria</b>, ajuste a carga, gire as manivelas e confira alcance e ápice em metros. <span class="pc-only">Por padrão, <b>A / Q</b> aumentam e diminuem a carga; <b>Espaço</b> dispara. Altere as teclas no menu.</span><span class="mobile-only">Use <b>+ / −</b> para a carga e toque <b>DISPARAR</b>.</span></p></section>
         <section><h3>06 / Fogo e observação</h3><p><b>HE</b> destrói estruturas; <b>SMK</b> cobre movimentos; <b>FRG</b> atinge infantaria exposta. A câmera segue o tiro e volta sozinha. Considere tropas aliadas antes de disparar.</p></section>
       </div>
     </div>
@@ -94,7 +112,13 @@
 
   <div id="menu" class="sheet hidden">
     <div class="sheet-card menu-card">
-      <div class="sheet-head"><div><b>IRON RAIN <em>V6.1</em></b><small>M-47 MAMUTE / TEATRO DE FOGO</small></div><button data-close="menu" aria-label="Fechar menu">×</button></div>
+      <div class="sheet-head"><div><b>IRON RAIN <em>V7 / AÇO & CINZAS</em></b><small>M-47 MAMUTE / TEATRO DE FOGO</small></div><button data-close="menu" aria-label="Fechar menu">×</button></div>
+      <div class="settings-tabs" role="tablist" aria-label="Opções do jogo">
+        <button id="settingsGameTab" data-settings-tab="game" class="active" role="tab" aria-selected="true" aria-controls="settingsGamePanel">JOGO</button>
+        <button id="settingsSoundTab" data-settings-tab="sound" role="tab" aria-selected="false" aria-controls="settingsSoundPanel">SOM</button>
+        <button id="settingsKeysTab" data-settings-tab="keys" class="pc-only" role="tab" aria-selected="false" aria-controls="settingsKeysPanel">TECLAS</button>
+      </div>
+      <div id="settingsGamePanel" data-settings-panel="game" role="tabpanel" aria-labelledby="settingsGameTab">
       <div class="menu-grid">
         <button id="resumeBtn">▶ RETOMAR</button>
         <button id="centerBtn">◎ MAMUTE</button>
@@ -104,11 +128,43 @@
         <button id="fullscreenBtn">⛶ TELA CHEIA</button>
       </div>
       <div id="installHint" class="install-hint hidden">No iPhone, para remover a barra do navegador: abra no Safari → Compartilhar → <b>Adicionar à Tela de Início</b> → abra pelo ícone Iron Rain.</div>
+      </div>
+      <div id="settingsSoundPanel" data-settings-panel="sound" role="tabpanel" aria-labelledby="settingsSoundTab" hidden>
+      <button id="audioBtn" class="sound-toggle">♪ SOM · LIGADO</button>
+      <div class="sound-options" aria-label="Opções de áudio">
+        <div class="menu-subhead">MIXAGEM DE SOM</div>
+        <label for="masterVolume">VOLUME GERAL <output id="masterVolumeValue">90%</output></label>
+        <input id="masterVolume" type="range" min="0" max="1" step="0.05" value="0.9" aria-label="Volume geral">
+        <label for="effectsVolume">EFEITOS <output id="effectsVolumeValue">100%</output></label>
+        <input id="effectsVolume" type="range" min="0" max="1.5" step="0.05" value="1" aria-label="Volume dos efeitos">
+        <label for="ambientVolume">AMBIENTE <output id="ambientVolumeValue">75%</output></label>
+        <input id="ambientVolume" type="range" min="0" max="1" step="0.05" value="0.75" aria-label="Volume ambiente">
+      </div>
+      </div>
+      <div id="settingsKeysPanel" data-settings-panel="keys" class="keymap pc-only" role="tabpanel" aria-labelledby="settingsKeysTab" hidden>
+        <div class="menu-subhead">MAPEAMENTO DE TECLAS <small id="keymapHint">clique numa tecla e pressione a nova</small></div>
+        <div class="keymap-grid">
+          <button data-bind="forward"><span>CAMINHAR FRENTE</span><kbd>W</kbd></button>
+          <button data-bind="back"><span>CAMINHAR RÉ</span><kbd>S</kbd></button>
+          <button data-bind="left"><span>CAMINHAR ESQUERDA</span><kbd>A</kbd></button>
+          <button data-bind="right"><span>CAMINHAR DIREITA</span><kbd>D</kbd></button>
+          <button data-bind="fire"><span>DISPARAR</span><kbd>ESPAÇO</kbd></button>
+          <button data-bind="chargeUp"><span>AUMENTAR CARGA</span><kbd>A</kbd></button>
+          <button data-bind="chargeDown"><span>DIMINUIR CARGA</span><kbd>Q</kbd></button>
+        </div>
+        <div class="keymap-footer"><span>A carga usa A / Q somente no posto de pontaria.</span><button id="resetBindings">RESTAURAR PADRÃO</button></div>
+      </div>
     </div>
   </div>
 
   <div id="radio" class="radio hidden">
-    <div class="radio-head"><b>RÁDIO</b><button id="closeRadio">×</button></div>
+    <div class="radio-head"><div><b>RÁDIO DE CAMPANHA</b><small class="radio-legend"><i class="radio-command">CMD</i><i class="radio-discovery">INTEL</i><i class="radio-war">FRENTE</i></small></div><button id="closeRadio" aria-label="Fechar rádio">×</button></div>
+    <div class="radio-channels" role="tablist" aria-label="Canais do rádio">
+      <button data-radio-channel="all" class="active" role="tab" aria-selected="true">TODOS</button>
+      <button data-radio-channel="command" role="tab" aria-selected="false">COMANDO</button>
+      <button data-radio-channel="infantry" role="tab" aria-selected="false">INFANTARIA</button>
+      <button data-radio-channel="intel" role="tab" aria-selected="false">INFORMAÇÕES</button>
+    </div>
     <div id="radioLog" class="radio-log"></div>
   </div>
 

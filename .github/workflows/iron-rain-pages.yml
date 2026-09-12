@@ -1,0 +1,44 @@
+name: Publish Iron Rain
+
+on:
+  push:
+    branches:
+      - iron-rain-frontline
+      - iron-rain-v6-1-continuation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Assemble Iron Rain site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R iron-rain/. _site/
+          rm -rf _site/tests _site/docs _site/test-results
+          touch _site/.nojekyll
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

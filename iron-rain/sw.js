@@ -1,15 +1,24 @@
 /* Offline shell. Paths stay relative so GitHub Pages /iron-rain/ also works. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v6.1`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.0`;
 const OFFLINE_FILES = [
   './index.html',
   './style-v6.css',
+  './style-v7.css',
   './game-v6.js',
   './modules/ballistics.js',
   './modules/pointer-controls.js',
   './modules/war-simulation.js',
   './modules/table-map.js',
   './modules/camera-director.js',
+  './modules/battlefield-view.js',
+  './modules/cabin-controls.js',
+  './modules/cabin-view.js',
+  './modules/loading-cycle.js',
+  './modules/war-audio.js',
+  './modules/key-bindings.js',
+  './modules/engine-system.js',
+  './vendor/three.module.min.js',
   './manifest-v6.webmanifest',
   './icons/m47.svg',
   './icons/icon-192.png',

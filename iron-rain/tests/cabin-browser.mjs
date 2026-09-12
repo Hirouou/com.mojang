@@ -1,0 +1,14 @@
+import { createRequire } from 'node:module';
+import { mkdir } from 'node:fs/promises';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.IRON_RAIN_PLAYWRIGHT || 'playwright');
+const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist']});
+const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];
+page.on('pageerror',e=>errors.push(String(e)));
+await page.goto('http://localhost:4173/tests/cabin-preview.html');
+await page.waitForFunction(()=>window.cabin?.snapshot().renderer.drawCalls>0);
+await mkdir(new URL('../test-results/',import.meta.url),{recursive:true});
+await page.screenshot({path:new URL('../test-results/cabin-initial.png',import.meta.url).pathname.replace(/^\/([A-Za-z]:)/,'$1')});
+console.log(JSON.stringify(await page.evaluate(()=>cabin.snapshot())));
+if(errors.length)throw new Error(errors.join('\n'));
+await browser.close();

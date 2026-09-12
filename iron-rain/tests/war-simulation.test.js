@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initializeSector, updateWar, applyWarImpact, smokeBlocksLine, trenchPath, trenchSlot, WAR_LIMITS, phaseLabels } from '../modules/war-simulation.js';
+import { initializeSector, updateWar, applyWarImpact, smokeBlocksLine, trenchPath, trenchSlot, WAR_LIMITS, PLAYER_THREAT_LIMITS, phaseLabels, getFrontGeometry, assessRoute, checkRouteAmbush, selectPlayerThreat } from '../modules/war-simulation.js';
 
 function makeSector(index, x = 10000 + index * 10000, y = 20000) {
   return initializeSector({ id: index, name: `FRONT-${index}`, x, y, known: false, units: [{ old: true }], allyStrength: 65, enemyStrength: 72, assets: [
@@ -9,7 +9,8 @@ function makeSector(index, x = 10000 + index * 10000, y = 20000) {
   ] }, index);
 }
 function makeState(sectors = [makeSector(0)]) {
-  return { time: 0, robot: { x: 0, y: 0, armor: 100 }, cam: { x: 0, y: 0 }, sectors, smokes: [], tracers: [], shell: null, intel: null };
+  return { time: 0, robot: { x: 0, y: 0, armor: 100 }, cam: { x: 0, y: 0 }, sectors, smokes: [], tracers: [], shell: null, intel: null,
+    warSimulation: { clock: 0, accumulator: 0, impacts: [], strategicTicks: 0, detailedFronts: 0, events: [], support: [], serial: 0 } };
 }
 function advance(state, seconds) {
   for (let i = 0; i < seconds * 10; i++) { state.time += .1; updateWar(state, .1); }
@@ -110,6 +111,10 @@ test('downed slots persist through rematerialization and only reinforcement rest
   updateWar(state, 1);
   assert.equal(sec.war.ally.activeSlots, 0);
   updateWar(state, 1);
+  assert.equal(sec.war.ally.activeSlots, 0, 'a destroyed platoon cannot reappear immediately');
+  sec.war.ally.fallbackUntil = sec.war.ticks;
+  sec.war.ally.reinforcementsIn = 1;
+  updateWar(state, 1);
   assert.ok(sec.allyStrength > 0);
   assert.equal(sec.war.ally.activeSlots, 1);
   assert.equal(sec.units.filter(unit => unit.team === 'ally' && !unit.inactive).length, 1);
@@ -138,8 +143,8 @@ test('squads alternate cover, suppression, supported bounds, regrouping and retr
     updateWar(state, 1);
     observed.add(sec.war.ally.phase);
     observed.add(sec.war.enemy.phase);
-    assert.ok(Math.abs(sec.war.ally.advance) <= 155);
-    assert.ok(Math.abs(sec.war.enemy.advance) <= 155);
+    assert.ok(Math.abs(sec.war.ally.advance) <= WAR_LIMITS.captureBound);
+    assert.ok(Math.abs(sec.war.enemy.advance) <= WAR_LIMITS.captureBound);
     assert.ok(state.tracers.length <= WAR_LIMITS.maxTracers);
   }
   for (const phase of ['hold', 'suppress', 'assault', 'consolidate']) assert.ok(observed.has(phase), `${phase} should be observed`);
@@ -195,4 +200,132 @@ test('HE destroys structures, FRAG has a wider infantry role, and friendly fire 
   assert.equal(nearbyFrag.warSimulation.strategicTicks, 5);
   assert.notEqual(nearbyFrag.paused, true);
   assert.equal(nearbyFrag.gameOver, undefined);
+});
+
+for (const team of ['ally', 'enemy']) {
+  test(`${team} occupies a cleared opposing trench, keeps territory, and builds a forward base`, () => {
+    const sec = makeSector(0), state = makeState([sec]);
+    const foe = team === 'ally' ? 'enemy' : 'ally', sign = team === 'ally' ? 1 : -1;
+    sec[`${team}Strength`] = 78;
+    sec[`${foe}Strength`] = 0;
+    sec.war[team].morale = .85;
+    state.cam = { x: sec.x, y: sec.y };
+    updateWar(state, .01);
+    const before = sec.units.find(unit => unit.team === team && !unit.inactive).x;
+    advance(state, 8);
+    assert.equal(sec.war[team].phase, 'assault');
+    assert.ok((sec.units.find(unit => unit.team === team && !unit.inactive).x - before) * sign > 90, 'visible soldiers advance within eight seconds');
+    assert.equal(sec[`${foe}Strength`], 0, 'eliminated defenders do not respawn during exploitation');
+    advance(state, 28);
+    assert.equal(sec.war.positionOffset, sign * WAR_LIMITS.captureBound);
+    assert.equal(sec.war[team].securedBounds, 1);
+    assert.equal(sec.war[team].phase, 'consolidate');
+    assert.ok(sec.war.bases.some(base => base.team === team && base.level === 0), 'engineers build a forward camp');
+    assert.ok(state.warSimulation.events.some(event => event.type === 'capture' && event.team === team));
+    assert.equal(sec.x, 10000, 'objective/report coordinate origin remains stable');
+    assert.equal(getFrontGeometry(sec)[`${team}Trench`].x, sec.x + sign * 320, 'old opposing trench becomes the occupied friendly line');
+    const captured = sec.war.positionOffset;
+    advance(state, 6);
+    assert.equal(sec.war.positionOffset, captured, 'consolidation retains the captured ground');
+  });
+}
+
+test('weak forces do not exploit a gap until they can organize an assault', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  sec.allyStrength = 9; sec.enemyStrength = 0;
+  for (const team of ['ally', 'enemy']) sec.war[team].reinforcementsIn = 10000;
+  advance(state, 90);
+  assert.equal(sec.war.positionOffset, 0);
+  assert.notEqual(sec.war.ally.phase, 'assault');
+  assert.equal(sec.war.ally.securedBounds, 0);
+});
+
+test('supplied engineering expands both teams bases while abandoned bases stop building', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  advance(state, 60);
+  for (const team of ['ally', 'enemy']) assert.ok(sec.war.bases.some(base => base.team === team && base.level >= 2));
+  const allyBase = sec.war.bases.find(base => base.team === 'ally');
+  sec.allyStrength = 0; sec.war.ally.reinforcementsIn = 10000;
+  const built = allyBase.buildProgress;
+  advance(state, 10);
+  assert.equal(allyBase.buildProgress, built);
+  assert.ok(state.warSimulation.events.some(event => event.type === 'construction'));
+});
+
+test('mortars, tanks, bombers and falling bombs fight for both teams with bounded detail', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  const seen = new Set();
+  for (let i = 0; i < 1150; i++) {
+    updateWar(state, .1);
+    for (const item of state.warSimulation.support) seen.add(`${item.team}:${item.type}`);
+    assert.ok(state.warSimulation.support.length <= WAR_LIMITS.maxSupport);
+  }
+  for (const team of ['ally', 'enemy']) {
+    for (const type of ['mortar', 'tank-shell', 'bomber', 'bomb']) assert.ok(seen.has(`${team}:${type}`), `${team} ${type} deployed`);
+  }
+  assert.equal(sec.units.length, 0, 'support warfare does not materialize distant infantry');
+  assert.ok(sec.war.vehicles.some(tank => tank.hp < tank.maxHp || !tank.alive), 'armour exchanges cause persistent damage');
+  assert.ok(state.warSimulation.events.length <= WAR_LIMITS.maxEvents);
+});
+
+test('moving infantry takes blast damage at its actual position instead of a ghost trench slot', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  state.cam = { x: sec.x, y: sec.y };
+  updateWar(state, .01);
+  const enemies = sec.units.filter(unit => unit.team === 'enemy' && !unit.inactive);
+  for (const unit of enemies) unit.x += 1100;
+  const target = enemies[2];
+  const result = applyWarImpact(state, target.x, target.y, 'FRAG');
+  assert.ok(result.enemyCasualties > 0);
+  assert.ok(target.inactive, 'the soldier under the detonation is the casualty');
+});
+
+test('route safety follows captured ground and infiltration requires a live defensive gap', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  state.robot = { x: sec.x - 600, y: sec.y, armor: 100 };
+  const behind = assessRoute(state, state.robot, { x: sec.x - 400, y: sec.y });
+  assert.equal(behind.safe, true);
+  assert.equal(behind.partisanRisk, 0);
+  const contested = assessRoute(state, state.robot, { x: sec.x + 250, y: sec.y });
+  assert.equal(contested.safe, false);
+  sec.war.positionOffset = 640;
+  assert.equal(assessRoute(state, state.robot, { x: sec.x + 250, y: sec.y }).safe, true);
+  sec.allyStrength = 5;
+  const breach = assessRoute(state, state.robot, { x: state.robot.x + 200, y: sec.y });
+  assert.ok(breach.gaps.length > 0 && breach.partisanRisk > 0);
+  let ambush = null;
+  for (let t = 1; t <= 100 && !ambush; t++) { state.warSimulation.clock = t * 4; ambush = checkRouteAmbush(state, breach, 4); }
+  assert.ok(ambush && state.robot.armor < 100);
+  sec.allyStrength = 70;
+  const armor = state.robot.armor;
+  state.warSimulation.clock += 100;
+  assert.equal(checkRouteAmbush(state, breach, 4), null, 'stale reports cannot spawn enemies behind a restored defense');
+  assert.equal(state.robot.armor, armor);
+});
+
+test('an exposed Mamute is prioritised by nearby enemy weapons in march mode', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  state.mode = 'march';
+  state.robot = { x: sec.x + 340, y: sec.y, armor: 100 };
+  state.cam = { x: sec.x, y: sec.y };
+  state.warSimulation.playerThreatCooldown = 0;
+  const threat = selectPlayerThreat(state);
+  assert.ok(threat, 'a nearby enemy weapon should acquire the Mamute');
+  assert.ok(threat.profile.range <= PLAYER_THREAT_LIMITS[threat.kind].range);
+  updateWar(state, .1);
+  assert.ok(state.robot.armor < 100, 'enemy fire must damage the player armour');
+  assert.ok(state.warSimulation.playerHits.length > 0, 'the hit is exposed to the renderer/audio layer');
+  assert.ok(state.tracers.some(tracer => tracer.team === 'enemy' && tracer.x2 === state.robot.x));
+  assert.ok(state.warSimulation.events.some(event => event.type === 'player_fire'));
+});
+
+test('direct fire is masked behind the allied trench while indirect fire can still bracket the vehicle', () => {
+  const sec = makeSector(0), state = makeState([sec]);
+  state.mode = 'march';
+  state.robot = { x: sec.x - 600, y: sec.y, armor: 100 };
+  const covered = selectPlayerThreat(state);
+  assert.ok(covered && ['mortar', 'battery'].includes(covered.kind), `expected indirect fire, got ${covered?.kind}`);
+  state.robot.x = sec.x + 500;
+  const exposed = selectPlayerThreat(state);
+  assert.ok(exposed && ['hmg', 'tank', 'mortar', 'battery'].includes(exposed.kind));
 });
