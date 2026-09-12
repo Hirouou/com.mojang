@@ -21,6 +21,19 @@ test('charge table exposes manual crank cue only for the inserted charge', () =>
   assert.ok(otherReachable.arcs.every(arc => arc.crankCue === null));
 });
 
+test('charge table marks a displayed low-arc setting as hold without selecting it', () => {
+  const range = ballistics(5, 30).range;
+  const current = artilleryChargeTableRows(range, 5, 30).find(row => row.current);
+
+  assert.ok(current);
+  assert.deepEqual(current.arcs.map(arc => arc.displayLabel), [
+    'BAIXO 30.0° · A 3.500 m · 53.4 s · MANIVELA SEGURE',
+    'ALTO 60.0° · A 10.500 m · 92.5 s · MANIVELA ↑ 30.0°',
+  ]);
+  assert.equal(current.arcs[0].crankCue.direction, 'hold');
+  assert.equal(current.arcs[1].crankCue.direction, 'up');
+});
+
 test('charge table keeps unreachable inserted charge visible without inventing guidance', () => {
   const range = ballistics(7, 45).range;
   const current = artilleryChargeTableRows(range, 1, 45).find(row => row.current);
