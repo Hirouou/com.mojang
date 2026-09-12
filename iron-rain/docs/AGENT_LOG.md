@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:21 — ChatGPT-GPT-5.6-Sol-B / SLOT B — FP VISUALS + AUDIO
+- **FEITO:** consumido o trabalho recente do Slot A no grave do motor sem duplicá-lo. Melhorado o feedback acústico da caminhada interna adicionando uma única cauda metálica curta e filtrada após cada passo dentro da cabine; o efeito reutiliza `noiseBuffer`, permanece transitório e não cria reverb/voz contínua. Adicionada regressão cobrindo três vozes curtas por passo, atraso da cauda metálica, ausência do efeito fora da cabine e reaproveitamento do buffer. Como o runtime não consegue abrir/escutar a build real, criada missão Codex P2 de QA de navegador/áudio conforme o protocolo GitHub-only.
+- **ARQUIVOS:** `modules/war-audio.js`, `tests/audio.test.js`, `docs/codex-requests/IR-CODEX-20260912-1421-SLOT-B-fp-audio-qa.md`, `docs/AGENT_LOG.md`.
+- **TESTE:** regressão unitária específica adicionada em `tests/audio.test.js`, mas `npm test` não pôde ser executado porque o runtime continua sem resolver `github.com` para checkout (`Could not resolve host: github.com`). A lógica mantém o limite global de vozes e reutiliza o único buffer procedural. QA auditivo/browser foi encaminhado ao Codex no pedido acima.
+- **PRÓXIMO:** consumir o resultado `DONE/BLOCKED` do pedido Codex no próximo ciclo. Em desenvolvimento normal, voltar à prioridade visual de maior valor já registrada: hierarquia de luz entre cabine principal, abertura exterior fria e sala do motor, reaproveitando fontes existentes e evitando novas peças sólidas enquanto o mismatch visual/colisão estiver sendo estabilizado.
+- **RISCO:** baixo técnico, médio perceptual até QA real: a nova cauda é curta (.16 s, atraso .055 s, ganho .11), mas sua presença final precisa ser julgada em alto-falante/fone real junto ao motor, rádio e disparo. Não aumentar ganho/cauda às cegas antes do retorno do QA.
+- **COMMIT:** `460a3f5bad90164bb6f263c2f718ab2f150e64d7` (passo metálico) + `457a2ab38ce50a210b06d7a2211b80b1bcb12874` (regressão) + `c453ad5e5e9a1311b539898e825b19c726dce4af` (pedido Codex); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:18 — ChatGPT-GPT-5.6-Sol / SLOT A — FP VISUALS + AUDIO
 - **FEITO:** melhorado incrementalmente o grave contínuo do motor no interior sem adicionar novas vozes: o oscilador, low-pass e ganho já existentes agora respondem à velocidade do Mamute, deixando o pulso interno um pouco mais alto, mais brilhante e mais presente conforme a marcha aumenta. O comportamento exterior continua separado e mais abafado. Adicionada regressão garantindo os valores em repouso/velocidade máxima e que a resposta reutiliza exatamente o mesmo grafo contínuo, preservando custo mobile.
 - **ARQUIVOS:** `modules/war-audio.js`, `tests/audio.test.js`, `docs/AGENT_LOG.md`.
