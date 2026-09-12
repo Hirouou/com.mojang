@@ -1,6 +1,6 @@
 /* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v7.6`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.7`;
 const OFFLINE_FILES = [
   './index.html',
   './style-v6.css',
@@ -16,6 +16,7 @@ const OFFLINE_FILES = [
   './modules/cabin-controls.js',
   './modules/cabin-view.js',
   './modules/cabin-hit-feedback.js',
+  './modules/factions.js',
   './modules/crew-presence.js',
   './modules/crew-avatar-visual.js',
   './modules/crew-visual-layer.js',
@@ -25,9 +26,16 @@ const OFFLINE_FILES = [
   './modules/crew-broadcast-transport.js',
   './modules/crew-station-authority.js',
   './modules/crew-lobby-ui.js',
+  './modules/mamute-command-authority.js',
   './modules/theatre-control.js',
   './modules/theatre-sectors.js',
+  './modules/strategic-hex-map.js',
+  './modules/world-map-intel.js',
+  './modules/local-missions.js',
   './modules/territory-development.js',
+  './modules/territory-ai.js',
+  './modules/strategic-logistics.js',
+  './modules/mamute-logistics.js',
   './modules/persistent-war-clock.js',
   './modules/loading-cycle.js',
   './modules/loader-arm.js',
