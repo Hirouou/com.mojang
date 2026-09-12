@@ -1,6 +1,6 @@
 /* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v7.12`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.13`;
 const OFFLINE_FILES = [
   './index.html',
   './style-v6.css',
@@ -29,6 +29,7 @@ const OFFLINE_FILES = [
   './modules/crew-broadcast-transport.js',
   './modules/crew-mqtt-transport.js',
   './modules/crew-station-authority.js',
+  './modules/crew-station-gate.js',
   './modules/crew-lobby-ui.js',
   './modules/mamute-command-authority.js',
   './modules/theatre-control.js',
