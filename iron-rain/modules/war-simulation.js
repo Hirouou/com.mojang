@@ -41,6 +41,14 @@ function placeMamuteAtSpawn(state, spawn, reason = 'entry') {
   if (!isLiveGameState(state) || !validSpawn(spawn)) return false;
   const x = Math.max(600, Math.min(THEATRE_SIZE.w - 600, Number(spawn.x))), y = Math.max(600, Math.min(THEATRE_SIZE.h - 600, Number(spawn.y))), rear = playerTeam() === 'ally' ? -450 : 450;
   state.robot.x = x; state.robot.y = y; state.robot.speed = 0;
+  if (reason === 'respawn') {
+    state.robot.armor = 100;
+    if (state.engine) { state.engine.health = 100; state.engine.fire = 0; state.engine.hasExtinguisher = false; state.engine.repairProgress = 0; state.engine.repairing = false; state.engine.action = null; }
+    state.engineLastArmor = 100;
+    state.loading = null;
+    state.shell = null;
+    state.relocation = null;
+  }
   if (state.cam) { state.cam.x = x + rear * -.65; state.cam.y = y; state.cam.manualX = 0; state.cam.manualY = 0; }
   if (state.base) { state.base.x = x + rear; state.base.y = y; }
   state.warSimulation ||= {};
@@ -57,7 +65,10 @@ function ensureChosenSpawn(state) {
   const pending = entry?.pendingRespawn;
   if (pending && validSpawn(pending)) {
     const applied = placeMamuteAtSpawn(state, pending, 'respawn');
-    if (applied) { entry.spawn = { ...pending }; entry.pendingRespawn = null; state.robot.armor = Math.max(35, Number(state.robot.armor) || 0); }
+    if (applied) {
+      entry.spawn = { ...pending }; entry.pendingRespawn = null;
+      try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:respawn-applied', { detail: { spawn: { ...pending } } })); } catch {}
+    }
     return applied;
   }
   const spawn = entry?.spawn || globalThis.ironRainSpawnChoice;
@@ -111,16 +122,14 @@ function publishWorldBridge(state) {
   if (!isLiveGameState(state) || !state?.robot) return;
   const location = locateStrategic(state.robot);
   const fronts = (state.sectors || []).map(sec => { const center = sec.war ? getFrontGeometry(sec).center : sec; return { id: sec.id, name: sec.name, strategicHexId: sec.strategicHexId || null, strategicSectorId: sec.strategicSectorId || null, x: center.x, y: center.y, status: sec.status || 'stalemate', progress: Number(sec.progress) || 0, allyStrength: Number(sec.allyStrength) || 0, enemyStrength: Number(sec.enemyStrength) || 0 }; });
-  globalThis.ironRainWarBridge = { version: 3, position: { x: state.robot.x, y: state.robot.y }, location, playerTeam: playerTeam(), safeRear: Boolean(location && location.owner === playerTeam() && location.distanceToFront > 5_250), spawn: state.warSimulation?.spawnApplied || null, fronts };
+  globalThis.ironRainWarBridge = { version: 4, position: { x: state.robot.x, y: state.robot.y }, location, playerTeam: playerTeam(), safeRear: Boolean(location && location.owner === playerTeam() && location.distanceToFront > 5_250), spawn: state.warSimulation?.spawnApplied || null, fronts };
 }
 
 function dispatchHullState(state, armorBefore) {
   const armorAfter = Number(state?.robot?.armor);
   if (!Number.isFinite(armorBefore) || !Number.isFinite(armorAfter)) return;
   const damage = Math.max(0, armorBefore - armorAfter);
-  if (damage > 0) {
-    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {}
-  }
+  if (damage > 0) { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {} }
   state.warSimulation ||= {};
   if (armorAfter <= 0 && !state.warSimulation.destroyedNotified) {
     state.warSimulation.destroyedNotified = true;
