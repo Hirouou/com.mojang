@@ -38,3 +38,11 @@ Enquanto a missão Codex P0 de multiplayer real estiver `IN_PROGRESS`, leia `COD
 Execute `npm test`. A build deve continuar usando caminhos relativos, sem dependências externas obrigatórias. Para testar navegador, defina `IRON_RAIN_PLAYWRIGHT` para o runtime Playwright disponível e execute `node tests/v7-browser.mjs`.
 
 Trabalhos paralelos devem preservar a entrada modular e evitar reativar gerações antigas do motor. Faça commits pequenos e frequentes, identifique a branch/commit no handoff e confira as mudanças mais recentes antes de editar arquivos compartilhados.
+
+## LEAD gate — 2026-09-12 17:57 BRT
+
+- O request `IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md` está `IN_PROGRESS` e continua dono exclusivo de transporte/sinalização/auditoria multiplayer real. Nenhum Slot cria stack concorrente enquanto esse gate estiver ativo.
+- A aceitação P0 continua sendo um checkpoint real de dois dispositivos: PC→PC primeiro, depois PC→mobile, com até 3 jogadores, facção correta, presença visual, posse exclusiva de postos, disconnect/reconnect e um único resultado autoritativo para ações compartilhadas. Teste unitário isolado não encerra P0.
+- WORLD WAR pode continuar a preparar o teatro compartilhado/múltiplos Mamutes, mas a sequência recente já produziu roster, fog-of-war de Mamutes e plano de materialização. O próximo ciclo desse workstream deve consumir essas fundações numa fatia integrada/player-facing ou orquestração real; não criar um terceiro helper paralelo sem bloqueio concreto.
+- FP VISUALS + AUDIO deve converter fundações já prontas em resultado perceptível: integrar loader mecânico no renderer real, feedback de extintor/reparo/hull-hit, e aguardar evidência de Safari/iPhone antes de tuning subjetivo. Não acumular novos helpers de apresentação sem consumidor.
+- ARTILLERY deve preservar AIM físico 3D no mobile e manter somente `CARGA +/-` + `DISPARAR` compactos à direita. COMBAT AI deve consumir logística/território existentes em vez de abrir outro modelo. Desktop permanece protegido em todos os casos.
