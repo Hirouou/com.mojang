@@ -202,3 +202,26 @@ test('crew cabin bridge resolves host denial instead of leaving a guest claim pe
   assert.equal(denied.pending, false);
   assert.equal(bridge.stationMessage(denied), 'POSTO INDISPONÍVEL');
 });
+
+test('crew cabin bridge keeps a pending claim blocked when release is not confirmed', () => {
+  let owner = null;
+  let releaseAllowed = false;
+  const runtime = {
+    status() { return { mode: 'guest', connected: true, localId: 'guest-a' }; },
+    stationOwner() { return owner; },
+    claimStation(station) { return { ok: false, pending: true, reason: 'pending-host', station, owner: null }; },
+    releaseStation() { return releaseAllowed; },
+  };
+  const bridge = createCrewCabinBridge({ runtime });
+
+  assert.equal(bridge.requestStation('radio').pending, true);
+  assert.equal(bridge.releaseStation('radio'), false);
+  assert.deepEqual(bridge.stationState('radio'), {
+    ok: false, ready: false, pending: true, reason: 'pending-host', station: 'radio', owner: null,
+  });
+
+  owner = 'guest-a';
+  assert.equal(bridge.stationState('radio').ready, true, 'late host approval must still surface after an unconfirmed release');
+  releaseAllowed = true;
+  assert.equal(bridge.releaseStation('radio'), true);
+});
