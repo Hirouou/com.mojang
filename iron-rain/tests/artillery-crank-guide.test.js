@@ -31,6 +31,21 @@ test('guide reports hold when the current elevation already matches an arc', () 
   close(guide[0].delta, 0);
 });
 
+test('guide treats sub-display-step correction as hold instead of showing 0.0 degrees', () => {
+  const range = ballistics(5, 30).range;
+  const nearlyLow = artilleryCrankGuide(range, 5, 30.04)[0];
+  const visibleCorrection = artilleryCrankGuide(range, 5, 30.06)[0];
+
+  close(nearlyLow.delta, -0.04);
+  assert.equal(nearlyLow.direction, 'hold');
+  assert.equal(nearlyLow.movementLabel, 'SEGURE');
+  assert.equal(nearlyLow.instructionLabel, 'BAIXO · SEGURE');
+
+  close(visibleCorrection.delta, -0.06);
+  assert.equal(visibleCorrection.direction, 'down');
+  assert.equal(visibleCorrection.movementLabel, '↓ 0.1°');
+});
+
 test('guide labels fractional manual correction without changing the underlying solution', () => {
   const range = ballistics(5, 30).range;
   const guide = artilleryCrankGuide(range, 5, 39.75);
