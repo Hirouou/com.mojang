@@ -198,11 +198,12 @@ export function createWarAudio() {
       tone(.07, .055, 340, 220, 0, 'triangle');
     }); },
     load() { safely(() => {
-      noise(.48, .42, 1500, { endFrequency: 460 });
-      for (const delay of [0, .19, .41]) {
-        noise(.09, .37, 2700, { delay, type: 'bandpass' });
-        tone(.11, .15, 230, 90, delay, 'triangle');
-      }
+      // The game loop already calls this once for each real loader phase change.
+      // Emit one compact contact instead of replaying a whole three-hit sequence
+      // on every phase; this keeps the mechanism legible and cuts transient
+      // Web Audio voices by roughly two thirds during a complete reload.
+      noise(.12, .34, 2350, { type: 'bandpass', endFrequency: 720 });
+      tone(.1, .12, 205, 92, 0, 'triangle');
     }); },
     fire() { safely(() => {
       // Crack, pressure, hull rattles and a broad tail also read on small speakers.
