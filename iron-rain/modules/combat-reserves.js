@@ -159,3 +159,27 @@ export function combatReserveCycle({ logistics, timer = 0, fallbackUntil = 0, ti
   const interval = Number.isFinite(resetIn) && resetIn > 0 ? Math.max(1, Math.floor(resetIn)) : 40;
   return Object.freeze({ ...decision, nextTimer: decision.ready ? interval : remaining });
 }
+
+/**
+ * Canonical one-shot reserve tick for the strategic simulator. Route reachability,
+ * territory effects, fallback readiness, deficit sizing and timer consumption all
+ * come from the same inputs, so callers cannot accidentally reset a due timer with
+ * stale/local supply state while the real strategic route is cut.
+ */
+export function combatReservePlanCycle({
+  strategicLogistics,
+  territory,
+  team,
+  from,
+  to,
+  timer = 0,
+  fallbackUntil = 0,
+  tick = 0,
+  strength = 0,
+  resetIn = 40,
+} = {}) {
+  const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from, to });
+  const logistics = combatLogisticsState({ territory, team, routeOpen });
+  const cycle = combatReserveCycle({ logistics, timer, fallbackUntil, tick, strength, resetIn });
+  return Object.freeze({ routeOpen, logistics, ...cycle });
+}
