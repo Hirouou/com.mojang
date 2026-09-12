@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTheatreMamuteRoster } from '../modules/theatre-mamutes.js';
-import { DEFAULT_MAMUTE_TACTICAL_BUDGET, planMamuteMaterialization } from '../modules/theatre-mamute-materialization.js';
+import { DEFAULT_MAMUTE_RETENTION_MULTIPLIER, DEFAULT_MAMUTE_TACTICAL_BUDGET, planMamuteMaterialization } from '../modules/theatre-mamute-materialization.js';
 
 test('keeps only nearby Mamutes in the tactical bubble and leaves the rest strategic', () => {
   const roster = createTheatreMamuteRoster([
@@ -14,6 +14,7 @@ test('keeps only nearby Mamutes in the tactical bubble and leaves the rest strat
   const plan = planMamuteMaterialization(roster, 'ally-1', 3200);
   assert.equal(plan.focus.id, 'ally-1');
   assert.equal(plan.radius, 3200);
+  assert.equal(plan.retentionRadius, 3200 * DEFAULT_MAMUTE_RETENTION_MULTIPLIER);
   assert.equal(plan.maxNearby, DEFAULT_MAMUTE_TACTICAL_BUDGET);
   assert.deepEqual(plan.nearby.map(record => record.id), ['ally-2', 'axis-1']);
   assert.deepEqual(plan.distant.map(record => record.id), ['axis-2']);
@@ -46,17 +47,44 @@ test('caps dense tactical bubbles by nearest distance and leaves overflow strate
   assert.deepEqual(plan.distant.map(record => record.id), ['outside', 'middle', 'far-near']);
 });
 
+test('retains an already materialized Mamute just outside the admission radius', () => {
+  const roster = createTheatreMamuteRoster([
+    { id: 'focus', faction: 'ALIADOS', regionId: 'r1', sectorId: 's1', x: 0, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-f' },
+    { id: 'edge', faction: 'EIXO', regionId: 'r1', sectorId: 's1', x: 3300, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-e' },
+    { id: 'newcomer', faction: 'EIXO', regionId: 'r1', sectorId: 's1', x: 3100, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-n' },
+  ]);
+
+  const withoutHistory = planMamuteMaterialization(roster, 'focus', 3200, { maxNearby: 1 });
+  assert.deepEqual(withoutHistory.nearby.map(record => record.id), ['newcomer']);
+
+  const retained = planMamuteMaterialization(roster, 'focus', 3200, { maxNearby: 1, previousNearbyIds: ['edge'] });
+  assert.deepEqual(retained.nearby.map(record => record.id), ['edge']);
+  assert.deepEqual(retained.distant.map(record => record.id), ['newcomer']);
+});
+
+test('drops retained Mamutes after they leave the retention radius', () => {
+  const roster = createTheatreMamuteRoster([
+    { id: 'focus', faction: 'ALIADOS', regionId: 'r1', sectorId: 's1', x: 0, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-f' },
+    { id: 'gone', faction: 'EIXO', regionId: 'r1', sectorId: 's1', x: 3700, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-g' },
+    { id: 'near', faction: 'ALIADOS', regionId: 'r1', sectorId: 's1', x: 3000, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-n' },
+  ]);
+
+  const plan = planMamuteMaterialization(roster, 'focus', 3200, { maxNearby: 1, previousNearbyIds: ['gone'] });
+  assert.deepEqual(plan.nearby.map(record => record.id), ['near']);
+  assert.deepEqual(plan.distant.map(record => record.id), ['gone']);
+});
+
 test('zero tactical budget keeps every other Mamute strategic', () => {
   const roster = createTheatreMamuteRoster([
     { id: 'focus', faction: 'ALIADOS', regionId: 'r1', sectorId: 's1', x: 0, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-a' },
     { id: 'near', faction: 'EIXO', regionId: 'r1', sectorId: 's1', x: 100, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-b' },
   ]);
-  const plan = planMamuteMaterialization(roster, 'focus', 3200, { maxNearby: 0 });
+  const plan = planMamuteMaterialization(roster, 'focus', 3200, { maxNearby: 0, previousNearbyIds: ['near'] });
   assert.deepEqual(plan.nearby, []);
   assert.deepEqual(plan.distant.map(record => record.id), ['near']);
 });
 
-test('fails closed for invalid focus, radius or tactical budget without inventing a tactical bubble', () => {
+test('fails closed for invalid focus, radius, tactical budget or retention multiplier', () => {
   const roster = createTheatreMamuteRoster([
     { id: 'ally-1', faction: 'ALIADOS', regionId: 'r1', sectorId: 's1', x: 0, y: 0, crewCount: 1, deployment: 'moving', ammunitionRef: 'ammo-a' },
   ]);
@@ -65,4 +93,6 @@ test('fails closed for invalid focus, radius or tactical budget without inventin
   assert.equal(planMamuteMaterialization(roster, 'ally-1', NaN), null);
   assert.equal(planMamuteMaterialization(roster, 'ally-1', 3200, { maxNearby: -1 }), null);
   assert.equal(planMamuteMaterialization(roster, 'ally-1', 3200, { maxNearby: NaN }), null);
+  assert.equal(planMamuteMaterialization(roster, 'ally-1', 3200, { retentionMultiplier: .99 }), null);
+  assert.equal(planMamuteMaterialization(roster, 'ally-1', 3200, { retentionMultiplier: NaN }), null);
 });
