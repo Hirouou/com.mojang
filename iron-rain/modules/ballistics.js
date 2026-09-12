@@ -80,13 +80,21 @@ export function elevationsForRange(charge, range) {
  * the mechanically valid arcs for that charge. This does not move the gun, pick
  * an arc or include wind/impact correction; it only formats the same fictional
  * ballistic truth already used by the projectile and readout.
+ *
+ * `arcs` carries enough read-only detail for the paper notebook to compare low/high
+ * trajectories without reimplementing ballistics in the UI. `elevations` is retained
+ * as the compact compatibility field for existing consumers.
  */
 export function notebookSolutions(range) {
   range = finite(range, 'range');
   return Object.freeze(CHARGES.slice(1).map(charge => {
     const band = chargeBand(charge.id);
     const elevations = elevationsForRange(charge.id, range);
-    return Object.freeze({ charge: charge.id, min: band.min, max: band.max, elevations });
+    const arcs = Object.freeze(elevations.map(elevation => {
+      const solution = ballistics(charge.id, elevation);
+      return Object.freeze({ elevation, apex: solution.apex, tof: solution.tof });
+    }));
+    return Object.freeze({ charge: charge.id, min: band.min, max: band.max, elevations, arcs });
   }).filter(entry => entry.elevations.length));
 }
 
