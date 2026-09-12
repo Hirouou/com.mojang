@@ -65,7 +65,8 @@ test('PWA is scoped relatively, standalone landscape, with all required icon siz
 test('offline installation includes every runtime module and every listed file exists', async () => {
   const instance = await worker();
   await instance.lifecycle('install');
-  assert.equal(instance.installed.length, 22);
+  assert.ok(instance.installed.length >= 22, 'offline shell may grow as runtime systems are modularized');
+  assert.equal(new Set(instance.installed).size, instance.installed.length, 'offline file list must not contain duplicates');
   for (const asset of instance.installed) {
     assert.ok(asset.startsWith(scope));
     assert.equal(new URL(asset).search, '');
