@@ -38,3 +38,16 @@ test('phase gate preserves deterministic retreat to regroup while new breaks ret
   assert.equal(combatRecoveryPhase({ phase: 'assault', ...healthy, morale: .2 }), 'retreat');
   assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy }), null);
 });
+
+test('healthy formations wait for support instead of launching low-supply assaults', () => {
+  const healthy = { strength: 55, morale: .7, suppression: .2, ammo: .8 };
+  for (const phase of ['hold', 'suppress', 'wait_support', 'assault']) {
+    assert.equal(combatRecoveryPhase({ phase, ...healthy, supply: .19 }), 'wait_support', `${phase} is supply-gated`);
+  }
+  assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy, supply: .2 }), null, 'the readiness threshold releases normal phase selection');
+  assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy }), 'wait_support', 'missing supply fails closed for offensive readiness');
+});
+
+test('combat break precedence still forces retreat when supply is also exhausted', () => {
+  assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 55, morale: .2, suppression: .2, ammo: .8, supply: .1 }), 'retreat');
+});
