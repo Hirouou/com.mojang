@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCabinMovement, canOccupyCabin, CABIN_STATIONS, CABIN_OBSTACLES, cabinCrewPose, interpolateCabinCrewPose } from '../modules/cabin-controls.js';
+import { createCabinMovement, canOccupyCabin, CABIN_STATIONS, CABIN_OBSTACLES, CABIN_SECTIONS, cabinSectionAt, cabinCrewPose, interpolateCabinCrewPose } from '../modules/cabin-controls.js';
 
 test('operator walks in metres and cannot walk through the hull or gun', () => {
   const m = createCabinMovement();
@@ -40,6 +40,20 @@ test('rear access is a continuous walkable passage to the engine room, with soli
   for(let i=0;i<300;i++)m.update(.1,{x:0,y:-1});
   assert.ok(m.position.x<.54,'engine block stops forward movement from centre aisle');
 });
+test('physical compartment follows the existing cabin, passage and engine bulkheads',()=>{
+  const m=createCabinMovement();
+  assert.equal(m.section,CABIN_SECTIONS.CABIN);
+  assert.equal(cabinSectionAt(0,3.5),CABIN_SECTIONS.CABIN);
+  assert.equal(cabinSectionAt(0,3.67),CABIN_SECTIONS.SERVICE_CORRIDOR);
+  assert.equal(cabinSectionAt(0,5.21),CABIN_SECTIONS.SERVICE_CORRIDOR);
+  assert.equal(cabinSectionAt(0,5.4),CABIN_SECTIONS.ENGINE_ROOM);
+  assert.equal(cabinSectionAt(-1.5,3.67),null,'solid bulkhead never reports a crew compartment');
+  assert.ok(m.setPose({x:0,z:4.5}));
+  assert.equal(m.section,CABIN_SECTIONS.SERVICE_CORRIDOR);
+  assert.equal(m.snapshot().section,CABIN_SECTIONS.SERVICE_CORRIDOR);
+  assert.ok(m.setPose({x:0,z:6.6}));
+  assert.equal(m.section,CABIN_SECTIONS.ENGINE_ROOM);
+});
 test('yaw remains unrestricted through multiple full turns',()=>{
   const m=createCabinMovement();
   m.look(2*Math.PI*3,0);
@@ -78,13 +92,14 @@ test('station interaction requires physical proximity and looking toward the sta
 test('look pitch clamps and reset clears locomotion',()=>{
   const m=createCabinMovement();m.look(500,500);assert.equal(m.pitch,-1.03);
   m.update(.1,{x:1,y:1});m.reset();
-  assert.deepEqual(m.snapshot(),{position:{x:0,z:2.4},yaw:0,pitch:-.08,travelled:0});
+  assert.deepEqual(m.snapshot(),{position:{x:0,z:2.4},yaw:0,pitch:-.08,travelled:0,section:CABIN_SECTIONS.CABIN});
 });
 test('crew replication pose is compact, validated and interpolates yaw across wrap',()=>{
   const m=createCabinMovement();
   assert.ok(m.setPose({x:0,z:2.4,yaw:Math.PI*1.9,pitch:.2}));
   const local=m.crewPose();
   assert.deepEqual(local,cabinCrewPose({x:0,z:2.4,yaw:Math.PI*1.9,pitch:.2}));
+  assert.equal(local.section,CABIN_SECTIONS.CABIN,'replicated pose carries physical compartment identity');
   assert.ok(Object.isFrozen(local),'replicated pose cannot be mutated accidentally');
   assert.equal(cabinCrewPose({x:0,z:-1.25,yaw:0,pitch:0}),null,'remote pose cannot occupy solid cabin equipment');
   assert.equal(cabinCrewPose({x:NaN,z:2.4,yaw:0,pitch:0}),null,'non-finite remote state is rejected');
@@ -95,5 +110,12 @@ test('crew replication pose is compact, validated and interpolates yaw across wr
   assert.ok(Math.abs(middle.x)<1e-12&&Math.abs(middle.z-2.4)<1e-12);
   assert.ok(Math.abs(Math.abs(middle.yaw)-Math.PI)<1e-12,'yaw interpolation takes the short path through ±π');
   assert.ok(Math.abs(middle.pitch)<1e-12);
+  assert.equal(middle.section,CABIN_SECTIONS.CABIN);
   assert.equal(interpolateCabinCrewPose(from,to,NaN),null);
+});
+test('replicated crew interpolation cannot tunnel an avatar through solid equipment',()=>{
+  const from=cabinCrewPose({x:-1,z:1.8,yaw:0,pitch:0});
+  const to=cabinCrewPose({x:-1,z:-.3,yaw:0,pitch:0});
+  assert.ok(from&&to,'network endpoints are individually walkable');
+  assert.equal(interpolateCabinCrewPose(from,to,.5),null,'blocked midpoint is rejected instead of clipping through the map desk');
 });
