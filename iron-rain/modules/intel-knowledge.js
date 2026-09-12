@@ -12,7 +12,8 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
  * Age is measured in simulated seconds since the observation was recorded.
  */
 export function assessIntelAge(report, now = 0) {
-  const observedAt = Number(report?.reportedAt);
+  const rawObservedAt = report?.reportedAt;
+  const observedAt = rawObservedAt === null || rawObservedAt === undefined ? NaN : Number(rawObservedAt);
   const current = Number(now);
   if (!Number.isFinite(observedAt) || !Number.isFinite(current)) {
     return Object.freeze({ age: Infinity, state: 'lost', confidence: 0, uncertainty: 1200 });
