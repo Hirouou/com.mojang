@@ -1,108 +1,115 @@
-/* Mobile first-person station override.
-   Azimuth/elevation are operated on the physical 3D controls, so the old
-   duplicate bottom handwheel UI must not cover the machinery. Keep only the
-   charge control and fire command as a compact right-side instrument stack. */
+/* Iron Rain mobile station layer.
+   Touch AIM uses the physical 3D azimuth/elevation machinery. The legacy fire
+   deck is reduced to charge + fire only so it cannot cover the handwheels.
+   Desktop remains untouched. */
 
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"]{
-  left:auto;
-  right:calc(12px + var(--safeR));
-  bottom:calc(14px + var(--safeB));
-  transform:none;
-  width:112px;
-  max-width:112px;
-  height:auto;
-  min-height:0;
-  padding:5px;
-  display:grid;
-  grid-template-columns:1fr;
-  grid-template-rows:auto auto;
-  gap:5px;
-  background:#0b120bcc;
-  border-color:#b8aa7560;
-  box-shadow:0 5px 18px #0008;
-  backdrop-filter:blur(3px);
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box{
-  display:none!important;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
-  display:grid!important;
-  grid-column:1;
-  grid-row:1;
-  grid-template-columns:1fr 1fr;
-  grid-template-rows:12px 20px 38px 14px;
-  padding:2px;
-  background:#1a2418b8;
-  border:1px solid #a7b18a28;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box label{
-  font-size:7px;
-  height:11px;
-  letter-spacing:.8px;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box strong{
-  font-size:17px;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{
-  min-height:36px;
-  font-size:19px;
-  background:#263322e8;
-  border-color:#aab48a4c;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box #chargeRange{
-  font-size:6px;
-  line-height:8px;
-  opacity:.8;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{
-  display:block;
-  grid-column:1;
-  grid-row:2;
-  padding:0;
-  border:0;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] #notebookBtn,
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] #marchBtn{
-  display:none!important;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{
-  display:block;
-  width:100%;
-  min-height:46px;
-  padding:5px 3px;
-  font-size:10px!important;
-  letter-spacing:1px!important;
-  border-radius:3px;
-  background:#7c3228e8;
-  box-shadow:0 3px 10px #0007;
-}
-.input-touch.inside.station-engaged .fire-deck[data-station="aim"] .loading-text{
-  display:none;
-}
-
-/* The physical machinery and the centre of the screen are deliberately free.
-   Station identity stays subtle at upper-left and the normal AFASTAR-SE button
-   remains available there. */
-.input-touch.inside.station-engaged .station-header{
-  max-width:150px;
-  opacity:.68;
-}
-.input-touch.inside.station-engaged .station-header span{
-  display:none;
-}
-
-@media(max-width:720px) and (orientation:landscape){
-  .input-touch.inside.station-engaged .fire-deck[data-station="aim"]{
-    right:calc(8px + var(--safeR));
-    bottom:calc(9px + var(--safeB));
-    width:102px;
-    max-width:102px;
-    padding:4px;
-    gap:4px;
+@media (pointer: coarse), (hover: none) {
+  .inside.station-engaged .fire-deck[data-station="aim"]{
+    left:auto!important;
+    right:calc(8px + var(--safeR, 0px))!important;
+    bottom:calc(10px + var(--safeB, 0px))!important;
+    transform:none!important;
+    width:104px!important;
+    max-width:104px!important;
+    height:auto!important;
+    min-height:0!important;
+    padding:4px!important;
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    grid-template-rows:auto auto!important;
+    gap:4px!important;
+    background:#0b120bd9!important;
+    border-color:#b8aa7560!important;
+    box-shadow:0 5px 18px #0009!important;
+    backdrop-filter:blur(3px);
+    z-index:42;
   }
-  .input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
-    grid-template-rows:10px 18px 34px 12px;
+
+  /* No duplicated 2D aiming machinery or ammunition deck on touch. */
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box,
+  .inside.station-engaged .fire-deck[data-station="aim"] .ammo-box,
+  .inside.station-engaged .fire-deck[data-station="aim"] .loading-text,
+  .inside.station-engaged .fire-deck[data-station="aim"] #notebookBtn,
+  .inside.station-engaged .fire-deck[data-station="aim"] #marchBtn{
+    display:none!important;
   }
-  .input-touch.inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{min-height:32px}
-  .input-touch.inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{min-height:40px;font-size:9px!important}
+
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
+    display:grid!important;
+    grid-column:1!important;
+    grid-row:1!important;
+    grid-template-columns:1fr 1fr!important;
+    grid-template-rows:11px 18px 34px 12px!important;
+    padding:2px!important;
+    margin:0!important;
+    gap:1px!important;
+    background:#1a2418d6!important;
+    border:1px solid #a7b18a35!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box label{
+    font-size:7px!important;
+    height:10px!important;
+    letter-spacing:.8px!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box strong{
+    font-size:16px!important;
+    line-height:18px!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{
+    min-height:32px!important;
+    font-size:18px!important;
+    padding:0!important;
+    background:#263322ed!important;
+    border-color:#aab48a55!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box #chargeRange{
+    font-size:6px!important;
+    line-height:8px!important;
+    opacity:.78!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{
+    display:block!important;
+    grid-column:1!important;
+    grid-row:2!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    min-height:0!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{
+    display:block!important;
+    width:100%!important;
+    min-height:42px!important;
+    padding:5px 3px!important;
+    margin:0!important;
+    font-size:9px!important;
+    letter-spacing:1px!important;
+    border-radius:3px!important;
+    background:#7c3228ef!important;
+    box-shadow:0 3px 10px #0008!important;
+  }
+
+  /* Keep the physical centre/lower cabin unobstructed. */
+  .inside.station-engaged .station-header{
+    max-width:150px!important;
+    opacity:.7;
+  }
+  .inside.station-engaged .station-header span{display:none!important;}
+  .inside.station-engaged #leaveStationBtn{
+    z-index:43;
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
+  .inside.station-engaged .fire-deck[data-station="aim"]{
+    right:calc(6px + var(--safeR, 0px))!important;
+    bottom:calc(7px + var(--safeB, 0px))!important;
+    width:96px!important;
+    max-width:96px!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
+    grid-template-rows:9px 17px 30px 10px!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{min-height:28px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{min-height:36px!important;font-size:8px!important;}
 }
