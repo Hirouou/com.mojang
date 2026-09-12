@@ -22,6 +22,41 @@ export function combatRouteOpen({ logistics, team, from, to } = {}) {
 }
 
 /**
+ * Resolve the nearest reachable rear depot from the canonical logistics graph.
+ * Combat AI does not create an adjacency graph or guess a straight-line path:
+ * every candidate is measured using `strategicLogistics.route()` itself. This
+ * lets orchestration provide only the destination sector when the rear origin
+ * is already represented by the shared world logistics state.
+ */
+export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
+  if (!validTeam(team) || !strategicLogistics || typeof strategicLogistics.route !== 'function' || typeof strategicLogistics.getNode !== 'function' || typeof strategicLogistics.snapshot !== 'function') return null;
+  const destination = strategicLogistics.getNode(String(to ?? ''));
+  if (!destination?.alive || destination.team !== team) return null;
+  let nodes;
+  try {
+    nodes = strategicLogistics.snapshot()?.nodes;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(nodes)) return null;
+
+  let best = null;
+  for (const node of nodes) {
+    if (!node?.alive || node.team !== team || node.kind !== 'depot' || node.id === destination.id) continue;
+    let path;
+    try {
+      path = strategicLogistics.route(team, node.id, destination.id);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(path)) continue;
+    const distance = path.reduce((sum, leg) => sum + (positiveFinite(Number(leg?.distance)) ? Number(leg.distance) : 0), 0);
+    if (!best || distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))) best = { id: node.id, distance };
+  }
+  return best?.id || null;
+}
+
+/**
  * Read-only bridge from canonical territory/route state to the reserve gate.
  * It never creates supply, opens routes or builds structures; callers provide
  * route reachability already earned from the strategic logistics simulation.
@@ -134,10 +169,11 @@ export function combatReservePlan({
   fallbackComplete = false,
   deficit = 0,
 } = {}) {
-  const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from, to });
+  const origin = from == null ? combatReserveOrigin({ strategicLogistics, team, to }) : from;
+  const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to });
   const logistics = combatLogisticsState({ territory, team, routeOpen });
   const decision = combatReserveDecision({ logistics, timerExpired, fallbackComplete, deficit });
-  return Object.freeze({ routeOpen, logistics, ...decision });
+  return Object.freeze({ origin, routeOpen, logistics, ...decision });
 }
 
 /**
@@ -178,8 +214,9 @@ export function combatReservePlanCycle({
   strength = 0,
   resetIn = 40,
 } = {}) {
-  const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from, to });
+  const origin = from == null ? combatReserveOrigin({ strategicLogistics, team, to }) : from;
+  const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to });
   const logistics = combatLogisticsState({ territory, team, routeOpen });
   const cycle = combatReserveCycle({ logistics, timer, fallbackUntil, tick, strength, resetIn });
-  return Object.freeze({ routeOpen, logistics, ...cycle });
+  return Object.freeze({ origin, routeOpen, logistics, ...cycle });
 }
