@@ -67,7 +67,7 @@ test('crew pose packets stay collision-validated and renderer-ready', () => {
   host.session.host('ROOM7'); host.out.length = 0;
   guest.session.join('ROOM7'); deliver(guest.out, host.session); deliver(host.out, guest.session);
 
-  guest.session.update(pose(-2.0, 1.8, .4), clock.value);
+  guest.session.update(pose(-1.5, 1.8, .4), clock.value);
   const sent = guest.out.find(packet => packet.kind === 'crew-pose');
   assert.ok(sent, 'connected guest emits compact crew pose');
   assert.equal(host.session.receive(sent), true);
@@ -89,13 +89,13 @@ test('cross-device monotonic clock skew is normalized to local receipt time', ()
   host.session.host('CLOCK'); host.out.length = 0;
   guest.session.join('CLOCK'); deliver(guest.out, host.session); deliver(host.out, guest.session);
 
-  guest.session.update(pose(-2, 1.8, .2), guestClock.value);
+  guest.session.update(pose(-1.5, 1.8, .2), guestClock.value);
   const first = guest.out.find(packet => packet.kind === 'crew-pose');
   assert.ok(first?.at > 9000, 'sender uses a very different local monotonic clock');
   assert.equal(host.session.receive(first), true);
 
   hostClock.value += .1; guestClock.value += .1; guest.out.length = 0;
-  guest.session.update(pose(-1.9, 1.8, .25), guestClock.value);
+  guest.session.update(pose(-1.4, 1.8, .25), guestClock.value);
   const second = guest.out.find(packet => packet.kind === 'crew-pose');
   assert.equal(host.session.receive(second), true);
 
