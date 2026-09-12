@@ -62,6 +62,28 @@ test('crew pose packets stay collision-validated and renderer-ready', () => {
   assert.equal(host.session.receive(invalid), false, 'impossible remote position never reaches renderer');
 });
 
+test('cross-device monotonic clock skew is normalized to local receipt time', () => {
+  const hostClock = { value: 40 }, guestClock = { value: 9040 };
+  const host = fixture('host', hostClock), guest = fixture('guest', guestClock);
+  host.session.host('CLOCK'); host.out.length = 0;
+  guest.session.join('CLOCK'); deliver(guest.out, host.session); deliver(host.out, guest.session);
+
+  guest.session.update(pose(-2, 1.8, .2), guestClock.value);
+  const first = guest.out.find(packet => packet.kind === 'crew-pose');
+  assert.ok(first?.at > 9000, 'sender uses a very different local monotonic clock');
+  assert.equal(host.session.receive(first), true);
+
+  hostClock.value += .1; guestClock.value += .1; guest.out.length = 0;
+  guest.session.update(pose(-1.9, 1.8, .25), guestClock.value);
+  const second = guest.out.find(packet => packet.kind === 'crew-pose');
+  assert.equal(host.session.receive(second), true);
+
+  hostClock.value += .1;
+  const [sample] = host.session.renderSamples(hostClock.value, 0);
+  assert.ok(sample.alpha > .9, 'receiver interpolates on its own clock instead of the sender clock');
+  assert.ok(sample.at < 100, 'replication stores local receipt time, not remote performance.now()');
+});
+
 test('different rooms and unsolicited peers cannot inject crew state', () => {
   const clock = { value: 30 };
   const host = fixture('host', clock);
