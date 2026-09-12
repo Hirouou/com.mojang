@@ -8,6 +8,7 @@
 - Branch histórica preservada: `iron-rain-frontline`
 - Entrada do jogo: `iron-rain/index.html`
 - Sprint ativo da liderança: `iron-rain/docs/LEAD_SPRINT_20260912.md`
+- Coordenação AO VIVO enquanto o Codex P0 roda: `iron-rain/docs/CODEX_LIVE_DISPATCH_20260912.md`
 - Roteamento obrigatório pós-Codex P0: `iron-rain/docs/POST_CODEX_ROUTING_20260912.md`
 - Publicação Pages: o workflow em `.github/workflows/iron-rain-pages.yml` publica o conteúdo de `iron-rain/` quando o GitHub Pages estiver habilitado no repositório.
 - URL esperada depois da primeira execução: `https://hirouou.github.io/com.mojang/`
@@ -32,7 +33,7 @@ O jogo remoto usa `game-v6.js` como módulo ES e importa os módulos em `iron-ra
 
 Leia também `LEAD_SPRINT_20260912.md` antes de escolher a próxima integração para não duplicar helpers ou regressar prioridades validadas pelo usuário.
 
-Enquanto a missão Codex P0 de multiplayer real estiver `IN_PROGRESS`, não criar transporte/lobby concorrente. Quando ela retornar `DONE` ou `BLOCKED`, consumir primeiro o resultado e seguir `POST_CODEX_ROUTING_20260912.md` para dividir integração de multiplayer, presença visual, mapa/território, múltiplos Mamutes, IA e artilharia entre os workstreams.
+Enquanto a missão Codex P0 de multiplayer real estiver `IN_PROGRESS`, leia `CODEX_LIVE_DISPATCH_20260912.md`, não crie transporte/lobby concorrente e prepare somente consumidores/contratos independentes. Quando ela retornar `DONE` ou `BLOCKED`, consuma primeiro a evidência devolvida pelo Codex e siga `POST_CODEX_ROUTING_20260912.md` + `CODEX_LIVE_DISPATCH_20260912.md` para dividir integração de multiplayer, presença visual, mapa/território, múltiplos Mamutes, novos jogadores, IA e artilharia entre os workstreams. O usuário não deve precisar retransmitir a resposta do Codex.
 
 Execute `npm test`. A build deve continuar usando caminhos relativos, sem dependências externas obrigatórias. Para testar navegador, defina `IRON_RAIN_PLAYWRIGHT` para o runtime Playwright disponível e execute `node tests/v7-browser.mjs`.
 
