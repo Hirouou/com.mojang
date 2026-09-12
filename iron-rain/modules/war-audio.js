@@ -214,11 +214,18 @@ export function createWarAudio() {
       noise(2.65, .55, 700, { delay: .12, endFrequency: 160 });
       for (const delay of [.07, .16, .3, .48]) noise(.18, .24, 1900, { delay, type: 'bandpass', endFrequency: 600 });
     }); },
-    impact() { safely(() => {
-      noise(.22, .78, 3600, { endFrequency: 650 });
-      noise(1.45, .75, 720, { endFrequency: 95 });
-      tone(.9, .6, 105, 37);
-      noise(.55, .25, 2100, { delay: .1, type: 'bandpass', endFrequency: 550 });
+    impact(feedback = null) { safely(() => {
+      const intensity = clamp(Number(feedback?.intensity ?? .7), .15, 1);
+      const crack = clamp(Number(feedback?.sharpCrack ?? .7), .1, 1);
+      const thump = clamp(Number(feedback?.lowThump ?? .75), .1, 1);
+      const rattle = clamp(Number(feedback?.metalRattle ?? .55), .1, 1);
+      // A hull hit is heard through three physical paths: transmitted crack,
+      // low pressure/body thump, and delayed internal metal rattle. The same
+      // canonical cabin-hit feedback scales local and replicated impacts.
+      noise(.12 + intensity * .12, .38 + crack * .58, 4600 + crack * 2400, { endFrequency: 720 + crack * 520 });
+      noise(.65 + thump * .85, .28 + thump * .62, 620 + intensity * 180, { endFrequency: 70 + intensity * 45 });
+      tone(.48 + thump * .52, .22 + thump * .48, 96 + intensity * 24, 34 + intensity * 10);
+      noise(.22 + rattle * .38, .12 + rattle * .34, 1800 + intensity * 500, { delay: .055, type: 'bandpass', endFrequency: 430 + intensity * 180 });
     }); },
     radio() { safely(() => {
       noise(.18, .2, 2200, { type: 'bandpass' });
