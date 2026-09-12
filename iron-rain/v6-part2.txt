@@ -1,0 +1,72 @@
+ail without a global map image
+    ctx.fillStyle='#526f43';ctx.fillRect(0,0,SW,SH);
+    const cell=420, left=state.cam.x-SW/(2*state.cam.zoom), top=state.cam.y-SH/(2*state.cam.zoom);
+    const x0=Math.floor(left/cell)-1,y0=Math.floor(top/cell)-1,x1=x0+Math.ceil(SW/(cell*state.cam.zoom))+3,y1=y0+Math.ceil(SH/(cell*state.cam.zoom))+3;
+    for(let gx=x0;gx<x1;gx++)for(let gy=y0;gy<y1;gy++){
+      const hash=Math.abs(Math.sin(gx*12.9898+gy*78.233));const col=hash>.67?'rgba(124,139,83,.13)':hash>.33?'rgba(35,75,43,.10)':'rgba(92,111,67,.10)';
+      const p=worldToScreen(gx*cell,gy*cell);ctx.fillStyle=col;ctx.fillRect(p.x,p.y,cell*state.cam.zoom+1,cell*state.cam.zoom+1);
+    }
+    // dirt service road near the M-47 rear area
+    drawRoad([{x:6900,y:30300},{x:7700,y:30000},{x:9000,y:30150},{x:10300,y:29600},{x:11800,y:29800}],130);
+    // local detail dots / vegetation based on camera-grid hash
+    const s=170;const sx=Math.floor(left/s)-1,sy=Math.floor(top/s)-1,ex=sx+Math.ceil(SW/(s*state.cam.zoom))+3,ey=sy+Math.ceil(SH/(s*state.cam.zoom))+3;
+    for(let gx=sx;gx<ex;gx++)for(let gy=sy;gy<ey;gy++){
+      const h=Math.sin(gx*31.4+gy*91.7)*43758.5;const f=h-Math.floor(h);if(f<.47)continue;
+      const x=gx*s+(f*91)%s,y=gy*s+((f*131)%s);const p=worldToScreen(x,y);const r=(5+f*9)*state.cam.zoom;
+      if(r<1)continue;ctx.fillStyle=f>.82?'#324c2e':'#3c5d35';ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  function drawRoad(points,width){ctx.save();ctx.strokeStyle='#806e53';ctx.lineWidth=width*state.cam.zoom;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();points.forEach((n,i)=>{const p=worldToScreen(n.x,n.y);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.stroke();ctx.strokeStyle='rgba(217,201,163,.22)';ctx.lineWidth=10*state.cam.zoom;ctx.stroke();ctx.restore();}
+
+  function drawLocalDefense(){
+    // Rear-area friendly trench and crews around the Mamute. No giant labels; it should read as part of the world.
+    const tx=9000,ty=30000;drawTrench(tx,ty,'ally');const z=state.cam.zoom;
+    for(let i=0;i<7;i++){const x=tx-15+((i%2)?12:-10),y=ty-190+i*60;if(!visible(x,y,60))continue;const p=worldToScreen(x,y);const duck=.55+.3*Math.sin(state.time*.8+i);const yy=p.y+duck*6*z;ctx.strokeStyle='#111';ctx.lineWidth=3*z;ctx.beginPath();ctx.moveTo(p.x,yy);ctx.lineTo(p.x+15*z,yy);ctx.stroke();ctx.fillStyle=COLORS.ally;ctx.beginPath();ctx.arc(p.x,yy,7*z,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ecd0bd';ctx.beginPath();ctx.arc(p.x,yy-9*z,4*z,0,Math.PI*2);ctx.fill();}
+  }
+
+  function drawBase(){
+    const b=state.base;if(!visible(b.x,b.y,400))return;const p=worldToScreen(b.x,b.y),z=state.cam.zoom;
+    ctx.fillStyle='#676457';ctx.fillRect(p.x-120*z,p.y-85*z,240*z,170*z);ctx.fillStyle='#9d8c69';ctx.fillRect(p.x-120*z,p.y-85*z,240*z,22*z);ctx.fillStyle='#20231f';ctx.fillRect(p.x-65*z,p.y-25*z,60*z,48*z);
+    ctx.fillStyle='rgba(8,12,9,.68)';ctx.fillRect(p.x-95*z,p.y-115*z,190*z,24*z);ctx.fillStyle='#d8c07e';ctx.font=`${Math.max(9,13*z)}px system-ui`;ctx.textAlign='center';ctx.fillText('CENTRO DE OPERAÇÕES',p.x,p.y-98*z);ctx.textAlign='start';
+  }
+
+  function trenchPath(cx,cy,team){
+    const side=team==='ally'?-1:1;return [
+      {x:cx+side*60,y:cy-250},{x:cx-side*20,y:cy-175},{x:cx+side*50,y:cy-95},{x:cx-side*15,y:cy-20},{x:cx+side*45,y:cy+65},{x:cx-side*25,y:cy+145},{x:cx+side*55,y:cy+235}
+    ];
+  }
+
+  function drawTrench(cx,cy,team){
+    const path=trenchPath(cx,cy,team);ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=COLORS.trench;ctx.lineWidth=68*state.cam.zoom;ctx.beginPath();path.forEach((n,i)=>{const p=worldToScreen(n.x,n.y);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)});ctx.stroke();ctx.strokeStyle=COLORS.lip;ctx.lineWidth=14*state.cam.zoom;ctx.stroke();ctx.restore();
+  }
+
+  function updateSectorUnits(sec,dt){
+    // Only detailed when the camera is nearby; distant fronts are abstracted in strategicTick.
+    if(distance(sec,state.cam)>2600)return;
+    for(const u of sec.units){
+      u.cool-=dt;u.pop=Math.max(0,u.pop-dt);u.supp=Math.max(0,u.supp-dt*.12);
+      const phase=Math.sin(state.time*.9+u.slot*1.7+(u.team==='enemy'?1.2:0));
+      u.duck=clamp(u.supp>.5?.95:(phase>.45?.15:.78),0,1);
+      if(u.cool<=0 && u.duck<.4){
+        const foe=sec.units.filter(v=>v.team!==u.team)[Math.floor(rand(0,sec.units.filter(v=>v.team!==u.team).length))];
+        if(foe){
+          u.pop=.3;u.cool=u.role==='mg'?rand(.7,1.2):rand(1.5,2.7);const burst=u.role==='mg'?5:1;
+          for(let i=0;i<burst;i++) state.tracers.push({x:u.x,y:u.y,x2:foe.x+rand(-18,18),y2:foe.y+rand(-18,18),life:.18+i*.025,max:.28,team:u.team});
+          foe.supp=clamp(foe.supp+(u.role==='mg'?.22:.09),0,1);
+        }
+      }
+    }
+  }
+
+  function drawSector(sec){
+    if(distance(sec,state.cam)>2400)return;
+    drawTrench(sec.x-320,sec.y,'ally');drawTrench(sec.x+320,sec.y,'enemy');
+    // subtle known friendly CP, no giant sector labels
+    const cp=worldToScreen(sec.x-650,sec.y);const z=state.cam.zoom;ctx.fillStyle='#606257';ctx.fillRect(cp.x-55*z,cp.y-38*z,110*z,76*z);ctx.fillStyle='#6fc2ff';ctx.fillRect(cp.x-55*z,cp.y-38*z,110*z,8*z);
+    for(const u of sec.units){const p=worldToScreen(u.x,u.y);const color=u.team==='ally'?COLORS.ally:COLORS.enemy;const dir=u.team==='ally'?0:Math.PI;const yy=p.y+u.duck*8*z;ctx.strokeStyle='#111';ctx.lineWidth=3*z;ctx.beginPath();ctx.moveTo(p.x,yy);ctx.lineTo(p.x+Math.cos(dir)*15*z,yy);ctx.stroke();ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,yy,7*z,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ecd0bd';ctx.beginPath();ctx.arc(p.x,yy-9*z,4.5*z,0,Math.PI*2);ctx.fill();}
+    for(const a of sec.assets){if(!a.alive)continue;if(!a.known && !(state.intel&&state.intel.target===a))continue;drawAsset(a);}
+  }
+
+  function drawAsset(a){
+    const p=worldToScreen(a.x,a.y),z=state.cam.zoom;ctx.fillStyle=COLORS.bunker;ctx.fillRect(p.x-42*z,p.y-26*z,84*z,52*z);ctx.fillStyle=COLORS.sand;ctx.fillRect(p.x-42*z,p.y-26*z,84*z,10*z);ctx.strokeStyle='#151515';ctx.lineWidth=5*z;ctx.beginPath();ctx.m
