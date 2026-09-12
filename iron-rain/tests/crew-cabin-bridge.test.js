@@ -170,3 +170,35 @@ test('crew cabin bridge keeps a guest claim pending until canonical ownership re
     ok: false, ready: false, pending: false, reason: 'not-connected', station: 'radio', owner: null,
   });
 });
+
+test('crew cabin bridge resolves host denial instead of leaving a guest claim pending forever', () => {
+  let lastEvent = 'joined';
+  let claimCalls = 0;
+  const runtime = {
+    status() { return { mode: 'guest', connected: true, localId: 'guest-a', lastEvent }; },
+    stationOwner() { return null; },
+    claimStation(station) {
+      claimCalls++;
+      lastEvent = `station-request:${station}`;
+      return { ok: false, pending: true, reason: 'pending-host', station, owner: null };
+    },
+  };
+  const bridge = createCrewCabinBridge({ runtime });
+
+  assert.equal(bridge.requestStation('radio').pending, true);
+  lastEvent = 'station-denied:radio:guest-b';
+  const occupied = bridge.stationState('radio');
+  assert.deepEqual(occupied, {
+    ok: false, ready: false, pending: false, reason: 'occupied', station: 'radio', owner: 'guest-b',
+  });
+  assert.equal(bridge.stationMessage(occupied), 'POSTO OCUPADO POR OUTRO TRIPULANTE');
+
+  lastEvent = 'stations-updated';
+  assert.equal(bridge.requestStation('radio').pending, true, 'a later interaction may retry after the denial was consumed');
+  assert.equal(claimCalls, 2);
+  lastEvent = 'station-denied:radio:';
+  const denied = bridge.stationState('radio');
+  assert.equal(denied.reason, 'claim-denied');
+  assert.equal(denied.pending, false);
+  assert.equal(bridge.stationMessage(denied), 'POSTO INDISPONÍVEL');
+});
