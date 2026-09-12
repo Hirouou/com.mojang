@@ -1,5 +1,6 @@
 import { installSpawnSelector, resolveSpawnChoice } from './spawn-selector.js';
 import { createWarAudio } from './war-audio.js';
+import { maintenanceEffectCadence } from './maintenance-effect-cadence.js';
 
 const audio = createWarAudio();
 let selector = null;
@@ -7,6 +8,7 @@ let unsubscribeEffects = null;
 let lastRuntime = null;
 let hookedFire = null;
 let destroyedOpen = false;
+let maintenanceCadenceState = null;
 
 const wake = () => audio.wake();
 addEventListener('pointerdown', wake, { passive: true });
@@ -43,6 +45,7 @@ function bindRuntime() {
   if (!runtime || runtime === lastRuntime) return;
   unsubscribeEffects?.();
   lastRuntime = runtime;
+  maintenanceCadenceState = null;
   unsubscribeEffects = runtime.subscribeEffects?.(applyRemoteEffect) || null;
 }
 
@@ -84,9 +87,9 @@ function installSelectorWhenReady() {
 addEventListener('iron-rain:maintenance-feedback', event => {
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.emitEffect) return;
-  const detail = event.detail || {};
-  if (detail.extinguisherActive || detail.action === 'extinguish') runtime.emitEffect('extinguisher', { progress: detail.progress ?? 0 });
-  else if (detail.repairActive || detail.action === 'repair') runtime.emitEffect('repair', { progress: detail.progress ?? 0 });
+  const cadence = maintenanceEffectCadence(maintenanceCadenceState, event.detail || {}, performance.now() / 1000);
+  maintenanceCadenceState = cadence.state;
+  if (cadence.emit) runtime.emitEffect(cadence.emit.type, cadence.emit.payload);
 });
 
 addEventListener('ironrain:mamute-impact', event => {
