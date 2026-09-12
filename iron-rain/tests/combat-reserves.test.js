@@ -8,6 +8,7 @@ const readyLogistics = Object.freeze({
   hasDepot: false,
   hasGarage: false,
   canReceiveReinforcements: true,
+  reinforcementSupport: .05,
 });
 
 test('reserves arrive only after timer, fallback and local logistics are all ready', () => {
@@ -34,6 +35,7 @@ test('connected territory without a field logistics node cannot materialize rese
     hasDepot: false,
     hasGarage: false,
     canReceiveReinforcements: false,
+    reinforcementSupport: .05,
   };
   const result = combatReserveGate({ logistics, timerExpired: true, fallbackComplete: true });
   assert.equal(result.ready, false);
@@ -43,10 +45,23 @@ test('connected territory without a field logistics node cannot materialize rese
 test('inconsistent or missing logistics fail closed', () => {
   assert.equal(combatReserveGate({ timerExpired: true, fallbackComplete: true }).ready, false);
   assert.equal(combatReserveGate({
-    logistics: { connected: true, hasDepot: true, canReceiveReinforcements: false },
+    logistics: { connected: true, hasDepot: true, canReceiveReinforcements: false, reinforcementSupport: .12 },
     timerExpired: true,
     fallbackComplete: true,
   }).reason, 'logistics');
+});
+
+test('reserve support must be a positive finite value even when readiness flags claim success', () => {
+  for (const reinforcementSupport of [0, -0.1, NaN, Infinity]) {
+    const result = combatReserveGate({
+      logistics: { ...readyLogistics, reinforcementSupport },
+      timerExpired: true,
+      fallbackComplete: true,
+    });
+    assert.equal(result.ready, false);
+    assert.equal(result.reason, 'support');
+    assert.equal(result.logisticsReady, false);
+  }
 });
 
 test('combat logistics state consumes friendly territory and route state without inventing infrastructure', () => {
