@@ -25,6 +25,7 @@ function ensureOverlay() {
     @keyframes ir-foam{0%{transform:translate(0,1px) scale(.9);opacity:.45}100%{transform:translate(6px,-4px) scale(1.08);opacity:.9}}
     @keyframes ir-sparks{0%{transform:translate(0,0);opacity:.25}55%{transform:translate(5px,-5px);opacity:1}100%{transform:translate(9px,-8px);opacity:0}}
     @media(max-width:900px) and (orientation:landscape){.ir-maintenance{top:61%;min-width:154px;grid-template-columns:40px auto;gap:8px;padding:6px 9px 6px 6px}.ir-maintenance-ring{width:34px;height:34px}.ir-maintenance-ring:after{width:24px;height:24px}.ir-maintenance-copy span{font-size:8px}.ir-maintenance-copy b{font-size:6.5px}.ir-maintenance-value{font-size:7px}}
+    @media(prefers-reduced-motion:reduce){.ir-maintenance.extinguish:before,.ir-maintenance.repair:before,.ir-maintenance.repair:after{animation:none}.ir-maintenance.extinguish:before{transform:translate(3px,-2px);opacity:.68}.ir-maintenance.repair:before,.ir-maintenance.repair:after{transform:translate(4px,-4px);opacity:.8}}
   `;
   document.head.appendChild(style);
   root = document.createElement('div');
