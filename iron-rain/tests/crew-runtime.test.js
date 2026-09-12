@@ -27,7 +27,7 @@ test('runtime swaps transport without coupling it to cabin state', () => {
 
   clock.value += .2;
   host.update(pose(0, 2.4), clock.value);
-  guest.update(pose(-2, 1.8, .4), clock.value);
+  guest.update(pose(-1.5, 1.8, .4), clock.value);
   clock.value += .2;
 
   assert.equal(host.renderSamples(clock.value, 0).length, 1);
