@@ -98,3 +98,21 @@ export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
   if (!ready || shortage <= 0) return 0;
   return Math.min(shortage, support * 20);
 }
+
+/**
+ * Single read-only decision for the strategic reinforcement timer. Keeping the
+ * gate and batch together prevents callers from admitting a reserve through
+ * one logistics snapshot and sizing it from another one.
+ */
+export function combatReserveDecision({ logistics, timerExpired = false, fallbackComplete = false, deficit = 0 } = {}) {
+  const gate = combatReserveGate({ logistics, timerExpired, fallbackComplete });
+  const amount = gate.ready ? combatReserveBatch({ logistics, deficit }) : 0;
+  return Object.freeze({
+    ready: gate.ready && amount > 0,
+    reason: gate.ready && amount <= 0 ? 'deficit' : gate.reason,
+    amount,
+    timerExpired: gate.timerExpired,
+    fallbackComplete: gate.fallbackComplete,
+    logisticsReady: gate.logisticsReady,
+  });
+}
