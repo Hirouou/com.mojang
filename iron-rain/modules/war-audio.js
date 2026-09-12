@@ -197,13 +197,13 @@ export function createWarAudio() {
       noise(.09, .19, 2400, { type: 'bandpass', endFrequency: 950 });
       tone(.07, .055, 340, 220, 0, 'triangle');
     }); },
-    load() { safely(() => {
-      // The game loop already calls this once for each real loader phase change.
-      // Emit one compact contact instead of replaying a whole three-hit sequence
-      // on every phase; this keeps the mechanism legible and cuts transient
-      // Web Audio voices by roughly two thirds during a complete reload.
-      noise(.12, .34, 2350, { type: 'bandpass', endFrequency: 720 });
-      tone(.1, .12, 205, 92, 0, 'triangle');
+    load(cue = null) { safely(() => {
+      // The loader cue owns no clock: it only scales the same compact contact
+      // from the mechanical phase already chosen by loader-arm.js. Generic UI
+      // and service clicks keep the original strength by omitting the cue.
+      const intensity = clamp(Number(cue?.intensity ?? 1), .25, 1);
+      noise(.12, .34 * intensity, 2350, { type: 'bandpass', endFrequency: 720 });
+      tone(.1, .12 * intensity, 205, 92, 0, 'triangle');
     }); },
     fire() { safely(() => {
       // Crack, pressure, hull rattles and a broad tail also read on small speakers.
