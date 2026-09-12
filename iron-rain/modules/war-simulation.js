@@ -260,9 +260,10 @@ function strategicStep(state) {
       force.lowMoraleEntered = force.morale < .23 && !force.lowMorale;
       force.lowMorale = force.morale < .23;
       const broken = sec[key] < 23 || force.morale < .23 || force.suppression > .87;
-      // A formation that breaks during an assault must stop pushing now,
-      // rather than continuing for the remainder of a stale phase timer.
-      if (broken && force.phase !== 'retreat') {
+      // A formation that breaks during a fighting phase must stop pushing now,
+      // but an established retreat/regroup cycle gets time to recover instead
+      // of snapping from regroup straight back to retreat on the next tick.
+      if (broken && !['retreat', 'regroup'].includes(force.phase)) {
         force.phase = 'retreat';
         force.phaseTime = phaseDuration.retreat + war.index % 4;
         force.cycles++;
