@@ -114,8 +114,8 @@ test('crew replication pose is compact, validated and interpolates yaw across wr
   assert.equal(interpolateCabinCrewPose(from,to,NaN),null);
 });
 test('replicated crew interpolation cannot tunnel an avatar through solid equipment',()=>{
-  const from=cabinCrewPose({x:-1,z:1.8,yaw:0,pitch:0});
-  const to=cabinCrewPose({x:-1,z:-.3,yaw:0,pitch:0});
+  const from=cabinCrewPose({x:-2.2,z:1.8,yaw:0,pitch:0});
+  const to=cabinCrewPose({x:-.8,z:.7,yaw:0,pitch:0});
   assert.ok(from&&to,'network endpoints are individually walkable');
   assert.equal(interpolateCabinCrewPose(from,to,.5),null,'blocked midpoint is rejected instead of clipping through the map desk');
 });
