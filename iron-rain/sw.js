@@ -1,6 +1,6 @@
 /* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v7.15`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.16`;
 const OFFLINE_FILES = [
   './index.html',
   './style-v6.css',
@@ -11,6 +11,7 @@ const OFFLINE_FILES = [
   './modules/ballistics.js',
   './modules/pointer-controls.js',
   './modules/war-simulation.js',
+  './modules/war-simulation-core.js',
   './modules/table-map.js',
   './modules/map-touch-precision.js',
   './modules/camera-director.js',
@@ -66,7 +67,6 @@ const indexURL = new URL('./index.html', self.registration.scope).href;
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    // Installation is atomic: a missing module must not create a broken offline build.
     await cache.addAll(assetURLs);
     await self.skipWaiting();
   })());
@@ -84,7 +84,6 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
   const scope = new URL(self.registration.scope);
-  // Diagnostic URLs stay uncached, including ?test=1 browser acceptance sessions.
   if (request.method !== 'GET' || url.search || url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const navigation = request.mode === 'navigate';
   if (navigation && url.href !== scope.href && url.href !== indexURL) return;
@@ -92,12 +91,9 @@ self.addEventListener('fetch', event => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     try {
-      // Network first is intentional: the home-screen app keeps the SAME URL,
-      // but reopening it online pulls the newest deployed build before falling
-      // back to the offline copy.
       const response = await fetch(request, { cache: 'no-store' });
       if (response.ok && (response.type === 'basic' || response.type === 'default')) {
-        try { await cache.put(navigation ? indexURL : request, response.clone()); } catch { /* Storage pressure must not block the online build. */ }
+        try { await cache.put(navigation ? indexURL : request, response.clone()); } catch {}
       }
       if (response.ok || !navigation) return response;
       return await cache.match(indexURL) || response;
