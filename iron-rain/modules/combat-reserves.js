@@ -5,6 +5,23 @@ const validTeam = team => team === 'ally' || team === 'enemy';
 const positiveFinite = value => Number.isFinite(value) && value > 0;
 
 /**
+ * Ask the canonical strategic-logistics graph whether a friendly route really
+ * exists. This intentionally delegates pathfinding to `strategic-logistics.js`
+ * instead of duplicating adjacency/routing rules inside combat AI.
+ */
+export function combatRouteOpen({ logistics, team, from, to } = {}) {
+  if (!validTeam(team) || !logistics || typeof logistics.route !== 'function' || typeof logistics.getNode !== 'function') return false;
+  const origin = logistics.getNode(String(from ?? ''));
+  const destination = logistics.getNode(String(to ?? ''));
+  if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return false;
+  try {
+    return Array.isArray(logistics.route(team, origin.id, destination.id));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Read-only bridge from canonical territory/route state to the reserve gate.
  * It never creates supply, opens routes or builds structures; callers provide
  * route reachability already earned from the strategic logistics simulation.
