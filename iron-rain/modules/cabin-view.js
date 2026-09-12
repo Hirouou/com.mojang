@@ -2,6 +2,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { createCabinView as createCabinViewCore } from './cabin-view-core.js';
 import { createCabinCrewVisualLayer } from './crew-visual-layer.js';
 import { maintenanceFeedback } from './maintenance-feedback.js';
+import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
 import { beginLoading, stepLoading } from './loading-cycle.js';
 import './maintenance-overlay.js';
 
@@ -66,8 +67,10 @@ export function createCabinView(canvas, options = {}) {
       const shell = ['HE','FRAG','SMOKE'].includes(effect.payload?.shell) ? effect.payload.shell : 'HE';
       remoteLoading = beginLoading(shell, shell);
     }
-    if (effect.type === 'impact') remoteImpact = Math.max(remoteImpact, Math.min(1, Number(effect.payload?.intensity) || .65));
-    if (effect.type === 'critical') remoteImpact = 1;
+    if (effect.type === 'impact' || effect.type === 'critical') {
+      const feedback = remoteHullImpactFeedback(effect);
+      if (feedback) remoteImpact = Math.max(remoteImpact, feedback.intensity);
+    }
   }
   globalThis.addEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
 
