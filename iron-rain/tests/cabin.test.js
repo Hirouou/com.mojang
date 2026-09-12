@@ -53,6 +53,15 @@ test('diagonal motion is normalized and stalls do not tunnel through walls', () 
   for(let i=0;i<100;i++)b.update(50,{x:1,y:0});
   assert.ok(canOccupyCabin(b.position.x,b.position.z));
 });
+test('corner sliding follows the dominant movement axis instead of steering sideways',()=>{
+  const m=createCabinMovement();
+  assert.ok(m.setPose({x:-2.19,z:-1.27}),'corner test starts in the aisle beside the driver seat');
+  const input={x:.5144957554,y:-.8574929257};
+  m.update(.01766917,input);
+  assert.ok(Math.abs(m.position.x+2.19)<1e-9,'blocked corner does not invent lateral X motion');
+  assert.ok(m.position.z<-1.29,'dominant forward component still slides along the obstacle');
+  assert.ok(canOccupyCabin(m.position.x,m.position.z),'corner slide remains collision-safe');
+});
 test('station interaction requires physical proximity and looking toward the station',()=>{
   const m=createCabinMovement();
   const aim=CABIN_STATIONS.find(s=>s.id==='aim');
