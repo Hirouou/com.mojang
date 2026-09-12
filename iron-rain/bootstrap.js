@@ -6,6 +6,7 @@ import { createCrewCabinBridge } from './modules/crew-cabin-bridge.js';
 import { stationGateMessage } from './modules/crew-station-gate.js';
 import { normalizeFaction, factionInfo } from './modules/factions.js';
 import { installStrategicWarLive } from './modules/strategic-war-live.js';
+import './modules/integration-live.js';
 
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
@@ -19,8 +20,6 @@ let strategicWar = null;
 let crewToastTimer = 0;
 let lastCrewFrameAt = performance.now();
 
-// Keep mobile station overrides isolated from the legacy field UI. This makes
-// the physical 3D handwheels the dominant control surface while preserving PC.
 if (!document.querySelector('link[data-iron-rain-mobile-station]')) {
   const stationStyles = document.createElement('link');
   stationStyles.rel = 'stylesheet';
@@ -42,20 +41,12 @@ function localPlayerId() {
     const created = `crew-${device}-${Math.random().toString(36).slice(2, 7)}`;
     sessionStorage.setItem(tabKey, created);
     return created;
-  } catch {
-    return `crew-${Math.random().toString(36).slice(2, 12)}`;
-  }
+  } catch { return `crew-${Math.random().toString(36).slice(2, 12)}`; }
 }
 
 const localId = localPlayerId();
-const transportFactory = crewQa
-  ? options => createCrewBroadcastTransport(options)
-  : options => createCrewMqttTransport(options);
-const runtime = createCrewRuntime({
-  localId,
-  transportFactory,
-  onStatus: status => lobby?.setStatus(status),
-});
+const transportFactory = crewQa ? options => createCrewBroadcastTransport(options) : options => createCrewMqttTransport(options);
+const runtime = createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status) });
 
 function setNotice(title, copy = '') {
   const root = lobby?.element;
@@ -67,9 +58,7 @@ function setNotice(title, copy = '') {
 }
 
 function showCrewToast(message, source = 'TRIPULAÇÃO') {
-  const shell = document.getElementById('warToast');
-  const label = document.getElementById('warToastSource');
-  const text = document.getElementById('warToastText');
+  const shell = document.getElementById('warToast'), label = document.getElementById('warToastSource'), text = document.getElementById('warToastText');
   if (!shell || !text) return false;
   if (label) label.textContent = source;
   text.textContent = message;
@@ -81,18 +70,8 @@ function showCrewToast(message, source = 'TRIPULAÇÃO') {
 
 function sessionDescriptor(status = {}, fallbackMode = 'offline') {
   const faction = normalizeFaction(status.faction || lobby?.faction());
-  return {
-    localId,
-    faction,
-    factionInfo: factionInfo(faction),
-    mode: status.mode || fallbackMode,
-    room: status.room || '',
-    seat: Number.isFinite(Number(status.seat)) ? Number(status.seat) : 0,
-    capacity: Number(status.capacity) || 3,
-    runtime,
-    crewBridge: null,
-    qaTransport: crewQa,
-  };
+  const spawn = globalThis.ironRainSpawnChoice ? { ...globalThis.ironRainSpawnChoice } : null;
+  return { localId, faction, factionInfo: factionInfo(faction), mode: status.mode || fallbackMode, room: status.room || '', seat: Number.isFinite(Number(status.seat)) ? Number(status.seat) : 0, capacity: Number(status.capacity) || 3, runtime, crewBridge: null, qaTransport: crewQa, spawn };
 }
 
 function publishCrewBridge(nextBridge) {
@@ -113,7 +92,6 @@ function attachCrewCabin(cabin) {
   stopCrewFrame();
   publishCrewBridge(createCrewCabinBridge({ runtime, cabin, interpolationDelay: .1 }));
   lastCrewFrameAt = performance.now();
-
   const frame = nowMs => {
     if (!crewBridge) return;
     const dt = Math.min(.1, Math.max(0, (nowMs - lastCrewFrameAt) / 1000));
@@ -125,24 +103,14 @@ function attachCrewCabin(cabin) {
   return true;
 }
 
-// The game creates cabin-view asynchronously after game-v6 has started. This
-// seam lets bootstrap own multiplayer/runtime integration without putting any
-// transport/session logic into the renderer or local movement controller.
-window.addEventListener('ironrain:cabin-ready', event => {
-  attachCrewCabin(event.detail?.cabin);
-});
-window.addEventListener('ironrain:station-gate', event => {
-  const message = stationGateMessage(event.detail);
-  if (message) showCrewToast(message, 'POSTO');
-});
+window.addEventListener('ironrain:cabin-ready', event => { attachCrewCabin(event.detail?.cabin); });
+window.addEventListener('ironrain:station-gate', event => { const message = stationGateMessage(event.detail); if (message) showCrewToast(message, 'POSTO'); });
 
 async function startGame(status = {}, fallbackMode = 'offline') {
   if (started) return;
   const entry = sessionDescriptor(status, fallbackMode);
-  if (!entry.faction) {
-    setNotice('ESCOLHA ALIADOS OU EIXO', 'A facção define de que lado da mesma guerra persistente você vai lutar.');
-    return;
-  }
+  if (!entry.faction) { setNotice('ESCOLHA ALIADOS OU EIXO', 'A facção define de que lado da mesma guerra persistente você vai lutar.'); return; }
+  if (!entry.spawn) { setNotice('ESCOLHA ONDE NASCER', 'Selecione um hexágono 100% dominado pela sua facção antes de entrar no Mamute.'); return; }
   started = true;
   window.ironRainEntry = entry;
   app.dataset.faction = entry.faction;
@@ -150,12 +118,9 @@ async function startGame(status = {}, fallbackMode = 'offline') {
   app.classList.toggle('faction-axis', entry.faction === 'axis');
   lobby.hide();
   strategicWar ||= installStrategicWarLive({ app });
-  try {
-    await import('./game-v6.js');
-  } catch (error) {
-    started = false;
-    stopCrewFrame();
-    lobby.show();
+  try { await import('./game-v6.js'); }
+  catch (error) {
+    started = false; stopCrewFrame(); lobby.show();
     setNotice('FALHA AO ABRIR O MAMUTE', 'A interface de entrada foi carregada, mas o jogo principal não iniciou. Reabra o aplicativo.');
     console.error('Iron Rain bootstrap:', error);
   }
@@ -164,8 +129,6 @@ async function startGame(status = {}, fallbackMode = 'offline') {
 function ensureHeartbeat() {
   if (heartbeatTimer) return;
   heartbeatTimer = window.setInterval(() => {
-    // Before the cabin exists, keep session heartbeat/handshake alive. Once the
-    // bridge is active, its frame update supplies the same runtime heartbeat.
     if (crewBridge) return;
     const status = runtime.status();
     if (status.mode === 'host' || status.mode === 'guest') runtime.update(null);
@@ -175,10 +138,7 @@ function ensureHeartbeat() {
 function beginCrew(mode, room, faction) {
   const result = mode === 'host' ? runtime.host(room, faction) : runtime.join(room, faction);
   lobby.setStatus(result.status);
-  if (!result.ok) {
-    setNotice('CONEXÃO INDISPONÍVEL', 'Não foi possível iniciar o transporte multiplayer neste navegador. Jogar sozinho continua disponível.');
-    return result;
-  }
+  if (!result.ok) { setNotice('CONEXÃO INDISPONÍVEL', 'Não foi possível iniciar o transporte multiplayer neste navegador. Jogar sozinho continua disponível.'); return result; }
   ensureHeartbeat();
   if (!crewQa && mode === 'host') setNotice('SALA ABERTA · CONECTANDO', 'Compartilhe o mesmo código e a mesma facção. O segundo jogador aparece quando a conexão pública responder.');
   if (!crewQa && mode === 'guest') setNotice('PROCURANDO MAMUTE', 'Aguardando resposta do host pelo código informado.');
@@ -187,24 +147,15 @@ function beginCrew(mode, room, faction) {
 
 lobby = createCrewLobbyUI({
   root: document.body,
-  onHost(room, faction) {
-    beginCrew('host', room, faction);
-  },
-  onJoin(room, faction) {
-    beginCrew('guest', room, faction);
-  },
-  onOffline(faction) {
-    startGame({ mode: 'offline', faction, room: '', seat: 0, capacity: 3, count: 1 }, 'offline');
-  },
-  onEnterMamute(status) {
-    startGame(status, status?.mode || 'offline');
-  },
+  onHost(room, faction) { beginCrew('host', room, faction); },
+  onJoin(room, faction) { beginCrew('guest', room, faction); },
+  onOffline(faction) { startGame({ mode: 'offline', faction, room: '', seat: 0, capacity: 3, count: 1 }, 'offline'); },
+  onEnterMamute(status) { startGame(status, status?.mode || 'offline'); },
 });
 
 lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, capacity: 3, lastEvent: 'choose-faction' });
-setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado antes de criar uma tripulação, entrar por código ou jogar sozinho.');
+setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
 lobby.show();
-
 if (crewQa) setNotice('QA MULTIPLAYER LOCAL', 'Modo de teste: duas abas no mesmo computador podem criar/entrar na mesma sala sem usar a internet pública.');
 
 window.addEventListener('beforeunload', () => {
