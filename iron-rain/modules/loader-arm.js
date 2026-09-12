@@ -65,15 +65,18 @@ export function loaderArmPose(cycle) {
     rammer = smooth(t);
   } else {
     const t = (p - .9) / .1;
-    // Release only after the shell is seated, then retract sharply home while
-    // the breech performs its own lock animation.
-    baseYaw = mix(1.34, LOADER_ARM_HOME.baseYaw, t);
-    shoulder = mix(-.08, LOADER_ARM_HOME.shoulder, t);
-    elbow = mix(.48, LOADER_ARM_HOME.elbow, t);
-    claw = mix(.03, LOADER_ARM_HOME.claw, t);
-    extension = mix(.42, 0, t);
-    rammer = 1 - smooth(t);
-    gripping = t < .22;
+    // Hold the arm fully seated for the first part of lock. The claw releases
+    // only after that dwell; retraction starts afterwards so the mechanism no
+    // longer appears to pull away while it is still clamping the round.
+    const releaseAt = .22;
+    const retract = clamp01((t - releaseAt) / (1 - releaseAt));
+    baseYaw = mix(1.34, LOADER_ARM_HOME.baseYaw, retract);
+    shoulder = mix(-.08, LOADER_ARM_HOME.shoulder, retract);
+    elbow = mix(.48, LOADER_ARM_HOME.elbow, retract);
+    claw = mix(.03, LOADER_ARM_HOME.claw, retract);
+    extension = mix(.42, 0, retract);
+    rammer = 1 - smooth(retract);
+    gripping = t < releaseAt;
     shellVisible = t < .28;
   }
 
