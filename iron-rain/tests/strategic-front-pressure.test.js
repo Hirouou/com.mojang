@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { strategicFrontPressure } from '../modules/strategic-front-pressure.js';
+import { strategicFrontPath, strategicFrontPressure } from '../modules/strategic-front-pressure.js';
 
 test('front pressure follows the gap between friendly and enemy sector edges', () => {
   const samples = strategicFrontPressure({
@@ -43,7 +43,49 @@ test('unsupported or crossed bands fail back to the neutral baseline', () => {
   assert.equal(samples[1].x, 500);
 });
 
+test('front path keeps canonical line where sector evidence is incomplete', () => {
+  const path = strategicFrontPath({
+    width: 1000,
+    height: 1000,
+    bands: 2,
+    fallback: [
+      { x: 400, y: 0 },
+      { x: 600, y: 1000 },
+    ],
+    sectors: [
+      { x: 350, y: 100, owner: 'ally' },
+      { x: 650, y: 120, owner: 'enemy' },
+      { x: 300, y: 700, owner: 'ally' },
+    ],
+  });
+
+  assert.deepEqual(path, [
+    { x: 500, y: 250, supported: true },
+    { x: 550, y: 750, supported: false },
+  ]);
+});
+
+test('crossed ownership never bends the path through an invalid pocket', () => {
+  const path = strategicFrontPath({
+    width: 1000,
+    height: 1000,
+    bands: 2,
+    fallback: [
+      { x: 450, y: 0 },
+      { x: 450, y: 1000 },
+    ],
+    sectors: [
+      { x: 700, y: 100, owner: 'ally' },
+      { x: 300, y: 120, owner: 'enemy' },
+    ],
+  });
+
+  assert.equal(path[0].supported, false);
+  assert.equal(path[0].x, 450);
+});
+
 test('invalid theatre dimensions fail closed', () => {
   assert.deepEqual(strategicFrontPressure({ width: 0, height: 1000, sectors: [] }), []);
   assert.deepEqual(strategicFrontPressure({ width: 1000, height: NaN, sectors: [] }), []);
+  assert.deepEqual(strategicFrontPath({ width: 0, height: 1000, sectors: [] }), []);
 });
