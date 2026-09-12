@@ -2,6 +2,7 @@ import { territoryOperationalEffects } from './territory-ai.js';
 
 const bool = value => value === true;
 const validTeam = team => team === 'ally' || team === 'enemy';
+const positiveFinite = value => Number.isFinite(value) && value > 0;
 
 /**
  * Read-only bridge from canonical territory/route state to the reserve gate.
@@ -16,7 +17,8 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
   const hasDepot = structures.has('depot');
   const hasGarage = structures.has('garage');
   const effects = territoryOperationalEffects(friendly ? territory : null);
-  const canReceiveReinforcements = connected && (hasOutpost || hasDepot || hasGarage) && effects.reinforcementSupport > 0;
+  const reinforcementSupport = friendly && positiveFinite(effects.reinforcementSupport) ? effects.reinforcementSupport : 0;
+  const canReceiveReinforcements = connected && (hasOutpost || hasDepot || hasGarage) && reinforcementSupport > 0;
 
   return Object.freeze({
     connected,
@@ -24,7 +26,7 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
     hasDepot,
     hasGarage,
     canReceiveReinforcements,
-    reinforcementSupport: friendly ? effects.reinforcementSupport : 0,
+    reinforcementSupport,
   });
 }
 
@@ -40,7 +42,8 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
 export function combatReserveGate({ logistics, timerExpired = false, fallbackComplete = false } = {}) {
   const connected = bool(logistics?.connected);
   const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
-  const logisticsReady = connected && fieldNode && bool(logistics?.canReceiveReinforcements);
+  const support = positiveFinite(logistics?.reinforcementSupport);
+  const logisticsReady = connected && fieldNode && support && bool(logistics?.canReceiveReinforcements);
   const due = bool(timerExpired);
   const fallbackReady = bool(fallbackComplete);
   const ready = due && fallbackReady && logisticsReady;
@@ -50,6 +53,7 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
   else if (!fallbackReady) reason = 'fallback';
   else if (!connected) reason = 'route';
   else if (!fieldNode) reason = 'field-node';
+  else if (!support) reason = 'support';
   else if (!bool(logistics?.canReceiveReinforcements)) reason = 'logistics';
 
   return Object.freeze({
