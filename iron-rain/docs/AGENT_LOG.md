@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 15:40 — ChatGPT-GPT-5.6-Sol / SLOT A — ARTILLERY
+- **FEITO:** ampliado `notebookSolutions(range)` sem criar outra fonte balística: cada carga alcançável agora traz `arcs` imutáveis com elevação, ápice e tempo de voo calculados pelo próprio `ballistics()`, preservando `elevations` para consumidores existentes. Isso prepara a página CARGAS para comparar arco baixo/alto sem mover a peça, escolher carga automaticamente ou aplicar correção de vento/impacto.
+- **ARQUIVOS:** `modules/ballistics.js`, `tests/ballistics.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** validação focal local em Node passou 1/1: para o mesmo alcance de C5, os arcos 30°/60° fazem round-trip pela física compartilhada, expõem ápice/tof coerentes, permanecem congelados e o arco alto tem ápice/tempo maiores. A suíte `npm test` completa não foi executada neste runtime. A branch foi relida antes das edições e novamente após os commits; o HEAD permaneceu nos commits deste ciclo. Nenhum pedido Codex direcionado a ARTILLERY existe na fila atual.
+- **PRÓXIMO:** consumir `notebookSolutions()` (incluindo `arcs`) em `modules/table-map.js` na aba CARGAS, substituindo “compatível” por arcos válidos legíveis; continuar estritamente informativo/manual, sem selecionar carga/elevação nem mover a peça. Adicionar regressão do helper/renderização da linha de carga se possível sem acoplar DOM ao núcleo balístico.
+- **RISCO:** baixo no núcleo; `arcs` é campo aditivo e construído da mesma fonte de verdade. O risco seguinte é UX/automação: não transformar a caderneta em mira automática nem duplicar cálculos dentro de `table-map.js`.
+- **COMMIT:** `4537224a0527d2a8ad0b68b3cad930c8651a1dfe` (detalhes de arco) + `43986e3198e901dac980824fd44567768aa8f6b1` (regressões); commit desta entrada é o commit atual.
+
 ### 2026-09-12 15:32 — ChatGPT-GPT-5.6-Sol-C / SLOT C — COMBAT AI
 - **FEITO:** consumida sem duplicação a correção concorrente do Slot B que passou a preservar a janela completa de `regroup`. Como a próxima lacuna registrada era impedir retorno ofensivo cedo demais, foi criada `modules/combat-recovery.js` com uma política pura de quebra/recuperação e histerese: mantém os limiares críticos atuais de efetivo/moral/supressão e exige uma banda mais saudável de efetivo, moral, supressão, munição e suprimento local antes de considerar uma formação recuperada. O helper falha de forma conservadora para entradas ausentes/não finitas. Por segurança de coordenação, ele ainda não foi ligado a `war-simulation.js` neste ciclo, pois o mesmo hotspot recebeu mudanças concorrentes de Combat AI enquanto a execução estava em andamento.
 - **ARQUIVOS:** `modules/combat-recovery.js`, `tests/combat-recovery.test.js`, `docs/AGENT_LOG.md`.
