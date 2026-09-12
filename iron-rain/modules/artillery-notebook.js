@@ -1,9 +1,18 @@
 import { CHARGES, chargeBand, notebookSolutions } from './ballistics.js';
 
 const EMPTY_ARCS = Object.freeze([]);
+const APEX_ELEVATION = 45;
+const ELEVATION_TOLERANCE = 1e-7;
+
+const arcKind = (arc, index, total) => {
+  if (total > 1) return index === 0 ? 'low' : 'high';
+  if (arc.elevation > APEX_ELEVATION + ELEVATION_TOLERANCE) return 'high';
+  if (arc.elevation < APEX_ELEVATION - ELEVATION_TOLERANCE) return 'low';
+  return 'single';
+};
 
 const frozenArc = (arc, index, total) => Object.freeze({
-  kind: total > 1 ? (index === 0 ? 'low' : 'high') : 'single',
+  kind: arcKind(arc, index, total),
   elevation: arc.elevation,
   apex: arc.apex,
   tof: arc.tof,
