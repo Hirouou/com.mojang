@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createStrategicHexMap, hexControl, canCaptureHex, setSectorOwner, deploymentAllowed, sectorCaptureAllowed } from '../modules/strategic-hex-map.js';
+import { createStrategicHexMap, hexControl, canCaptureHex, setSectorOwner, deploymentAllowed, sectorCaptureAllowed, captureSectorWithFront } from '../modules/strategic-hex-map.js';
+import { DEFAULT_CONTROL_LINE } from '../modules/theatre-control.js';
 
 test('the theatre is divided into multi-sector strategic hexes', () => {
   const map = createStrategicHexMap();
@@ -57,4 +58,55 @@ test('a border sector can only be entered from its matching fully controlled nei
 
   matchingNeighbor.sectors[0].owner = 'contested';
   assert.equal(sectorCaptureAllowed({ team: 'ally', hex, sectorId: 'HX-A-S3', allHexes: [matchingNeighbor] }), false);
+});
+
+test('connected capture changes ownership and bends the same canonical front snapshot', () => {
+  const sectors = Array.from({ length: 7 }, (_, index) => ({
+    id: `HX-A-S${index}`,
+    owner: index === 0 ? 'ally' : 'neutral',
+    y: 24_000 + index * 100,
+    structures: [],
+  }));
+  const hex = { id: 'HX-A', q: 0, r: 0, sectors };
+  const result = captureSectorWithFront({
+    team: 'ally',
+    hex,
+    sectorId: 'HX-A-S3',
+    allHexes: [hex],
+    points: DEFAULT_CONTROL_LINE,
+    pushMetres: 2_000,
+    radius: 5_000,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(result.hex.sectors[3].owner, 'ally');
+  assert.ok(result.line.some((point, index) => point.x > DEFAULT_CONTROL_LINE[index].x));
+  assert.deepEqual(DEFAULT_CONTROL_LINE.map(point => ({ ...point })), [
+    { y: 0, x: 39_000 },
+    { y: 8_000, x: 41_200 },
+    { y: 16_000, x: 38_600 },
+    { y: 24_000, x: 42_000 },
+    { y: 32_000, x: 39_400 },
+    { y: 40_000, x: 42_600 },
+    { y: 48_000, x: 39_800 },
+    { y: 60_000, x: 41_000 },
+  ]);
+});
+
+test('disconnected capture fails closed without moving ownership or front', () => {
+  const sectors = Array.from({ length: 7 }, (_, index) => ({
+    id: `HX-A-S${index}`,
+    owner: index === 5 ? 'ally' : 'neutral',
+    y: 30_000 + index * 100,
+    structures: [],
+  }));
+  const hex = { id: 'HX-A', q: 0, r: 0, sectors };
+  const result = captureSectorWithFront({ team: 'ally', hex, sectorId: 'HX-A-S3', points: DEFAULT_CONTROL_LINE });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.changed, false);
+  assert.equal(result.reason, 'disconnected');
+  assert.equal(result.hex.sectors[3].owner, 'neutral');
+  assert.deepEqual(result.line, DEFAULT_CONTROL_LINE);
 });
