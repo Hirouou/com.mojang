@@ -1,5 +1,5 @@
 /** Persistent fronts, with tactical soldiers instantiated only where detail is needed. */
-export const WAR_LIMITS = Object.freeze({ detailRadius: 2400, maxDetailedFronts: 3, soldiersPerFront: 17, maxTracers: 180, strategicStep: 1, captureBound: 640, maxBasesPerFront: 6, maxSupport: 96, maxEvents: 40 });
+export const WAR_LIMITS = Object.freeze({ detailRadius: 2400, maxDetailedFronts: 3, soldiersPerFront: 17, maxTracers: 180, strategicStep: 1, captureBound: 640, maxBasesPerFront: 6, maxSupport: 96, maxEvents: 40, enemyIntelLifetime: 12 });
 /**
  * Direct fire is only materialised around the operator.  The strategic layer
  * still handles the rest of the theatre, while a Mamute that leaves cover in
@@ -166,6 +166,11 @@ function simulation(state) {
   state.warSimulation.nextBomberAt ??= 28;
   state.warSimulation.nextBomberTeam ||= 'ally';
   state.warSimulation.playerThreatCooldown ??= 2.4;
+  const intelCutoff = state.warSimulation.clock - WAR_LIMITS.enemyIntelLifetime;
+  // Enemy activity is useful only while it could still be witnessed. Keeping
+  // unseen hostile events forever would reveal old actions as fresh intel when
+  // the Mamute enters that sector much later; allied reports remain persistent.
+  state.warSimulation.events = state.warSimulation.events.filter(event => event.team === 'ally' || !Number.isFinite(event.time) || event.time >= intelCutoff);
   state.smokes ||= [];
   state.tracers ||= [];
   return state.warSimulation;
