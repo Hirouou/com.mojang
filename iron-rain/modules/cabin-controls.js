@@ -71,6 +71,25 @@ export function interpolateCabinCrewPose(from, to, alpha = 1) {
     pitch: a.pitch + (b.pitch - a.pitch) * t,
   });
 }
+
+/**
+ * Touch operators use the physical 3D handwheels at the aiming station.
+ * While that station is occupied, free-look would move the machinery away from
+ * the finger and make direct wheel interaction frustrating. Desktop keeps its
+ * normal mouse look; this policy only applies to coarse/touch input.
+ */
+export function touchAimViewLocked(doc = globalThis.document, media = globalThis.matchMedia) {
+  const app = doc?.getElementById?.('app'), deck = doc?.getElementById?.('fireDeck');
+  if (!app?.classList || deck?.dataset?.station !== 'aim') return false;
+  if (!app.classList.contains('inside') || !app.classList.contains('station-engaged')) return false;
+  const explicitTouch = app.classList.contains('input-touch');
+  let coarse = false;
+  if (!app.classList.contains('input-mouse') && typeof media === 'function') {
+    try { coarse = Boolean(media('(hover: none) and (pointer: coarse)')?.matches); } catch { coarse = false; }
+  }
+  return explicitTouch || coarse;
+}
+
 export function createCabinMovement() {
   const position = { x: 0, z: 2.4 };
   let yaw = 0, pitch = -.08, travelled = 0;
@@ -84,7 +103,12 @@ export function createCabinMovement() {
       if (![x, z, nextYaw, nextPitch].every(Number.isFinite) || !canOccupyCabin(x, z)) return false;
       position.x = x; position.z = z; yaw = nextYaw; pitch = clamp(nextPitch, -1.03, .91); return true;
     },
-    look(dx, dy) { yaw -= Number.isFinite(dx) ? dx : 0; pitch = clamp(pitch - (Number.isFinite(dy) ? dy : 0), -1.03, .91); },
+    look(dx, dy) {
+      if (touchAimViewLocked()) return false;
+      yaw -= Number.isFinite(dx) ? dx : 0;
+      pitch = clamp(pitch - (Number.isFinite(dy) ? dy : 0), -1.03, .91);
+      return true;
+    },
     lookToward(point, blend = 1) {
       if (!point || ![point.x, point.y, point.z, blend].every(Number.isFinite)) return false;
       const dx = point.x - position.x, dz = point.z - position.z;
