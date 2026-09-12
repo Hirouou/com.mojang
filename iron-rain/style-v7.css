@@ -180,3 +180,35 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #e1cea0;outline-
 /* Lists accept touch or wheel movement without browser chrome over the cabin. */
 #app *{scrollbar-width:none}
 #app *::-webkit-scrollbar{display:none;width:0;height:0}
+
+/* 2026-09-12 LEAD mobile cabin clarity pass.
+   Keep the physical scene dominant on phones: controls stay reachable while
+   persistent HUD chrome becomes quieter and the interaction target reads as a
+   compact mechanical reticle instead of a large floating tutorial panel. */
+@keyframes cabin-reticle-breathe{0%,100%{opacity:.52;transform:translate(-50%,-50%) scale(.9)}50%{opacity:.82;transform:translate(-50%,-50%) scale(1)}}
+.input-touch.inside .cabin-grain{opacity:.28}
+.input-touch.inside .compartment-label{opacity:.72;transform:scale(.92);transform-origin:left top;text-shadow:0 2px 5px #000}
+.input-touch.inside .compartment-label small{opacity:.68;margin-top:4px}
+.input-touch.inside .hud{width:224px;right:calc(54px + var(--safeR));top:calc(7px + var(--safeT));opacity:.7;background:#0a100a70;border-color:#9198791f;box-shadow:none;backdrop-filter:blur(1px)}
+.input-touch.inside .hud>div{padding:3px 5px}
+.input-touch.inside .hud b{font-size:7px;letter-spacing:.6px}
+.input-touch.inside .hud span{font-size:7.5px;opacity:.83}
+.input-touch.inside .mission-pill{top:calc(45px + var(--safeT));right:calc(13px + var(--safeR));max-width:190px;padding:4px 7px;opacity:.76;border-color:#a89b7138;background:#0d150d70}
+.input-touch.inside .mission-pill b{font-size:8px}.input-touch.inside .mission-pill small{font-size:7px;line-height:1.25}
+.input-touch .cabin-reticle{width:22px;height:22px;display:grid;place-items:center;color:#eadcb77a;font-size:13px;border:1px solid #d7c28f40;border-radius:50%;background:#10160f25;box-shadow:0 0 0 5px #10160f18,0 0 14px #0007;animation:cabin-reticle-breathe 2.4s ease-in-out infinite}
+.input-touch .cabin-prompt{top:calc(50% + 25px);max-width:46vw;padding:5px 8px;font-size:7px;letter-spacing:.65px;color:#e4d5aecc;background:#090f0990;border:1px solid #b8a27828;border-top:0;border-radius:0 0 3px 3px;box-shadow:0 4px 12px #0005}
+.input-touch .cabin-joystick{width:80px;height:80px;left:calc(16px + var(--safeL));bottom:calc(14px + var(--safeB));opacity:.62;background:radial-gradient(circle,#30372c70,#11181135);border-color:#bebfa42e;box-shadow:none}
+.input-touch .cabin-joystick .joy-knob{width:28px;height:28px;left:25px;top:25px;opacity:.9}
+.input-touch .interact-btn{right:calc(15px + var(--safeR));bottom:calc(17px + var(--safeB));min-width:118px;height:44px;padding:0 14px;font-size:8px;letter-spacing:.85px;background:#1b251bbd;border-color:#c4b38569;box-shadow:0 4px 14px #0005;backdrop-filter:blur(2px)}
+.input-touch .interact-btn:not(:disabled){border-color:#d1b97999;background:#283525d9;color:#f6dfaa;box-shadow:0 0 0 1px #0b100b99,0 4px 16px #0006}
+.input-touch .station-header{left:calc(16px + var(--safeL));top:calc(57px + var(--safeT));max-width:190px;opacity:.86}
+.input-touch .station-header small{font-size:6px;letter-spacing:1.3px}.input-touch .station-header b{font-size:14px;letter-spacing:1px;margin:3px 0}.input-touch .station-header span{font-size:7px;line-height:1.35}
+.input-touch .leave-station{left:calc(11px + var(--safeL));top:calc(10px + var(--safeT));padding:9px 10px;font-size:7px;background:#111911bd;border-color:#a3a88a45;box-shadow:none}
+.input-touch.station-engaged .inside .hud{opacity:.52}
+@media(max-width:720px) and (orientation:landscape){
+ .input-touch.inside .hud{width:184px;right:calc(48px + var(--safeR))}
+ .input-touch.inside .mission-pill{max-width:160px;right:calc(10px + var(--safeR))}
+ .input-touch .cabin-prompt{max-width:42vw;font-size:6.5px}
+ .input-touch .cabin-joystick{width:74px;height:74px}.input-touch .cabin-joystick .joy-knob{width:26px;height:26px;left:23px;top:23px}
+ .input-touch .interact-btn{min-width:106px;height:42px;padding:0 11px}
+}
