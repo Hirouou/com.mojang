@@ -1,0 +1,54 @@
+import { hexControl, neighboringHexIds } from './strategic-hex-map.js';
+
+const dist = (a, b) => Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y || 0));
+
+const hasFriendlyRadio = (hex, team) => (hex?.sectors || []).some(sector => sector.owner === team && (sector.radio || (sector.structures || []).includes('radio')));
+
+/** Friendly radio sites expose their own front and neighboring front situation. */
+export function radioVisibleHexIds(hexes, team) {
+  if (!Array.isArray(hexes) || !['ally', 'enemy'].includes(team)) return Object.freeze([]);
+  const visible = new Set();
+  for (const hex of hexes) {
+    if (!hasFriendlyRadio(hex, team)) continue;
+    visible.add(hex.id);
+    for (const neighbor of neighboringHexIds(hex, hexes)) visible.add(neighbor);
+  }
+  return Object.freeze([...visible]);
+}
+
+/**
+ * Strategic map snapshot: friendly controlled territory is known, but remote
+ * front activity only carries detail when a friendly radio/recon source exists.
+ * Enemy-side sectors never become an omniscient live minimap.
+ */
+export function createWorldMapIntel({ hexes = [], team = 'ally', playerPosition = null, reports = [] } = {}) {
+  const radioVisible = new Set(radioVisibleHexIds(hexes, team));
+  const reportsByHex = new Map();
+  for (const report of reports || []) {
+    if (!report?.hexId) continue;
+    const previous = reportsByHex.get(report.hexId);
+    if (!previous || Number(report.time) > Number(previous.time)) reportsByHex.set(report.hexId, report);
+  }
+
+  return Object.freeze(hexes.map(hex => {
+    const control = hexControl(hex);
+    const friendly = control === team;
+    const local = playerPosition ? dist(playerPosition, hex) <= (hex.radius || 6_200) * 1.45 : false;
+    const radio = radioVisible.has(hex.id);
+    const report = reportsByHex.get(hex.id) || null;
+    const hasIntel = local || radio || Boolean(report);
+    const sectors = hex.sectors.map(sector => Object.freeze({
+      id: sector.id,
+      name: sector.name,
+      owner: friendly || local ? sector.owner : sector.owner === team ? team : hasIntel ? 'reported-hostile-or-contested' : 'unknown',
+      radio: sector.owner === team ? Boolean(sector.radio || (sector.structures || []).includes('radio')) : false,
+    }));
+    return Object.freeze({
+      id: hex.id, name: hex.name, x: hex.x, y: hex.y,
+      control: friendly || local ? control : hasIntel ? (control === team ? team : 'reported') : 'unknown',
+      frontDetail: local ? 'local' : radio ? 'radio' : report ? 'report' : 'none',
+      lastReportTime: report?.time ?? null,
+      sectors: Object.freeze(sectors),
+    });
+  }));
+}
