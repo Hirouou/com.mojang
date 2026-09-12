@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ballistics } from '../modules/ballistics.js';
-import { artilleryNotebookRows } from '../modules/artillery-notebook.js';
+import { artilleryNotebookRows, artilleryNotebookTableRows } from '../modules/artillery-notebook.js';
 
 const close = (actual, expected, epsilon = 1e-6) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} ~= ${expected}`);
 
@@ -57,4 +57,33 @@ test('artillery notebook preserves every overlapping manual option in determinis
     assert.deepEqual(row.arcs.map(arc => arc.elevation), [...row.arcs.map(arc => arc.elevation)].sort((a, b) => a - b));
     for (const arc of row.arcs) close(ballistics(row.charge, arc.elevation).range, range);
   }
+});
+
+test('full notebook table keeps all seven nominal charge rows while only reachable rows expose arcs', () => {
+  const range = ballistics(4, 30).range;
+  const rows = artilleryNotebookTableRows(range, 2);
+
+  assert.ok(Object.isFrozen(rows));
+  assert.equal(rows.length, 7);
+  assert.deepEqual(rows.map(row => row.charge), [1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(rows.filter(row => row.current).length, 1);
+  assert.equal(rows.find(row => row.current)?.charge, 2);
+
+  for (const row of rows) {
+    assert.ok(Object.isFrozen(row));
+    assert.ok(Object.isFrozen(row.arcs));
+    const reachable = range >= row.min && range <= row.max;
+    assert.equal(row.arcs.length > 0, reachable, `C${row.charge} reachability must match its shared band`);
+    for (const arc of row.arcs) close(ballistics(row.charge, arc.elevation).range, range);
+  }
+});
+
+test('full notebook table marks current charge even when that charge cannot reach the plotted range', () => {
+  const range = ballistics(7, 45).range;
+  const rows = artilleryNotebookTableRows(range, 1);
+  const current = rows.find(row => row.current);
+
+  assert.equal(current?.charge, 1);
+  assert.deepEqual(current?.arcs, []);
+  assert.ok(current.max < range);
 });
