@@ -5,8 +5,12 @@ const finite = (value, name) => {
   return value;
 };
 
+const DISPLAY_STEP_DEG = 0.1;
+const HOLD_TOLERANCE_DEG = DISPLAY_STEP_DEG / 2;
+const holdsAtDisplayedPrecision = delta => Math.abs(delta) < HOLD_TOLERANCE_DEG;
+
 const movementLabel = delta => {
-  if (Math.abs(delta) < 1e-7) return 'SEGURE';
+  if (holdsAtDisplayedPrecision(delta)) return 'SEGURE';
   return `${delta > 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(1)}°`;
 };
 
@@ -28,6 +32,7 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
 
   return Object.freeze(row.arcs.map(arc => {
     const delta = arc.elevation - elevation;
+    const hold = holdsAtDisplayedPrecision(delta);
     const movement = movementLabel(delta);
     const label = arcLabel(arc.kind);
     return Object.freeze({
@@ -37,7 +42,7 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
       apex: arc.apex,
       tof: arc.tof,
       delta,
-      direction: Math.abs(delta) < 1e-7 ? 'hold' : delta > 0 ? 'up' : 'down',
+      direction: hold ? 'hold' : delta > 0 ? 'up' : 'down',
       movementLabel: movement,
       instructionLabel: `${label} · ${movement}`,
     });
