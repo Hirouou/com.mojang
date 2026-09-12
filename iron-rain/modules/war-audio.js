@@ -3,7 +3,7 @@ export function createWarAudio() {
   const levels = { master: .9, effects: 1, ambient: .75 };
   const voices = new Set();
   const MAX_VOICES = 40;
-  let context, master, effectsBus, ambientBus, engine, engineFilter, noiseBuffer;
+  let context, master, effectsBus, ambientBus, engine, engineFilter, engineGain, noiseBuffer;
   let muted = false, paused = false, nextFoot = 0, nextCrank = 0;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, Number.isFinite(n) ? n : a));
   // Device loss or denied playback must never escape into the game loop.
@@ -39,9 +39,9 @@ export function createWarAudio() {
           effectsBus.connect(master); ambientBus.connect(master);
           master.connect(limiter); limiter.connect(context.destination);
 
-          engine = context.createOscillator(); engine.type = 'sawtooth'; engine.frequency.value = 39;
-          engineFilter = context.createBiquadFilter(); engineFilter.type = 'lowpass'; engineFilter.frequency.value = 130;
-          const engineGain = context.createGain(); engineGain.gain.value = .065;
+          engine = context.createOscillator(); engine.type = 'sawtooth'; engine.frequency.value = 37;
+          engineFilter = context.createBiquadFilter(); engineFilter.type = 'lowpass'; engineFilter.frequency.value = 118;
+          engineGain = context.createGain(); engineGain.gain.value = .045;
           engine.connect(engineFilter); engineFilter.connect(engineGain); engineGain.connect(ambientBus); engine.start();
 
           // Reuse samples instead of allocating arrays on every crank movement.
@@ -108,7 +108,7 @@ export function createWarAudio() {
 
   function clearContext() {
     for (const voice of [...voices]) voice.cleanup();
-    context = master = effectsBus = ambientBus = engine = engineFilter = noiseBuffer = null;
+    context = master = effectsBus = ambientBus = engine = engineFilter = engineGain = noiseBuffer = null;
     nextCrank = 0;
   }
 
@@ -134,8 +134,13 @@ export function createWarAudio() {
       safely(() => {
         applyVolumes();
         if (engine && context) {
-          engine.frequency.setTargetAtTime(inside ? 38 : 40 + clamp(speed, 0, 100) * .12, context.currentTime, .4);
-          engineFilter.frequency.setTargetAtTime(inside ? 130 : 85, context.currentTime, .4);
+          const velocity = clamp(speed, 0, 100);
+          // Reuse the existing engine voice: inside the hull, speed now opens
+          // the low-pass filter and raises the mechanical pulse slightly instead
+          // of leaving a flat drone. No extra continuous oscillators are added.
+          engine.frequency.setTargetAtTime(inside ? 37 + velocity * .055 : 40 + velocity * .12, context.currentTime, .4);
+          engineFilter.frequency.setTargetAtTime(inside ? 118 + velocity * .42 : 85, context.currentTime, .4);
+          engineGain.gain.setTargetAtTime(inside ? .045 + velocity * .00028 : .065, context.currentTime, .4);
         }
         if (moving && inside && time > nextFoot && !paused) {
           noise(.14, .28, 650); tone(.1, .1, 150, 70);
