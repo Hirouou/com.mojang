@@ -48,3 +48,25 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
     });
   }));
 }
+
+/**
+ * Presentation-ready notebook rows with manual crank cues only on the inserted charge.
+ *
+ * This is intentionally read-only. It preserves every notebook row/arc from the
+ * shared ballistics path and only decorates the current charge arcs with their
+ * matching manual movement cue. Other charges never receive a cue, so a consumer
+ * cannot accidentally present them as commands for the currently loaded round.
+ */
+export function artilleryCrankNotebookRows(range, currentCharge, currentElevation) {
+  const rows = artilleryNotebookRows(range, currentCharge);
+  const guide = artilleryCrankGuide(range, currentCharge, currentElevation);
+  const cues = new Map(guide.map(item => [item.kind, item]));
+
+  return Object.freeze(rows.map(row => Object.freeze({
+    ...row,
+    arcs: Object.freeze(row.arcs.map(arc => Object.freeze({
+      ...arc,
+      crankCue: row.current ? cues.get(arc.kind) || null : null,
+    }))),
+  })));
+}
