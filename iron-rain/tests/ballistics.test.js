@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ballistics, bearingVector, chargeBand, elevationsForRange, sampleTrajectory, CHARGES, MIN_ELEVATION, MAX_ELEVATION, WIND_ACCELERATION } from '../modules/ballistics.js';
+import { ballistics, bearingVector, chargeBand, elevationsForRange, notebookSolutions, sampleTrajectory, CHARGES, MIN_ELEVATION, MAX_ELEVATION, WIND_ACCELERATION } from '../modules/ballistics.js';
 
 const close = (actual, expected, tolerance = 1e-7) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} ≠ ${expected}`);
 const origin = { x: 8200, y: 30000 };
@@ -72,6 +72,31 @@ test('notebook range solver returns only mechanically valid low/high arcs and ro
   }
 });
 
+test('manual notebook solutions enumerate reachable charges without choosing a firing setting', () => {
+  const range = ballistics(4, 30).range;
+  const rows = notebookSolutions(range);
+  const expectedCharges = CHARGES.slice(1)
+    .filter(charge => { const band = chargeBand(charge.id); return range >= band.min && range <= band.max; })
+    .map(charge => charge.id);
+
+  assert.deepEqual(rows.map(row => row.charge), expectedCharges);
+  assert.ok(Object.isFrozen(rows));
+  assert.ok(rows.length > 1, 'overlap should leave the operator with a manual charge choice');
+  for (const row of rows) {
+    const band = chargeBand(row.charge);
+    close(row.min, band.min);
+    close(row.max, band.max);
+    assert.ok(Object.isFrozen(row));
+    assert.ok(Object.isFrozen(row.elevations));
+    assert.ok(row.elevations.length >= 1 && row.elevations.length <= 2);
+    for (const elevation of row.elevations) {
+      assert.ok(elevation >= MIN_ELEVATION && elevation <= MAX_ELEVATION);
+      close(ballistics(row.charge, elevation).range, range);
+    }
+  }
+  assert.deepEqual(notebookSolutions(CHARGES.at(-1).maxRange + 1), []);
+});
+
 test('bearing convention is correct in all quadrants, with no world-border clamp', () => {
   const solution = ballistics(7, 45);
   for (const [bearing, dx, dy] of [[0, 0, -1], [90, 1, 0], [180, 0, 1], [270, -1, 0]]) {
@@ -128,6 +153,7 @@ test('invalid charges and non-finite inputs fail clearly; elevation follows mech
   for (const charge of [0, 8, 1.5, NaN]) assert.throws(() => ballistics(charge, 45), RangeError);
   assert.throws(() => ballistics(1, NaN), TypeError);
   assert.throws(() => elevationsForRange(1, NaN), TypeError);
+  assert.throws(() => notebookSolutions(NaN), TypeError);
   assert.throws(() => elevationsForRange(0, 1000), RangeError);
   assert.equal(ballistics(1, -20).elevation, MIN_ELEVATION);
   assert.equal(ballistics(1, 180).elevation, MAX_ELEVATION);
