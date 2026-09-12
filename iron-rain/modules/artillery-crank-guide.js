@@ -1,4 +1,4 @@
-import { artilleryNotebookRows } from './artillery-notebook.js';
+import { artilleryNotebookRows, artilleryNotebookTableRows } from './artillery-notebook.js';
 
 const finite = (value, name) => {
   if (!Number.isFinite(value)) throw new TypeError(`${name} must be finite`);
@@ -50,7 +50,8 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
 }
 
 /**
- * Presentation-ready notebook rows with manual crank cues only on the inserted charge.
+ * Presentation-ready seven-charge notebook rows with manual crank cues only on the
+ * inserted charge. Unreachable rows remain visible exactly as in the paper table.
  *
  * This is intentionally read-only. It preserves every notebook row/arc from the
  * shared ballistics path and only decorates the current charge arcs with their
@@ -58,7 +59,7 @@ export function artilleryCrankGuide(range, currentCharge, currentElevation) {
  * cannot accidentally present them as commands for the currently loaded round.
  */
 export function artilleryCrankNotebookRows(range, currentCharge, currentElevation) {
-  const rows = artilleryNotebookRows(range, currentCharge);
+  const rows = artilleryNotebookTableRows(range, currentCharge);
   const guide = artilleryCrankGuide(range, currentCharge, currentElevation);
   const cues = new Map(guide.map(item => [item.kind, item]));
 
