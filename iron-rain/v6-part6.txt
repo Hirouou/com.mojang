@@ -1,0 +1,18 @@
+ // Local camera pan only; the player never zooms out to become a dot on a world map.
+  canvas.addEventListener('pointerdown',e=>{if(state.paused||state.cam.mode==='shell'||state.cam.mode==='intel')return;touchUI();panId=e.pointerId;panStart={x:e.clientX,y:e.clientY,mx:state.cam.manualX,my:state.cam.manualY};canvas.setPointerCapture(panId);});
+  canvas.addEventListener('pointermove',e=>{if(e.pointerId!==panId)return;const dx=(e.clientX-panStart.x)/state.cam.zoom,dy=(e.clientY-panStart.y)/state.cam.zoom;state.cam.manualX=clamp(panStart.mx-dx,-1400,1400);state.cam.manualY=clamp(panStart.my-dy,-800,800);});
+  canvas.addEventListener('pointerup',e=>{if(e.pointerId===panId)panId=null});canvas.addEventListener('pointercancel',e=>{if(e.pointerId===panId)panId=null});
+
+  bindWheel($('azWheel'),'az');bindWheel($('elWheel'),'el');
+  $('chargeUp').addEventListener('click',()=>{state.charge=clamp(state.charge+1,1,7);touchUI();updateNotebook();});$('chargeDown').addEventListener('click',()=>{state.charge=clamp(state.charge-1,1,7);touchUI();updateNotebook();});
+  document.querySelectorAll('.ammo').forEach(b=>b.addEventListener('click',()=>{selectedShell=b.dataset.shell;document.querySelectorAll('.ammo').forEach(x=>x.classList.toggle('active',x===b));touchUI();}));
+  $('deployBtn').addEventListener('click',()=>setMode('artillery'));$('marchBtn').addEventListener('click',()=>setMode('march'));$('fireBtn').addEventListener('click',fireShell);$('notebookBtn').addEventListener('click',()=>openSheet('notebook'));
+  $('menuBtn').addEventListener('click',()=>openSheet('menu'));$('resumeBtn').addEventListener('click',resume);$('helpBtn').addEventListener('click',()=>openSheet('help'));$('restartBtn').addEventListener('click',()=>{resetGame();});$('centerBtn').addEventListener('click',()=>{state.cam.manualX=0;state.cam.manualY=0;state.cam.mode='return';resume();});
+  $('radioBtn').addEventListener('click',()=>{resume();UI.radio.classList.remove('hidden');});$('closeRadio').addEventListener('click',()=>UI.radio.classList.add('hidden'));
+  $('missionPill').addEventListener('click',()=>{if(!state.mission)return;state.cam.mode='intel';state.intel={sector:state.mission.sector,target:state.mission.target,source:state.mission.source,sourcePos:{x:state.mission.target.x-500,y:state.mission.target.y},stage:'target',elapsed:0};UI.intelBanner.classList.remove('hidden');UI.intelTitle.textContent='COORDENADA DA MISSÃO';UI.intelText.textContent=`${state.mission.target.type} • X${fmt(state.mission.target.x)} Y${fmt(state.mission.target.y)}`;});
+  $('fullscreenBtn').addEventListener('click',async()=>{if(document.documentElement.requestFullscreen){try{await document.documentElement.requestFullscreen({navigationUI:'hide'});return}catch{}}UI.installHint.classList.remove('hidden');});
+  document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',resume));
+
+  function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop);}
+  resize();resetGame();buildRangeTable();requestAnimationFrame(loop);
+})();
