@@ -53,3 +53,29 @@ test('crew visual layer preserves the two-peer cap and hides omitted peers', () 
   assert.equal(layer.snapshot()[1].visible, false);
   layer.dispose();
 });
+
+test('omitted peer cannot resurrect a stale cached pose after reconnect', () => {
+  const scene = new THREE.Scene();
+  const layer = createCabinCrewVisualLayer(scene);
+
+  layer.update([
+    { id: 'gunner', pose: { x: -0.6, z: 0.7, yaw: 0.2, pitch: 0.1 } },
+  ], 1, 0.016);
+  assert.equal(layer.snapshot()[0].visible, true);
+
+  layer.update([], 1, 0.016);
+  assert.equal(layer.snapshot()[0].visible, false);
+  assert.deepEqual(layer.presenceSnapshot(), []);
+
+  const rejoined = layer.update([
+    {
+      id: 'gunner',
+      from: { x: -0.6, z: 0.7, yaw: 0.2, pitch: 0.1 },
+      to: { x: -2.2, z: 1.8, yaw: 0.9, pitch: -0.1 },
+    },
+  ], 0.5, 0.016);
+
+  assert.equal(rejoined[0].visible, false, 'blocked first sample must not reuse the previous session pose');
+  assert.deepEqual(layer.presenceSnapshot(), []);
+  layer.dispose();
+});
