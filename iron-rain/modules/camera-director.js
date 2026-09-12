@@ -2,7 +2,9 @@
 export const cinematicActive = state => state.cam.mode !== 'follow';
 export const smooth = (rate, dt) => 1 - Math.exp(-rate * Math.max(0, dt));
 export function cameraAnchor(state, viewportWidth) {
-  return { x: state.robot.x + Math.min(230, viewportWidth / state.cam.zoom * .12), y: state.robot.y };
+  const width = Number.isFinite(viewportWidth) ? Math.max(0, viewportWidth) : 0;
+  const zoom = Number.isFinite(state.cam.zoom) && state.cam.zoom > 0 ? state.cam.zoom : 1;
+  return { x: state.robot.x + Math.min(230, width / zoom * .12), y: state.robot.y };
 }
 export function finishCamera(state, viewportWidth) {
   const p = cameraAnchor(state, viewportWidth);

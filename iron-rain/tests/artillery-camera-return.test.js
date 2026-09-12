@@ -50,3 +50,16 @@ test('finishCamera always snaps to the current Mamute anchor', () => {
   assert.equal(state.cam.mode, 'follow');
   assert.deepEqual({ x: state.cam.x, y: state.cam.y }, cameraAnchor(state, 900));
 });
+
+test('invalid zoom or viewport cannot corrupt the Mamute return anchor', () => {
+  for (const zoom of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const state = makeState();
+    state.cam.zoom = zoom;
+    beginReturn(state);
+    for (let i = 0; i < 40 && state.cam.mode !== 'follow'; i += 1) stepCamera(state, 0.1, Number.NaN);
+    assert.equal(state.cam.mode, 'follow');
+    assert.equal(Number.isFinite(state.cam.x), true);
+    assert.equal(Number.isFinite(state.cam.y), true);
+    assert.deepEqual({ x: state.cam.x, y: state.cam.y }, cameraAnchor(state, Number.NaN));
+  }
+});
