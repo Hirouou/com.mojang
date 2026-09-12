@@ -47,6 +47,9 @@ test('crew cabin bridge preserves offline rendering when runtime is absent', () 
   const bridge = createCrewCabinBridge({ cabin });
   assert.deepEqual(bridge.update(.25), { status: null, remoteCount: 0 });
   assert.deepEqual(calls, [[[], .1]]);
+  assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
+  assert.deepEqual(bridge.requestStation('aim'), { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
+  assert.equal(bridge.releaseStation('aim'), true);
 
   bridge.clear();
   assert.deepEqual(calls.at(-1), [[], 0]);
@@ -84,4 +87,43 @@ test('crew cabin bridge fails closed when runtime returns a malformed sample col
   const result = createCrewCabinBridge({ runtime, cabin }).update(.01, 1);
   assert.equal(result.remoteCount, 0);
   assert.deepEqual(calls, [[]]);
+});
+
+test('crew cabin bridge routes station ownership through the canonical runtime gate', () => {
+  const calls = [];
+  let owner = null;
+  const runtime = {
+    status() { return { mode: 'host', connected: true, localId: 'player-a' }; },
+    stationOwner(station) { calls.push(['owner', station]); return owner; },
+    claimStation(station) { calls.push(['claim', station]); owner = 'player-a'; return { ok: true, station, owner }; },
+    releaseStation(station) { calls.push(['release', station]); if (owner === 'player-a') { owner = null; return true; } return false; },
+  };
+  const bridge = createCrewCabinBridge({ runtime });
+
+  assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: false, pending: false, reason: 'available', station: 'aim', owner: null });
+  assert.deepEqual(bridge.requestStation('aim'), { ok: true, ready: true, pending: false, reason: 'claimed', station: 'aim', owner: 'player-a' });
+  assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: true, pending: false, reason: 'owned', station: 'aim', owner: 'player-a' });
+  assert.equal(bridge.releaseStation('aim'), true);
+  assert.deepEqual(calls.filter(call => call[0] === 'claim'), [['claim', 'aim']]);
+  assert.deepEqual(calls.filter(call => call[0] === 'release'), [['release', 'aim']]);
+});
+
+test('crew cabin bridge exposes pending and occupied station states without entering locally', () => {
+  const pendingRuntime = {
+    status() { return { mode: 'guest', connected: true, localId: 'guest-a' }; },
+    stationOwner() { return null; },
+    claimStation(station) { return { ok: false, pending: true, reason: 'pending-host', station, owner: null }; },
+  };
+  const occupiedRuntime = {
+    status() { return { mode: 'guest', connected: true, localId: 'guest-a' }; },
+    stationOwner() { return 'guest-b'; },
+    claimStation() { throw new Error('must not claim an occupied station'); },
+  };
+
+  assert.deepEqual(createCrewCabinBridge({ runtime: pendingRuntime }).requestStation('radio'), {
+    ok: false, ready: false, pending: true, reason: 'pending-host', station: 'radio', owner: null,
+  });
+  assert.deepEqual(createCrewCabinBridge({ runtime: occupiedRuntime }).requestStation('radio'), {
+    ok: false, ready: false, pending: false, reason: 'occupied', station: 'radio', owner: 'guest-b',
+  });
 });
