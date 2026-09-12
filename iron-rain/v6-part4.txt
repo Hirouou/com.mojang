@@ -1,0 +1,64 @@
+et.x)} Y${fmt(I.target.y)}`;state.effects.push({type:'mark',x:I.target.x,y:I.target.y,life:3,start:3,max:80});}
+    } else if(I.stage==='target'){
+      state.cam.x=lerp(state.cam.x,I.target.x,.065);state.cam.y=lerp(state.cam.y,I.target.y,.065);
+      if(I.elapsed>2.8){I.stage='return';I.elapsed=0;createMission(I.sector,I.target,I.source);}
+    } else {
+      returnCamera(dt,.075);
+      if(distance(state.cam,state.robot)<700){state.intel=null;state.cam.mode='follow';UI.intelBanner.classList.add('hidden');}
+    }
+  }
+
+  function createMission(sec,target,source){
+    state.mission={sector:sec,target,source,created:state.time};UI.missionPill.classList.remove('hidden');UI.missionTitle.textContent=`${source==='plane'?'RECON':'FO'} • ${target.type}`;UI.missionText.textContent=`X${fmt(target.x)} Y${fmt(target.y)} • ${Math.round(distance(state.robot,target)/100)/10} km`;
+    log(`<b>MISSÃO DE FOGO:</b> ${target.type} em X${fmt(target.x)} Y${fmt(target.y)}.`, 'intel');updateNotebook();
+  }
+  function clearMission(){state.mission=null;UI.missionPill.classList.add('hidden');updateNotebook();state.nextIntel=state.time+rand(8,15);}
+
+  function updateDetailedCombat(dt){for(const s of state.sectors)updateSectorUnits(s,dt);for(const t of state.tracers)t.life-=dt;state.tracers=state.tracers.filter(t=>t.life>0);}
+
+  function fireShell(){
+    if(state.mode!=='artillery'||state.shell||state.paused)return;if(state.ammo[selectedShell]<=0){log(`<b>CARREGADOR:</b> ${selectedShell} esgotado.`,'bad');return;}
+    state.ammo[selectedShell]--;const B=ballistics(state.charge,state.elev),br=rad(state.bearing),h=B.v*Math.cos(rad(state.elev));
+    state.shell={x:state.robot.x,y:state.robot.y,z:2,vx:Math.sin(br)*h,vy:-Math.cos(br)*h,vz:B.v*Math.sin(rad(state.elev)),type:selectedShell,t:0};state.cam.mode='shell';state.impactHold=0;state.returning=false;app.classList.add('shot-cinematic');
+    log(`<b>MAMUTE:</b> ${selectedShell} • Az ${state.bearing.toFixed(1)}° • El ${state.elev.toFixed(1)}° • C${state.charge} • alcance nominal ${Math.round(B.range)} m.`);touchUI();updateUI();
+  }
+
+  function applyImpact(x,y,type){
+    if(type==='SMOKE'){state.smokes.push({x,y,r:220,life:38});state.effects.push({type:'blast',x,y,life:.7,start:.7,max:70});log(`<b>OBSERVADOR:</b> fumaça em X${fmt(x)} Y${fmt(y)}.`,'good');return;}
+    state.craters.push({x,y,r:rand(22,38)});state.effects.push({type:'blast',x,y,life:.9,start:.9,max:type==='FRAG'?150:115});
+    let hit=[];
+    for(const s of state.sectors)for(const a of s.assets){if(!a.alive)continue;const d=Math.hypot(a.x-x,a.y-y);const radius=type==='FRAG'?130:105;if(d<radius){const dmg=(1-d/radius)*(type==='HE'?190:85);a.hp-=dmg;if(a.hp<=0){a.alive=false;hit.push(a);log(`<b>CONFIRMADO:</b> ${a.type} destruído em ${s.name}.`,'good');}}}
+    if(state.mission){const d=Math.hypot(state.mission.target.x-x,state.mission.target.y-y);if(!state.mission.target.alive||d<85){log('<b>FO:</b> missão cumprida. Efeito no alvo confirmado.','good');clearMission();}else log(`<b>FO:</b> impacto observado, erro aproximado ${Math.round(d)} m. Ajuste e repita.`);}
+  }
+
+  function updateShell(dt){
+    const s=state.shell;if(!s)return;const sim=18;const step=dt*sim;s.t+=step;s.vx+=state.wind.x*.012*step;s.vy+=state.wind.y*.012*step;s.vz-=G*step;s.x+=s.vx*step;s.y+=s.vy*step;s.z+=s.vz*step;state.cam.x=s.x;state.cam.y=s.y;
+    if(s.z<=0||s.x<0||s.x>WORLD.w||s.y<0||s.y>WORLD.h){const x=clamp(s.x,0,WORLD.w),y=clamp(s.y,0,WORLD.h),type=s.type;state.shell=null;applyImpact(x,y,type);state.impactHold=1.45;state.cam.mode='impact';}
+  }
+
+  function returnCamera(dt,speed=.08){
+    const tx=state.robot.x+Math.min(520,SW/(state.cam.zoom)*.17),ty=state.robot.y;state.cam.x=lerp(state.cam.x,tx,speed);state.cam.y=lerp(state.cam.y,ty,speed);
+  }
+  function updateCamera(dt){
+    if(state.cam.mode==='shell'||state.cam.mode==='intel')return;
+    if(state.cam.mode==='impact'){
+      state.impactHold-=dt;if(state.impactHold<=0){state.cam.mode='return';state.returning=true;}
+      return;
+    }
+    if(state.cam.mode==='return'){
+      returnCamera(dt,.085);const tx=state.robot.x+Math.min(520,SW/(state.cam.zoom)*.17),ty=state.robot.y;if(Math.hypot(state.cam.x-tx,state.cam.y-ty)<20){state.cam.x=tx;state.cam.y=ty;state.cam.mode='follow';state.returning=false;app.classList.remove('shot-cinematic');UI.fireDeck.classList.toggle('hidden',state.mode!=='artillery');}
+      return;
+    }
+    if(state.cam.mode==='follow'&&!panId){const tx=state.robot.x+430+state.cam.manualX,ty=state.robot.y+state.cam.manualY;state.cam.x=lerp(state.cam.x,tx,.045);state.cam.y=lerp(state.cam.y,ty,.055);}
+  }
+
+  function updateRobot(dt){if(state.mode!=='march'||state.cam.mode==='shell')return;const sp=38;state.robot.speed=Math.hypot(joy.x,joy.y)*sp;state.robot.x=clamp(state.robot.x+joy.x*sp*dt,400,WORLD.w-400);state.robot.y=clamp(state.robot.y+joy.y*sp*dt,400,WORLD.h-400);if(Math.hypot(joy.x,joy.y)>.08)state.robot.facing=Math.atan2(joy.y,joy.x);if(state.mode==='march')state.robot.turret+=angDiff(state.robot.turret,state.robot.facing)*.12;}
+  function updateGun(dt){if(state.mode!=='artillery')return;const bd=((state.azTarget-state.bearing+540)%360)-180;state.bearing=(state.bearing+clamp(bd,-16*dt,16*dt)+360)%360;state.elev+=clamp(state.elTarget-state.elev,-8*dt,8*dt);state.robot.turret+=angDiff(state.robot.turret,rad(state.bearing)-Math.PI/2)*Math.min(1,dt*5);}
+
+  function updateEffects(dt){for(const e of state.effects)e.life-=dt;state.effects=state.effects.filter(e=>e.life>0);for(const s of state.smokes)s.life-=dt;state.smokes=state.smokes.filter(s=>s.life>0);}
+
+  function update(dt){
+    if(!state||state.paused)return;state.time+=dt;
+    if(state.time>=state.nextIntel&&!state.mission&&!state.intel){scheduleIntel();state.nextIntel=state.time+999;}
+    state.strategicTick+=dt;if(state.strategicTick>4){state.strategicTick=0;strategicTick();}
+    updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);updateDetailedCombat(dt);updateEffects(dt);upd
