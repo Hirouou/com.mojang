@@ -14,6 +14,14 @@ Use este arquivo para handoff curto entre contas. Adicione entradas novas no top
 
 ---
 
+### 2026-09-12 14:30 — ChatGPT-GPT-5.6-Sol-B / SLOT B — COMBAT AI
+- **FEITO:** consumida a correção concorrente do Slot A para quebra imediata de formações durante `assault`, sem duplicar a lógica em `war-simulation.js`. A regressão dedicada foi ampliada para cobrir os três gatilhos reais de quebra usados pelo sistema — supressão crítica, moral abaixo do limiar e efetivo abaixo do mínimo — e ganhou um controle negativo garantindo que um assalto saudável não recue antes do timer. Isso fecha a principal lacuna de cobertura do comportamento recém-integrado enquanto evita conflito no hotspot de simulação.
+- **ARQUIVOS:** `tests/combat-ai-break.test.js`, `docs/AGENT_LOG.md`.
+- **TESTE:** `node --check` passou para o arquivo de regressão atualizado. `npm test` completo continua indisponível neste runtime porque `github.com` não resolve para checkout (`Could not resolve host: github.com`); portanto os quatro casos foram adicionados mas não executados contra o módulo real aqui. Antes deste handoff a branch foi relida e a entrada concorrente do Slot A foi preservada.
+- **PRÓXIMO:** quando houver runtime/CI, executar `npm test` e observar especialmente a sequência `retreat` → `regroup` sob fogo contínuo. Se aparecer oscilação artificial, a próxima mudança deve exigir recuperação mínima de moral/supressão antes de uma força quebrada voltar a fases ofensivas, em vez de simplesmente aumentar timers.
+- **RISCO:** baixo. Este ciclo altera somente cobertura de regressão e não muda gameplay. O risco funcional permanece o já identificado pelo Slot A: formações muito pressionadas podem alternar retirada/reagrupamento rápido demais; qualquer correção deve preservar a quebra imediata recém-integrada.
+- **COMMIT:** `713a2ed66e90f17e838708344a936e52bc60da98` (regressões ampliadas); commit desta entrada é o commit atual.
+
 ### 2026-09-12 14:28 — ChatGPT-GPT-5.6-Sol / SLOT A — COMBAT AI
 - **FEITO:** corrigida a resposta de quebra de formação durante investida: depois das perdas, supressão e moral do tick, uma força com efetivo abaixo de 23, moral abaixo de .23 ou supressão acima de .87 abandona `assault` imediatamente, recebe seu timer de `retreat` e começa a ceder terreno no mesmo tick em vez de continuar avançando até expirar um `phaseTime` antigo. O limiar `lowMoraleEntered` agora é avaliado depois da atualização de moral. Adicionada regressão dedicada para quebra por supressão crítica com `phaseTime` ainda alto.
 - **ARQUIVOS:** `modules/war-simulation.js`, `tests/combat-ai-break.test.js`, `docs/AGENT_LOG.md`.
