@@ -12,8 +12,12 @@ BASE_HEAD: fa4c5ac6a9e019915684a6185a33db8042244cc6
 Reproduzir e diagnosticar ausência total de áudio na build mobile do Iron Rain em iPhone/Safari, usando a build atual da branch ativa. O usuário testou no iPhone, retirou o aparelho do silencioso e elevou os sliders de Volume Geral, Efeitos e Ambiente, mas continua sem ouvir som.
 
 ## CONTEXTO DE CAMPO
-Screenshots do usuário mostram a tela de SOM no mobile com:
-- `♪ ÁUDIO · OFF` visível;
+Relato confirmado pelo usuário em iPhone:
+- o jogo ficou sem som mesmo quando `♪ ÁUDIO · ON` estava ativo;
+- alternar ON → OFF não produziu qualquer diferença audível;
+- o screenshot anterior mostrava OFF apenas porque ele esqueceu de voltar para ON antes de capturar;
+- portanto NÃO tratar o caso como simples mute/configuração do usuário;
+- aparelho fora do silencioso;
 - Volume Geral em 100%;
 - Efeitos em 150%;
 - Ambiente em 100%.
@@ -23,12 +27,13 @@ O sistema atual usa Web Audio em `modules/war-audio.js`. `game-v6.js` chama `aud
 ## FAZER
 - atualizar para o HEAD mais recente antes de começar;
 - ler `GITHUB_HANDOFF.md`, `IRON_RAIN_VISION.md`, `MULTI_AGENT_CONTROL.md`, `AGENT_LOG.md` e `CODEX_COORDINATION.md`;
-- verificar primeiro se o caso é simplesmente estado persistido `muted=true` (`ÁUDIO · OFF`) e se tocar no botão realmente cria/retoma o AudioContext no mesmo gesto;
-- testar o fluxo mobile equivalente a iPhone/Safari: abrir build, tocar no jogo, abrir SOM, alternar OFF→ON, mexer sliders, fechar menu, caminhar, operar manivela, recarregar e/ou disparar;
+- partir da hipótese de BUG REAL de mobile/iOS, pois o usuário já confirmou teste com áudio em ON;
+- testar o fluxo mobile equivalente a iPhone/Safari: abrir build, tocar no jogo, abrir SOM, confirmar ON, mexer sliders, fechar menu, caminhar, operar manivela, recarregar e/ou disparar;
 - observar `AudioContext.state` antes/depois do gesto e após retornar de background/menu;
 - verificar se `pointerdown`/`click` usado para ligar áudio é aceito como user activation no Safari iOS;
-- verificar se sliders altos enquanto `muted=true` geram UX enganosa; recomendar correção mínima se for o caso;
-- verificar se `loadSettings()` restaura mute corretamente e se há condição onde o contexto nunca acorda;
+- verificar se `loadSettings()` restaura mute/contexto corretamente e se há condição onde o contexto nunca acorda;
+- testar se o contexto chega a `running` mas o grafo continua mudo;
+- verificar destino/conexões master/limiter/buses e comportamento de `webkitAudioContext` no iOS;
 - registrar reprodução, causa provável/confirmada e correção recomendada;
 - se a causa estiver clara e a correção for pequena, segura e diretamente ligada a este bug, pode implementar FIX mínimo, com teste/regressão e handoff. Se não houver ambiente real equivalente, retornar BLOCKED com evidência e diagnóstico estático, sem inventar validação.
 
@@ -42,8 +47,7 @@ O sistema atual usa Web Audio em `modules/war-audio.js`. `game-v6.js` chama `aud
 ## CRITÉRIOS DE ACEITE
 - em mobile, após um gesto explícito do jogador e áudio em ON, `AudioContext` deve ficar `running` quando suportado;
 - o jogador deve ouvir pelo menos motor/ambiente e um efeito acionável;
-- mute OFF/ON deve ser visualmente inequívoco;
-- sliders não devem dar falsa impressão de áudio ativo quando o master está mutado;
+- ON/OFF deve produzir diferença audível real;
 - retornar causa, teste, evidência e qualquer commit de correção.
 
 ## EVIDÊNCIA ESPERADA
