@@ -1,6 +1,6 @@
 /* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v7.3`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.4`;
 const OFFLINE_FILES = [
   './index.html',
   './style-v6.css',
@@ -25,6 +25,7 @@ const OFFLINE_FILES = [
   './modules/key-bindings.js',
   './modules/engine-system.js',
   './modules/maintenance-feedback.js',
+  './modules/maintenance-overlay.js',
   './vendor/three.module.min.js',
   './manifest-v6.webmanifest',
   './icons/m47.svg',
