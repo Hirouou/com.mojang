@@ -1,5 +1,6 @@
 import { createCrewReplication } from './crew-replication.js';
 import { createCrewStationAuthority } from './crew-station-authority.js';
+import { FACTIONS, normalizeFaction } from './factions.js';
 
 export const CREW_PROTOCOL = 1;
 export const CREW_MAX_PLAYERS = 3;
@@ -14,6 +15,8 @@ const cleanRoom = value => String(value ?? '').trim().toUpperCase().replace(/[^A
  *
  * Host authority lives here, while sockets/WebRTC/BroadcastChannel live outside.
  * The host occupies seat 0 and can admit at most two guests (seats 1 and 2).
+ * A Mamute belongs to exactly one faction: Allies or Axis. Opposing players can
+ * share the theatre but can never join the same vehicle/session.
  * Compact validated crew poses are replicated; remote input never reaches the
  * local movement/camera controller. Physical stations are host-authoritative so
  * two players cannot operate the same wheel, driver controls or service point.
@@ -31,6 +34,7 @@ export function createCrewSession({
   const peers = new Map();
   let mode = 'offline';
   let room = '';
+  let faction = null;
   let seat = 0;
   let hostId = null;
   let nextPoseAt = 0;
@@ -39,7 +43,7 @@ export function createCrewSession({
   let lastEvent = 'offline';
 
   const emit = payload => {
-    const packet = Object.freeze({ ...payload, protocol: CREW_PROTOCOL, room, sender: id, sentAt: finite(now()) });
+    const packet = Object.freeze({ ...payload, protocol: CREW_PROTOCOL, room, faction, sender: id, sentAt: finite(now()) });
     try { send(packet); } catch { /* transport loss must not break gameplay */ }
     return packet;
   };
@@ -54,6 +58,7 @@ export function createCrewSession({
     return Object.freeze({
       mode,
       room,
+      faction,
       localId: id,
       hostId,
       seat,
@@ -70,12 +75,13 @@ export function createCrewSession({
     if (mode === 'host' && room) emit({ kind: 'crew-stations', state: stationState() });
   }
 
-  function reset(nextMode = 'offline', nextRoom = '') {
+  function reset(nextMode = 'offline', nextRoom = '', nextFaction = faction) {
     peers.clear();
     replication.clear();
     stations.clear();
     mode = nextMode;
     room = cleanRoom(nextRoom);
+    faction = normalizeFaction(nextFaction, nextMode === 'offline' ? null : FACTIONS.ALLIES);
     seat = nextMode === 'host' ? 0 : -1;
     hostId = nextMode === 'host' ? id : null;
     nextPoseAt = 0;
@@ -83,17 +89,19 @@ export function createCrewSession({
     lastEvent = nextMode;
   }
 
-  function host(roomCode) {
-    reset('host', roomCode);
+  function host(roomCode, factionChoice = FACTIONS.ALLIES) {
+    reset('host', roomCode, factionChoice);
     if (!room) throw new RangeError('room code required');
+    if (!faction) throw new RangeError('faction required');
     lastEvent = 'hosting';
     emit({ kind: 'crew-host-open', seat: 0, capacity: CREW_MAX_PLAYERS });
     return status();
   }
 
-  function join(roomCode) {
-    reset('guest', roomCode);
+  function join(roomCode, factionChoice = FACTIONS.ALLIES) {
+    reset('guest', roomCode, factionChoice);
     if (!room) throw new RangeError('room code required');
+    if (!faction) throw new RangeError('faction required');
     lastEvent = 'joining';
     emit({ kind: 'crew-hello', requestedSeat: null });
     lastHelloAt = finite(now());
@@ -101,8 +109,9 @@ export function createCrewSession({
   }
 
   function leave(reason = 'left') {
+    const previousFaction = faction;
     if (mode !== 'offline' && room) emit({ kind: 'crew-leave', reason: String(reason).slice(0, 48), seat });
-    reset();
+    reset('offline', '', previousFaction);
     return status();
   }
 
@@ -116,6 +125,12 @@ export function createCrewSession({
     if (mode !== 'host') return false;
     const peerId = cleanId(packet.sender);
     if (!peerId || peerId === id) return false;
+    const requestedFaction = normalizeFaction(packet.faction, FACTIONS.ALLIES);
+    if (requestedFaction !== faction) {
+      emit({ kind: 'crew-deny', target: peerId, reason: 'faction-mismatch' });
+      lastEvent = `join-denied-faction:${peerId}`;
+      return true;
+    }
     const existing = peers.get(peerId);
     const assignedSeat = existing?.seat ?? allocateSeat();
     if (assignedSeat == null) {
@@ -133,6 +148,7 @@ export function createCrewSession({
 
   function acceptWelcome(packet, at) {
     if (mode !== 'guest' || cleanId(packet.target) !== id) return false;
+    if (normalizeFaction(packet.faction, FACTIONS.ALLIES) !== faction) return false;
     const assignedSeat = Number(packet.seat);
     if (![1, 2].includes(assignedSeat)) return false;
     hostId = cleanId(packet.hostId) || cleanId(packet.sender);
@@ -202,7 +218,12 @@ export function createCrewSession({
     const at = finite(now());
 
     if (packet.kind === 'crew-hello') return acceptHello(packet, at);
+    if (packet.kind === 'crew-deny' && mode === 'guest' && cleanId(packet.target) === id) {
+      lastEvent = `denied:${String(packet.reason || 'unknown')}`;
+      return true;
+    }
     if (packet.kind === 'crew-welcome') return acceptWelcome(packet, at);
+    if (normalizeFaction(packet.faction, FACTIONS.ALLIES) !== faction) return false;
     if (packet.kind === 'crew-members') return acceptMembers(packet, at);
     if (packet.kind === 'crew-station-request') return acceptStationRequest(packet);
     if (packet.kind === 'crew-station-release') return acceptStationRelease(packet);
@@ -213,10 +234,6 @@ export function createCrewSession({
     }
     if (packet.kind === 'crew-station-deny' && mode === 'guest' && cleanId(packet.target) === id) {
       lastEvent = `station-denied:${String(packet.station || '')}:${String(packet.owner || '')}`;
-      return true;
-    }
-    if (packet.kind === 'crew-deny' && mode === 'guest' && cleanId(packet.target) === id) {
-      lastEvent = `denied:${String(packet.reason || 'unknown')}`;
       return true;
     }
     if (packet.kind === 'crew-leave') {
