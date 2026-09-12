@@ -30,10 +30,15 @@ export function maintenanceEffectCadence(previous, detail, nowSeconds) {
   const progress = Number.isFinite(Number(detail.progress)) ? Math.max(0, Math.min(1, Number(detail.progress))) : 0;
   const prior = previous && typeof previous === 'object' ? previous : null;
   const changed = prior?.type !== type;
-  const elapsed = nowSeconds - Number(prior?.at ?? -Infinity);
+  const priorAt = Number(prior?.at);
+  const clockReset = Number.isFinite(priorAt) && nowSeconds < priorAt;
+  const elapsed = clockReset ? Infinity : nowSeconds - (Number.isFinite(priorAt) ? priorAt : -Infinity);
   const completed = progress >= 1 && Number(prior?.progress ?? 0) < 1;
 
-  if (!changed && !completed && elapsed < EFFECT_INTERVAL) {
+  // Presentation clocks can restart after reconnects, scene resets or browser
+  // lifecycle changes. Treat a backwards clock as a new cadence window rather
+  // than suppressing feedback until the old timestamp is reached again.
+  if (!changed && !completed && !clockReset && elapsed < EFFECT_INTERVAL) {
     return Object.freeze({ emit: null, state: prior });
   }
 
