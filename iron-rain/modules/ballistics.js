@@ -14,6 +14,7 @@ export const CHARGES = Object.freeze([
 ]);
 
 const radians = degrees => degrees * Math.PI / 180;
+const degrees = radians => radians * 180 / Math.PI;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 function finite(value, name) {
@@ -50,6 +51,27 @@ export function chargeBand(charge) {
     min: Math.min(ballistics(charge, MIN_ELEVATION).range, ballistics(charge, MAX_ELEVATION).range),
     max: ballistics(charge, 45).range,
   };
+}
+
+/**
+ * Return every mechanically valid still-air elevation for a requested notebook range.
+ * Short ranges may only have the high arc because the complementary low arc is below
+ * the 15-degree mechanical stop. The maximum-range solution collapses to one 45-degree arc.
+ */
+export function elevationsForRange(charge, range) {
+  range = finite(range, 'range');
+  const band = chargeBand(charge);
+  const tolerance = 1e-7;
+  if (range < band.min - tolerance || range > band.max + tolerance) return Object.freeze([]);
+
+  const ratio = clamp(range / CHARGES[charge].maxRange, -1, 1);
+  const low = degrees(Math.asin(ratio)) / 2;
+  const high = 90 - low;
+  const solutions = [low, high]
+    .filter(elevation => elevation >= MIN_ELEVATION - tolerance && elevation <= MAX_ELEVATION + tolerance)
+    .map(elevation => clamp(elevation, MIN_ELEVATION, MAX_ELEVATION))
+    .filter((elevation, index, values) => index === 0 || Math.abs(elevation - values[index - 1]) > tolerance);
+  return Object.freeze(solutions);
 }
 
 /**
