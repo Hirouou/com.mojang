@@ -2,13 +2,15 @@ import { createCrewSession, CREW_PROTOCOL } from './crew-session.js';
 import { createMamuteCommandAuthority, MAMUTE_COMMAND_STATION } from './mamute-command-authority.js';
 
 const cleanId = value => (typeof value === 'string' || typeof value === 'number') && String(value).trim() ? String(value).trim() : null;
+const EFFECT_TYPES = new Set(['fire', 'reload', 'impact', 'critical', 'repair', 'extinguisher']);
 
 /**
  * Thin glue between the transport adapter and the Mamute crew session.
  * `transportFactory({room,faction,onMessage})` must return {start,send,close,kind}.
  *
  * Networking remains outside render/input code. The runtime owns only transport
- * routing, crew/session replication and host-authoritative Mamute commands.
+ * routing, crew/session replication, shared crew effects and host-authoritative
+ * Mamute commands.
  */
 export function createCrewRuntime({
   localId,
@@ -19,11 +21,14 @@ export function createCrewRuntime({
   mamuteSnapshot = () => null,
   onMamuteState = () => {},
   onCommandResult = () => {},
+  onEffect = () => {},
 } = {}) {
   const id = cleanId(localId) || 'local';
   let transport = null;
   let lastStatus = null;
   let localCommandSeq = 0;
+  let localEffectSeq = 0;
+  const seenEffects = new Map();
 
   const session = createCrewSession({
     localId: id,
@@ -80,6 +85,46 @@ export function createCrewRuntime({
     }
   }
 
+  function emitEffect(type, payload = null) {
+    const status = session.status();
+    const effectType = String(type || '');
+    if (!EFFECT_TYPES.has(effectType)) return Object.freeze({ ok: false, reason: 'invalid-effect' });
+    const event = Object.freeze({
+      kind: 'crew-effect',
+      protocol: CREW_PROTOCOL,
+      room: status.room,
+      faction: status.faction,
+      sender: id,
+      sentAt: Number(now()) || 0,
+      seq: ++localEffectSeq,
+      type: effectType,
+      payload,
+    });
+    if (status.mode === 'offline') return Object.freeze({ ok: true, localOnly: true, event });
+    if (!status.room || !transport?.send) return Object.freeze({ ok: false, reason: 'not-connected', event });
+    try {
+      transport.send(event);
+      return Object.freeze({ ok: true, event });
+    } catch {
+      return Object.freeze({ ok: false, reason: 'transport-send-failed', event });
+    }
+  }
+
+  function acceptCrewEffect(packet) {
+    if (!roomMatches(packet) || !EFFECT_TYPES.has(String(packet.type || ''))) return false;
+    const status = session.status();
+    const sender = cleanId(packet.sender);
+    if (!sender || !status.peers.some(peer => peer.id === sender)) return false;
+    const seq = Number(packet.seq);
+    if (!Number.isFinite(seq) || seq < 0) return false;
+    const last = seenEffects.get(sender) ?? -1;
+    if (seq <= last) return false;
+    seenEffects.set(sender, seq);
+    const event = Object.freeze({ sender, type: String(packet.type), payload: packet.payload ?? null, sentAt: Number(packet.sentAt) || 0, seq });
+    try { onEffect(event, packet); } catch {}
+    return true;
+  }
+
   function acceptMamuteCommand(packet) {
     const status = session.status();
     if (status.mode !== 'host' || !roomMatches(packet)) return false;
@@ -106,12 +151,16 @@ export function createCrewRuntime({
   function acceptTransportPacket(packet) {
     if (packet?.kind === 'mamute-command') return acceptMamuteCommand(packet);
     if (packet?.kind === 'mamute-state') return acceptMamuteState(packet);
+    if (packet?.kind === 'crew-effect') return acceptCrewEffect(packet);
 
     const before = new Set(session.status().peers.map(peer => peer.id));
     const accepted = session.receive(packet);
     if (accepted) {
       const after = new Set(session.status().peers.map(peer => peer.id));
-      for (const peerId of before) if (!after.has(peerId)) commandAuthority.resetPlayer(peerId);
+      for (const peerId of before) if (!after.has(peerId)) {
+        commandAuthority.resetPlayer(peerId);
+        seenEffects.delete(peerId);
+      }
       publish();
     }
     return accepted;
@@ -122,6 +171,8 @@ export function createCrewRuntime({
     try { transport?.close?.(); } catch {}
     transport = null;
     localCommandSeq = 0;
+    localEffectSeq = 0;
+    seenEffects.clear();
     commandAuthority.resetPlayer(id);
     return publish();
   }
@@ -222,6 +273,7 @@ export function createCrewRuntime({
     claimStation,
     releaseStation,
     issueCommand,
+    emitEffect,
     emitMamuteState,
     canUseStation: station => session.canUseStation(station),
     stationOwner: station => session.stationOwner(station),
