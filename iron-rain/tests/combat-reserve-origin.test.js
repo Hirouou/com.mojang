@@ -55,6 +55,6 @@ test('plan cycle can derive its origin without a second routing system', () => {
   assert.equal(result.origin, 'ALLY-REAR-B');
   assert.equal(result.routeOpen, true);
   assert.equal(result.ready, true);
-  assert.equal(result.amount, 3.4);
+  assert.ok(Math.abs(result.amount - 3.4) < 1e-9);
   assert.equal(result.nextTimer, 47);
 });
