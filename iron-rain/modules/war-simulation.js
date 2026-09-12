@@ -242,8 +242,6 @@ function strategicStep(state) {
     for (const team of teams) {
       const force = war[team], foe = war[team === 'ally' ? 'enemy' : 'ally'], support = assetSupport(sec, team);
       const key = strengthKey(team);
-      force.lowMoraleEntered = force.morale < .23 && !force.lowMorale;
-      force.lowMorale = force.morale < .23;
       const loss = foe.fire * .12 * phaseExposure[force.phase] * (1 - force.fortification * .45);
       sec[key] = clamp(sec[key] - loss, 0, 100);
       force.casualties += loss;
@@ -254,6 +252,16 @@ function strategicStep(state) {
       force.ammo = clamp(force.ammo - force.fire * .009 + support.supply * (rest ? .0028 : .0008), 0, 1);
       force.morale = clamp(force.morale + (rest ? .0025 : .0005) - loss * .018 - force.suppression * .0015, .05, 1);
       force.fortification = clamp(force.fortification + (force.phase === 'consolidate' ? .008 : rest ? .0015 : -.001), .1, 1);
+      force.lowMoraleEntered = force.morale < .23 && !force.lowMorale;
+      force.lowMorale = force.morale < .23;
+      const broken = sec[key] < 23 || force.morale < .23 || force.suppression > .87;
+      // A formation that breaks during an assault must stop pushing now,
+      // rather than continuing for the remainder of a stale phase timer.
+      if (broken && force.phase !== 'retreat') {
+        force.phase = 'retreat';
+        force.phaseTime = phaseDuration.retreat + war.index % 4;
+        force.cycles++;
+      }
       // A wiped platoon must reorganize behind the new line. It cannot pop
       // straight back into the trench just cleared by the operator.
       if (sec[key] <= .05 && !force.defeated) {
