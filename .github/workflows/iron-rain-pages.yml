@@ -25,6 +25,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Test Iron Rain
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd iron-rain
+          npm test
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Assemble Iron Rain site
