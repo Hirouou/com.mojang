@@ -37,6 +37,7 @@ const circleHitsBox = (x, z, r, b) => {
   return dx * dx + dz * dz < r * r;
 };
 export function canOccupyCabin(x, z, radius = .21) {
+  if (![x, z, radius].every(Number.isFinite) || radius < 0) return false;
   if (x < CABIN_BOUNDS.minX + radius || x > CABIN_BOUNDS.maxX - radius || z < CABIN_BOUNDS.minZ + radius || z > CABIN_BOUNDS.maxZ - radius) return false;
   return !CABIN_OBSTACLES.some(b => circleHitsBox(x, z, radius, b));
 }
