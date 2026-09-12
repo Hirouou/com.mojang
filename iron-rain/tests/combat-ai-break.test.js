@@ -92,3 +92,41 @@ test('a broken force gets a full regroup window instead of bouncing straight bac
   assert.equal(force.phase, 'regroup', 'persistent weakness does not immediately cancel the regroup phase');
   assert.equal(force.phaseTime, regroupTime - 1, 'regroup timer advances normally instead of being reset by break logic');
 });
+
+test('regroup waits for local supply even when the opposing line is nearly empty', () => {
+  const state = makeState();
+  const sector = state.sectors[0];
+  const force = sector.war.ally;
+  sector.allyStrength = 45;
+  sector.enemyStrength = 5;
+  force.phase = 'regroup';
+  force.phaseTime = 1;
+  force.morale = .6;
+  force.suppression = .3;
+  force.ammo = .8;
+  for (const base of sector.war.bases) if (base.team === 'ally') base.supply = .05;
+
+  updateWar(state, 1);
+
+  assert.equal(force.phase, 'regroup', 'an exposed objective cannot bypass recovery while local supply is exhausted');
+  assert.ok(force.phaseTime > 0, 'regroup receives a fresh recovery window while supply remains below the readiness band');
+  assert.ok(force.advance <= 0, 'the formation does not start an opportunistic assault from regroup');
+});
+
+test('a supplied and recovered formation can leave regroup through the normal phase selector', () => {
+  const state = makeState();
+  const sector = state.sectors[0];
+  const force = sector.war.ally;
+  sector.allyStrength = 45;
+  sector.enemyStrength = 50;
+  force.phase = 'regroup';
+  force.phaseTime = 1;
+  force.morale = .6;
+  force.suppression = .3;
+  force.ammo = .8;
+  for (const base of sector.war.bases) if (base.team === 'ally') base.supply = .8;
+
+  updateWar(state, 1);
+
+  assert.equal(force.phase, 'hold', 'healthy local supply returns control to the existing tactical phase selector');
+});
