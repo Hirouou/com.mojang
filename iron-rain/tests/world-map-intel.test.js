@@ -11,7 +11,9 @@ test('remote fronts gain map detail through friendly radio coverage', () => {
   const visible = radioVisibleHexIds(map, 'ally');
   assert.ok(visible.includes(friendly.id));
   assert.ok(visible.length >= 1);
-  const intel = createWorldMapIntel({ hexes: map, team: 'ally', playerPosition: { x: 0, y: 0 } });
+  // Deliberately keep the observer far away so this assertion tests radio
+  // disclosure rather than the higher-priority local-detail path.
+  const intel = createWorldMapIntel({ hexes: map, team: 'ally', playerPosition: { x: 999_999, y: 999_999 } });
   assert.equal(intel.find(hex => hex.id === friendly.id).frontDetail, 'radio');
 });
 
