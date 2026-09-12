@@ -1,0 +1,11 @@
+{
+  "name": "Iron Rain: Trench Front",
+  "short_name": "Iron Rain",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#10150f",
+  "theme_color": "#10150f",
+  "description": "Tactical mobile artillery game prototype"
+}
