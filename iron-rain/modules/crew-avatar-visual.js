@@ -17,6 +17,7 @@ function finite(value, fallback = 0) {
 export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT_PALETTES } = {}) {
   if (!scene?.add) throw new TypeError('scene with add() required');
   const max = Math.max(0, Math.min(2, Number.isFinite(capacity) ? Math.floor(capacity) : 2));
+  const paletteSource = Array.isArray(palettes) && palettes.length ? palettes : DEFAULT_PALETTES;
   const geometries = [
     new THREE.BoxGeometry(.34, .56, .22),
     new THREE.BoxGeometry(.12, .48, .12),
@@ -35,7 +36,7 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
   };
 
   function buildAvatar(index) {
-    const palette = palettes[index % palettes.length] || DEFAULT_PALETTES[index % DEFAULT_PALETTES.length];
+    const palette = paletteSource[index % paletteSource.length] || DEFAULT_PALETTES[index % DEFAULT_PALETTES.length];
     const coat = material(palette.coat), gear = material(palette.gear), skin = material(palette.skin);
     const helmet = material(palette.helmet), accent = material(palette.accent);
     const root = new THREE.Group();
@@ -56,31 +57,53 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
       limbs.push({ arm, leg });
     }
     scene.add(root);
-    return { root, headPivot, limbs, id: null, x: 0, z: 0, travelled: 0 };
+    return { root, headPivot, limbs, id: null, x: 0, z: 0, travelled: 0, assigned: false, entry: null };
   }
 
   for (let i = 0; i < max; i++) slots.push(buildAvatar(i));
 
+  function apply(slot, entry, step) {
+    const pose = entry?.pose;
+    if (!pose || !Number.isFinite(pose.x) || !Number.isFinite(pose.z)) return false;
+    const dx = pose.x - slot.x, dz = pose.z - slot.z;
+    const moved = slot.id === entry.id ? Math.hypot(dx, dz) : 0;
+    slot.travelled = slot.id === entry.id ? slot.travelled + moved : 0;
+    slot.id = entry.id; slot.x = pose.x; slot.z = pose.z;
+    slot.root.visible = true;
+    slot.root.position.set(pose.x, 0, pose.z);
+    slot.root.rotation.y = finite(pose.yaw);
+    slot.headPivot.rotation.x = finite(pose.pitch) * .55;
+    const stride = Math.min(.45, moved / Math.max(.001, step || .016));
+    const swing = Math.sin(slot.travelled * 10) * stride;
+    slot.limbs[0].arm.rotation.x = swing; slot.limbs[1].arm.rotation.x = -swing;
+    slot.limbs[0].leg.rotation.x = -swing * .7; slot.limbs[1].leg.rotation.x = swing * .7;
+    return true;
+  }
+
   function update(entries = [], dt = 0) {
-    const list = Array.isArray(entries) ? entries : [];
+    const list = Array.isArray(entries) ? entries.slice(0, max) : [];
     const step = Math.max(0, Math.min(.1, finite(dt)));
-    for (let i = 0; i < slots.length; i++) {
-      const slot = slots[i], entry = list[i], pose = entry?.pose;
-      if (!entry || !pose || !Number.isFinite(pose.x) || !Number.isFinite(pose.z)) {
-        slot.root.visible = false; slot.id = null; continue;
+    for (const slot of slots) { slot.assigned = false; slot.entry = null; }
+
+    // Keep a peer on the same preallocated body even when network ordering
+    // changes. This avoids palette/animation popping without creating maps or
+    // scene nodes every frame.
+    for (const entry of list) {
+      const slot = slots.find(candidate => !candidate.assigned && candidate.id === entry?.id);
+      if (slot) { slot.assigned = true; slot.entry = entry; }
+    }
+    for (const entry of list) {
+      if (slots.some(slot => slot.entry === entry)) continue;
+      const slot = slots.find(candidate => !candidate.assigned);
+      if (slot) { slot.assigned = true; slot.entry = entry; }
+    }
+
+    for (const slot of slots) {
+      if (!slot.assigned || !apply(slot, slot.entry, step)) {
+        slot.root.visible = false;
+        slot.id = null;
       }
-      const dx = pose.x - slot.x, dz = pose.z - slot.z;
-      const moved = slot.id === entry.id ? Math.hypot(dx, dz) : 0;
-      slot.travelled += moved;
-      slot.id = entry.id; slot.x = pose.x; slot.z = pose.z;
-      slot.root.visible = true;
-      slot.root.position.set(pose.x, 0, pose.z);
-      slot.root.rotation.y = finite(pose.yaw);
-      slot.headPivot.rotation.x = finite(pose.pitch) * .55;
-      const stride = Math.min(.45, moved / Math.max(.001, step || .016));
-      const swing = Math.sin(slot.travelled * 10) * stride;
-      slot.limbs[0].arm.rotation.x = swing; slot.limbs[1].arm.rotation.x = -swing;
-      slot.limbs[0].leg.rotation.x = -swing * .7; slot.limbs[1].leg.rotation.x = swing * .7;
+      slot.entry = null;
     }
     return snapshot();
   }
