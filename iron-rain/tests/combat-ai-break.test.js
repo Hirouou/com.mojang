@@ -16,13 +16,18 @@ function makeState() {
   };
 }
 
-test('a heavily suppressed assault breaks immediately instead of waiting for phase timeout', () => {
-  const state = makeState();
+function prepareAssault(state) {
   const force = state.sectors[0].war.ally;
   force.phase = 'assault';
   force.phaseTime = 8;
-  force.suppression = .95;
   force.advance = 120;
+  return force;
+}
+
+test('a heavily suppressed assault breaks immediately instead of waiting for phase timeout', () => {
+  const state = makeState();
+  const force = prepareAssault(state);
+  force.suppression = .95;
   const beforeAdvance = force.advance;
 
   updateWar(state, 1);
@@ -30,4 +35,42 @@ test('a heavily suppressed assault breaks immediately instead of waiting for pha
   assert.equal(force.phase, 'retreat');
   assert.ok(force.phaseTime > 0, 'retreat receives its own phase timer');
   assert.ok(force.advance < beforeAdvance, 'broken infantry starts giving ground on the same strategic tick');
+});
+
+test('an assault with collapsed morale breaks on the same strategic tick', () => {
+  const state = makeState();
+  const force = prepareAssault(state);
+  force.morale = .2;
+  const beforeAdvance = force.advance;
+
+  updateWar(state, 1);
+
+  assert.equal(force.phase, 'retreat');
+  assert.ok(force.lowMorale, 'low-morale state is recorded after the tick');
+  assert.ok(force.advance < beforeAdvance, 'low-morale infantry gives ground immediately');
+});
+
+test('an assault below the minimum fighting strength breaks immediately', () => {
+  const state = makeState();
+  const sector = state.sectors[0];
+  const force = prepareAssault(state);
+  sector.allyStrength = 22;
+  const beforeAdvance = force.advance;
+
+  updateWar(state, 1);
+
+  assert.equal(force.phase, 'retreat');
+  assert.ok(force.advance < beforeAdvance, 'understrength infantry gives ground immediately');
+});
+
+test('a healthy assault does not falsely break before its phase timer expires', () => {
+  const state = makeState();
+  const force = prepareAssault(state);
+  force.morale = .72;
+  force.suppression = .08;
+
+  updateWar(state, 1);
+
+  assert.equal(force.phase, 'assault');
+  assert.ok(force.phaseTime > 0, 'healthy assault keeps its active phase timer');
 });
