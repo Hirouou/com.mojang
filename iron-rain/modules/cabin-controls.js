@@ -31,6 +31,11 @@ export const CABIN_STATIONS = Object.freeze([
   { id: 'extinguisher', label: 'EXTINTOR DE BORDO', action: 'Pegar extintor', x: -2.25, y: 1.15, z: 1.88, radius: 1.2 },
   { id: 'engine', label: 'MOTOR / REFRIGERAÇÃO', action: 'Inspecionar motor', x: .82, y: 1.24, z: 6.6, radius: 1.35 },
 ]);
+export const CABIN_SECTIONS = Object.freeze({
+  CABIN: 'cabin',
+  SERVICE_CORRIDOR: 'service-corridor',
+  ENGINE_ROOM: 'engine-room',
+});
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const wrapAngle = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
 const circleHitsBox = (x, z, r, b) => {
@@ -42,17 +47,24 @@ export function canOccupyCabin(x, z, radius = .21) {
   if (x < CABIN_BOUNDS.minX + radius || x > CABIN_BOUNDS.maxX - radius || z < CABIN_BOUNDS.minZ + radius || z > CABIN_BOUNDS.maxZ - radius) return false;
   return !CABIN_OBSTACLES.some(b => circleHitsBox(x, z, radius, b));
 }
+/** Physical compartment for a valid crew position, independent of rendering. */
+export function cabinSectionAt(x, z) {
+  if (!canOccupyCabin(x, z)) return null;
+  if (z < 3.56) return CABIN_SECTIONS.CABIN;
+  if (z < 5.28) return CABIN_SECTIONS.SERVICE_CORRIDOR;
+  return CABIN_SECTIONS.ENGINE_ROOM;
+}
 /** Compact, collision-checked pose suitable for crew presence replication. */
 export function cabinCrewPose({ x, z, yaw = 0, pitch = 0 } = {}) {
   if (![x, z, yaw, pitch].every(Number.isFinite) || !canOccupyCabin(x, z)) return null;
-  return Object.freeze({ x, z, yaw: wrapAngle(yaw), pitch: clamp(pitch, -1.03, .91) });
+  return Object.freeze({ x, z, yaw: wrapAngle(yaw), pitch: clamp(pitch, -1.03, .91), section: cabinSectionAt(x, z) });
 }
 /** Interpolate replicated crew poses without taking the long way around yaw wrap. */
 export function interpolateCabinCrewPose(from, to, alpha = 1) {
   const a = cabinCrewPose(from), b = cabinCrewPose(to);
   if (!a || !b || !Number.isFinite(alpha)) return null;
   const t = clamp(alpha, 0, 1), yawDelta = wrapAngle(b.yaw - a.yaw);
-  return Object.freeze({
+  return cabinCrewPose({
     x: a.x + (b.x - a.x) * t,
     z: a.z + (b.z - a.z) * t,
     yaw: wrapAngle(a.yaw + yawDelta * t),
@@ -67,6 +79,7 @@ export function createCabinMovement() {
     get yaw() { return yaw; },
     get pitch() { return pitch; },
     get travelled() { return travelled; },
+    get section() { return cabinSectionAt(position.x, position.z); },
     setPose({ x = position.x, z = position.z, yaw: nextYaw = yaw, pitch: nextPitch = pitch } = {}) {
       if (![x, z, nextYaw, nextPitch].every(Number.isFinite) || !canOccupyCabin(x, z)) return false;
       position.x = x; position.z = z; yaw = nextYaw; pitch = clamp(nextPitch, -1.03, .91); return true;
@@ -113,6 +126,6 @@ export function createCabinMovement() {
     },
     reset() { position.x = 0; position.z = 2.4; yaw = 0; pitch = -.08; travelled = 0; },
     crewPose() { return cabinCrewPose({ x: position.x, z: position.z, yaw, pitch }); },
-    snapshot() { return { position: { ...position }, yaw, pitch, travelled }; },
+    snapshot() { return { position: { ...position }, yaw, pitch, travelled, section: cabinSectionAt(position.x, position.z) }; },
   };
 }
