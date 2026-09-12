@@ -144,6 +144,9 @@ export function createWarAudio() {
         }
         if (moving && inside && time > nextFoot && !paused) {
           noise(.14, .28, 650); tone(.1, .1, 150, 70);
+          // A short filtered return suggests a steel corridor without adding a
+          // continuous reverb node or allocating another sample buffer.
+          noise(.16, .11, 1850, { delay: .055, type: 'bandpass', endFrequency: 620 });
           nextFoot = time + .43;
         }
       });
