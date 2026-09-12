@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { combatLogisticsState, combatReserveGate, combatRouteOpen } from '../modules/combat-reserves.js';
+import { combatLogisticsState, combatReserveBatch, combatReserveGate, combatRouteOpen } from '../modules/combat-reserves.js';
 import { createLogisticsNode, createStrategicLogistics, createSupplyRoute } from '../modules/strategic-logistics.js';
 
 const readyLogistics = Object.freeze({
@@ -130,4 +130,31 @@ test('combat route reachability fails closed for invalid endpoints or adapters',
   assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'missing', to: 'front' }), false);
   assert.equal(combatRouteOpen({ logistics: {}, team: 'ally', from: 'front', to: 'front' }), false);
   assert.equal(combatRouteOpen({ logistics, team: 'neutral', from: 'front', to: 'front' }), false);
+});
+
+test('reserve batch has no magic minimum and scales with earned territory support', () => {
+  assert.equal(combatReserveBatch({ logistics: readyLogistics, deficit: 20 }), 1);
+  assert.equal(combatReserveBatch({
+    logistics: { ...readyLogistics, hasOutpost: false, hasDepot: true, reinforcementSupport: .12 },
+    deficit: 20,
+  }), 2.4);
+  assert.equal(combatReserveBatch({
+    logistics: { ...readyLogistics, hasOutpost: false, hasDepot: true, hasGarage: true, reinforcementSupport: .2 },
+    deficit: 1.25,
+  }), 1.25);
+});
+
+test('reserve batch fails closed for cut or malformed logistics', () => {
+  for (const logistics of [
+    null,
+    { ...readyLogistics, connected: false },
+    { ...readyLogistics, canReceiveReinforcements: false },
+    { ...readyLogistics, reinforcementSupport: 0 },
+    { ...readyLogistics, reinforcementSupport: NaN },
+    { ...readyLogistics, reinforcementSupport: Infinity },
+  ]) {
+    assert.equal(combatReserveBatch({ logistics, deficit: 20 }), 0);
+  }
+  assert.equal(combatReserveBatch({ logistics: readyLogistics, deficit: NaN }), 0);
+  assert.equal(combatReserveBatch({ logistics: readyLogistics, deficit: -1 }), 0);
 });
