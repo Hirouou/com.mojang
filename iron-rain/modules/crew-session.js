@@ -1,4 +1,5 @@
 import { createCrewReplication } from './crew-replication.js';
+import { createCrewStationAuthority } from './crew-station-authority.js';
 
 export const CREW_PROTOCOL = 1;
 export const CREW_MAX_PLAYERS = 3;
@@ -13,8 +14,9 @@ const cleanRoom = value => String(value ?? '').trim().toUpperCase().replace(/[^A
  *
  * Host authority lives here, while sockets/WebRTC/BroadcastChannel live outside.
  * The host occupies seat 0 and can admit at most two guests (seats 1 and 2).
- * Only compact validated crew poses are replicated; remote input never reaches
- * the local movement/camera controller.
+ * Compact validated crew poses are replicated; remote input never reaches the
+ * local movement/camera controller. Physical stations are host-authoritative so
+ * two players cannot operate the same wheel, driver controls or service point.
  */
 export function createCrewSession({
   localId = 'local',
@@ -25,6 +27,7 @@ export function createCrewSession({
   const id = cleanId(localId) || 'local';
   const staleSeconds = Math.max(.5, finite(staleAfter, 6));
   const replication = createCrewReplication({ localId: id, capacity: CREW_MAX_PLAYERS, staleAfter: staleSeconds });
+  const stations = createCrewStationAuthority();
   const peers = new Map();
   let mode = 'offline';
   let room = '';
@@ -45,6 +48,8 @@ export function createCrewSession({
     return Object.freeze([...peers.values()].sort((a, b) => a.seat - b.seat).map(peer => Object.freeze({ ...peer })));
   }
 
+  function stationState() { return stations.snapshot(); }
+
   function status() {
     return Object.freeze({
       mode,
@@ -56,13 +61,19 @@ export function createCrewSession({
       count: mode === 'offline' ? 1 : 1 + peers.size,
       capacity: CREW_MAX_PLAYERS,
       peers: peerList(),
+      stations: stationState(),
       lastEvent,
     });
+  }
+
+  function broadcastStations() {
+    if (mode === 'host' && room) emit({ kind: 'crew-stations', state: stationState() });
   }
 
   function reset(nextMode = 'offline', nextRoom = '') {
     peers.clear();
     replication.clear();
+    stations.clear();
     mode = nextMode;
     room = cleanRoom(nextRoom);
     seat = nextMode === 'host' ? 0 : -1;
@@ -113,8 +124,9 @@ export function createCrewSession({
       return true;
     }
     peers.set(peerId, { id: peerId, seat: assignedSeat, lastSeen: at });
-    emit({ kind: 'crew-welcome', target: peerId, hostId: id, seat: assignedSeat, capacity: CREW_MAX_PLAYERS, members: peerList() });
+    emit({ kind: 'crew-welcome', target: peerId, hostId: id, seat: assignedSeat, capacity: CREW_MAX_PLAYERS, members: peerList(), stations: stationState() });
     emit({ kind: 'crew-members', members: peerList() });
+    broadcastStations();
     lastEvent = `joined:${peerId}`;
     return true;
   }
@@ -134,6 +146,7 @@ export function createCrewSession({
       peers.set(peerId, { id: peerId, seat: peerSeat, lastSeen: at });
     }
     if (hostId && hostId !== id && !peers.has(hostId)) peers.set(hostId, { id: hostId, seat: 0, lastSeen: at });
+    if (packet.stations) stations.apply(packet.stations);
     lastEvent = 'joined';
     return true;
   }
@@ -158,6 +171,30 @@ export function createCrewSession({
     return true;
   }
 
+  function acceptStationRequest(packet) {
+    if (mode !== 'host') return false;
+    const sender = cleanId(packet.sender);
+    if (!sender || !peers.has(sender)) return false;
+    const result = stations.claim(packet.station, sender);
+    if (result.ok) {
+      lastEvent = `station:${result.station}:${sender}`;
+      broadcastStations();
+    } else {
+      emit({ kind: 'crew-station-deny', target: sender, station: packet.station, owner: result.owner, reason: result.reason });
+      lastEvent = `station-denied:${String(packet.station || '')}`;
+    }
+    return true;
+  }
+
+  function acceptStationRelease(packet) {
+    if (mode !== 'host') return false;
+    const sender = cleanId(packet.sender);
+    if (!sender || !peers.has(sender)) return false;
+    const changed = stations.release(packet.station, sender);
+    if (changed) broadcastStations();
+    return true;
+  }
+
   function receive(packet) {
     if (!packet || Number(packet.protocol) !== CREW_PROTOCOL || cleanRoom(packet.room) !== room || !room) return false;
     const sender = cleanId(packet.sender);
@@ -167,14 +204,29 @@ export function createCrewSession({
     if (packet.kind === 'crew-hello') return acceptHello(packet, at);
     if (packet.kind === 'crew-welcome') return acceptWelcome(packet, at);
     if (packet.kind === 'crew-members') return acceptMembers(packet, at);
+    if (packet.kind === 'crew-station-request') return acceptStationRequest(packet);
+    if (packet.kind === 'crew-station-release') return acceptStationRelease(packet);
+    if (packet.kind === 'crew-stations' && mode === 'guest' && sender === hostId) {
+      const accepted = stations.apply(packet.state);
+      if (accepted) lastEvent = 'stations-updated';
+      return accepted;
+    }
+    if (packet.kind === 'crew-station-deny' && mode === 'guest' && cleanId(packet.target) === id) {
+      lastEvent = `station-denied:${String(packet.station || '')}:${String(packet.owner || '')}`;
+      return true;
+    }
     if (packet.kind === 'crew-deny' && mode === 'guest' && cleanId(packet.target) === id) {
       lastEvent = `denied:${String(packet.reason || 'unknown')}`;
       return true;
     }
     if (packet.kind === 'crew-leave') {
       peers.delete(sender); replication.remove(sender);
-      if (mode === 'host') emit({ kind: 'crew-members', members: peerList() });
-      if (sender === hostId && mode === 'guest') { seat = -1; lastEvent = 'host-left'; }
+      const stationChanged = stations.releaseAll(sender) > 0;
+      if (mode === 'host') {
+        emit({ kind: 'crew-members', members: peerList() });
+        if (stationChanged) broadcastStations();
+      }
+      if (sender === hostId && mode === 'guest') { seat = -1; stations.clear(); lastEvent = 'host-left'; }
       return true;
     }
     if (packet.kind === 'crew-heartbeat') {
@@ -196,13 +248,42 @@ export function createCrewSession({
   }
 
   function prune(at) {
-    let changed = false;
+    let changed = false, stationChanged = false;
     for (const [peerId, peer] of peers) {
       if (at - peer.lastSeen <= staleSeconds) continue;
       peers.delete(peerId); replication.remove(peerId); changed = true;
-      if (peerId === hostId && mode === 'guest') { seat = -1; lastEvent = 'host-timeout'; }
+      stationChanged = stations.releaseAll(peerId) > 0 || stationChanged;
+      if (peerId === hostId && mode === 'guest') { seat = -1; stations.clear(); lastEvent = 'host-timeout'; }
     }
     if (changed && mode === 'host') emit({ kind: 'crew-members', members: peerList() });
+    if (stationChanged && mode === 'host') broadcastStations();
+  }
+
+  function claimStation(station) {
+    if (mode === 'offline') return stations.claim(station, id);
+    if (mode === 'host') {
+      const result = stations.claim(station, id);
+      if (result.ok) broadcastStations();
+      lastEvent = result.ok ? `station:${result.station}:${id}` : `station-denied:${String(station || '')}`;
+      return result;
+    }
+    if (seat < 0) return Object.freeze({ ok: false, reason: 'not-connected', station, owner: null, revision: stationState().revision });
+    if (stations.ownerOf(station) === id) return Object.freeze({ ok: true, reason: 'already-owned', station, owner: id, revision: stationState().revision });
+    emit({ kind: 'crew-station-request', station });
+    lastEvent = `station-request:${String(station || '')}`;
+    return Object.freeze({ ok: false, pending: true, reason: 'pending-host', station, owner: stations.ownerOf(station), revision: stationState().revision });
+  }
+
+  function releaseStation(station) {
+    if (mode === 'offline') return stations.release(station, id);
+    if (mode === 'host') {
+      const changed = stations.release(station, id);
+      if (changed) broadcastStations();
+      return changed;
+    }
+    if (seat < 0 || stations.ownerOf(station) !== id) return false;
+    emit({ kind: 'crew-station-release', station });
+    return true;
   }
 
   function update(pose, at = now()) {
@@ -233,6 +314,11 @@ export function createCrewSession({
     receive,
     update,
     status,
+    claimStation,
+    releaseStation,
+    stationOwner: station => stations.ownerOf(station),
+    canUseStation: station => stations.canUse(station, id),
+    stationSnapshot: stationState,
     renderSamples: (at = now(), interpolationDelay = .1) => replication.renderSamples(finite(at), interpolationDelay),
     replicationSnapshot: replication.snapshot,
   });
