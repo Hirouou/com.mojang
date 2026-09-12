@@ -45,6 +45,7 @@ export function createCrewReplication({ localId = 'local', capacity = 3, staleAf
     remotes.set(id, {
       id,
       seq,
+      previousAt: current?.at ?? at - .1,
       at,
       from: current?.to || pose,
       to: pose,
@@ -62,10 +63,10 @@ export function createCrewReplication({ localId = 'local', capacity = 3, staleAf
     prune(now);
     const t = nowValue(now), delay = Math.max(0, Number.isFinite(interpolationDelay) ? interpolationDelay : .1);
     return Object.freeze([...remotes.values()].map(entry => {
-      const span = Math.max(.001, entry.at - (entry.previousAt ?? entry.at - .1));
+      const span = Math.max(.001, entry.at - entry.previousAt);
       // Late packets are intentionally clamped instead of extrapolated through
       // cabin equipment. crew-presence performs the final collision-safe blend.
-      const alpha = Math.max(0, Math.min(1, (t - delay - (entry.at - span)) / span));
+      const alpha = Math.max(0, Math.min(1, (t - delay - entry.previousAt) / span));
       return Object.freeze({ id: entry.id, from: entry.from, to: entry.to, alpha, seq: entry.seq, at: entry.at });
     }));
   }
