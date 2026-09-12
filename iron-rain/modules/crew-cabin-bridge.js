@@ -15,6 +15,7 @@ const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
  */
 export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 } = {}) {
   const delay = clampDelay(interpolationDelay);
+  const pendingStations = new Set();
 
   function update(dt = 0, at) {
     const localPose = crewLocalPoseFromCabinSnapshot(cabin?.snapshot?.());
@@ -33,15 +34,46 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   }
 
   function clear() {
+    pendingStations.clear();
     cabin?.updateRemoteCrew?.([], 0);
+  }
+
+  function stationState(station) {
+    const state = stationGateState(runtime, station);
+    const id = state.station;
+    if (!id) return state;
+    if (state.ready || state.reason !== 'available') {
+      pendingStations.delete(id);
+      return state;
+    }
+    if (pendingStations.has(id)) {
+      return Object.freeze({ ...state, ok: false, pending: true, reason: 'pending-host' });
+    }
+    return state;
+  }
+
+  function requestStation(station) {
+    const current = stationState(station);
+    if (current.pending || current.ready || (!current.ok && current.reason !== 'available')) return current;
+    const result = requestStationGate(runtime, station);
+    if (result?.station) {
+      if (result.pending) pendingStations.add(result.station);
+      else pendingStations.delete(result.station);
+    }
+    return result;
+  }
+
+  function releaseStation(station) {
+    if (typeof station === 'string') pendingStations.delete(station);
+    return releaseStationGate(runtime, station);
   }
 
   return Object.freeze({
     update,
     clear,
-    stationState: station => stationGateState(runtime, station),
-    requestStation: station => requestStationGate(runtime, station),
-    releaseStation: station => releaseStationGate(runtime, station),
+    stationState,
+    requestStation,
+    releaseStation,
     stationMessage: result => stationGateMessage(result),
     interpolationDelay: delay,
   });
