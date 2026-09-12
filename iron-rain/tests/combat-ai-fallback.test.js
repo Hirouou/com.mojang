@@ -5,7 +5,10 @@ import { initializeSector, updateWar } from '../modules/war-simulation.js';
 function makeState() {
   const sector = initializeSector({
     id: 'fallback-test', name: 'FALLBACK TEST', x: 10000, y: 20000,
-    allyStrength: .04, enemyStrength: 72, assets: []
+    // Keep a real opposing force so the tiny allied platoon is still wiped,
+    // but do not let overwhelming combat immediately erase the first reserve
+    // packet on the exact recovery tick this focused fallback test observes.
+    allyStrength: .04, enemyStrength: 8, assets: []
   }, 0);
   const force = sector.war.ally;
   force.phase = 'assault';
