@@ -34,12 +34,12 @@ export function createCrewRuntime({
     return publish();
   }
 
-  function connect(mode, room) {
+  function connect(mode, room, faction) {
     disconnect('switch-room');
     if (typeof transportFactory !== 'function') return Object.freeze({ ok: false, reason: 'transport-unavailable', status: publish() });
     let candidate;
     try {
-      candidate = transportFactory({ room, onMessage: packet => { if (session.receive(packet)) publish(); } });
+      candidate = transportFactory({ room, faction, onMessage: packet => { if (session.receive(packet)) publish(); } });
     } catch {
       return Object.freeze({ ok: false, reason: 'transport-create-failed', status: publish() });
     }
@@ -49,11 +49,11 @@ export function createCrewRuntime({
     }
     transport = candidate;
     try {
-      mode === 'host' ? session.host(room) : session.join(room);
+      mode === 'host' ? session.host(room, faction) : session.join(room, faction);
     } catch {
       try { transport.close?.(); } catch {}
       transport = null;
-      return Object.freeze({ ok: false, reason: 'invalid-room', status: publish() });
+      return Object.freeze({ ok: false, reason: 'invalid-room-or-faction', status: publish() });
     }
     return Object.freeze({ ok: true, status: publish() });
   }
@@ -76,8 +76,8 @@ export function createCrewRuntime({
   }
 
   return Object.freeze({
-    host: room => connect('host', room),
-    join: room => connect('guest', room),
+    host: (room, faction) => connect('host', room, faction),
+    join: (room, faction) => connect('guest', room, faction),
     disconnect,
     update,
     claimStation,
