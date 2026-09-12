@@ -89,6 +89,15 @@ test('station interaction requires physical proximity and looking toward the sta
   assert.deepEqual(m.position,before,'looking at a station never teleports');
   m.look(Math.PI,0);assert.notEqual(m.focus()?.id,'aim');
 });
+test('invalid look targets cannot poison camera or movement state',()=>{
+  const m=createCabinMovement(),before=m.snapshot();
+  assert.equal(m.lookToward(null),false);
+  assert.equal(m.lookToward({x:0,y:NaN,z:0}),false);
+  assert.equal(m.lookToward({x:0,y:1,z:0},NaN),false);
+  assert.deepEqual(m.snapshot(),before,'rejected look targets preserve finite pose state');
+  assert.equal(m.lookToward(CABIN_STATIONS.find(s=>s.id==='radio'),.5),true);
+  assert.ok(Number.isFinite(m.yaw)&&Number.isFinite(m.pitch),'valid focus remains usable after rejected input');
+});
 test('look pitch clamps and reset clears locomotion',()=>{
   const m=createCabinMovement();m.look(500,500);assert.equal(m.pitch,-1.03);
   m.update(.1,{x:1,y:1});m.reset();
