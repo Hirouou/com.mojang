@@ -21,6 +21,7 @@ test('remote crew avatars preallocate at most two visible low-poly bodies', () =
   assert.equal(snap[0].z, 1.8);
   assert.equal(snap[0].yaw, .4);
   assert.ok(Math.abs(snap[0].pitch - .11) < 1e-9);
+  assert.equal(snap[0].stride, 0, 'fresh peer starts from a neutral gait');
   assert.ok(Object.isFrozen(snap) && snap.every(Object.isFrozen));
 
   avatars.dispose();
@@ -51,6 +52,28 @@ test('avatar updates reuse scene objects, preserve peer slots across reorder and
   const hidden = avatars.update([], .016);
   assert.equal(hidden[0].visible, false);
   assert.equal(hidden[0].id, null);
+  assert.equal(hidden[0].stride, 0);
   assert.equal(hidden[1].visible, false);
+  avatars.dispose();
+});
+
+test('remote gait eases across uneven packet cadence instead of snapping limbs neutral', () => {
+  const scene = new THREE.Scene();
+  const avatars = createCabinCrewAvatars(scene, { capacity: 1 });
+  avatars.update([{ id: 'gunner', pose: { x: 0, z: 2.4, yaw: 0, pitch: 0 } }], .016);
+
+  const walking = avatars.update([{ id: 'gunner', pose: { x: .08, z: 2.4, yaw: 0, pitch: 0 } }], .016)[0];
+  assert.ok(walking.stride > 0 && walking.stride < .45, 'gait ramps toward movement instead of jumping to full swing');
+
+  const delayedStationary = avatars.update([{ id: 'gunner', pose: { x: .08, z: 2.4, yaw: 0, pitch: 0 } }], .05)[0];
+  assert.ok(delayedStationary.stride > 0, 'one stationary packet keeps a short visual settle instead of snapping neutral');
+  assert.ok(delayedStationary.stride < walking.stride, 'gait amplitude decays when movement stops');
+
+  let settled = delayedStationary;
+  for (let i = 0; i < 20; i++) settled = avatars.update([{ id: 'gunner', pose: { x: .08, z: 2.4, yaw: 0, pitch: 0 } }], .05)[0];
+  assert.ok(settled.stride < .001, 'stationary crew settles back to neutral');
+
+  const replacement = avatars.update([{ id: 'radio', pose: { x: .08, z: 2.4, yaw: 0, pitch: 0 } }], .016)[0];
+  assert.equal(replacement.stride, 0, 'a slot reassigned to a different peer never inherits the previous gait');
   avatars.dispose();
 });
