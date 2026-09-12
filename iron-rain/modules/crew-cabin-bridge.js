@@ -3,6 +3,15 @@ import { releaseStationGate, requestStationGate, stationGateMessage, stationGate
 
 const clampDelay = value => Math.max(0, Number.isFinite(value) ? value : .1);
 const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
+const stationDenial = (runtime, station) => {
+  let status = null;
+  try { status = runtime?.status?.() || null; } catch { status = null; }
+  const event = String(status?.lastEvent || '');
+  const prefix = `station-denied:${station}`;
+  if (event !== prefix && !event.startsWith(`${prefix}:`)) return null;
+  const owner = event.slice(prefix.length + 1).trim() || null;
+  return Object.freeze({ owner });
+};
 
 /**
  * Frame-level boundary between the Mamute cabin and crew runtime.
@@ -47,6 +56,17 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
       return state;
     }
     if (pendingStations.has(id)) {
+      const denied = stationDenial(runtime, id);
+      if (denied) {
+        pendingStations.delete(id);
+        return Object.freeze({
+          ...state,
+          ok: false,
+          pending: false,
+          reason: denied.owner ? 'occupied' : 'claim-denied',
+          owner: denied.owner,
+        });
+      }
       return Object.freeze({ ...state, ok: false, pending: true, reason: 'pending-host' });
     }
     return state;
