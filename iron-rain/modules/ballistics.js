@@ -76,6 +76,21 @@ export function elevationsForRange(charge, range) {
 }
 
 /**
+ * Manual notebook helper: list every charge that can reach a plotted range and
+ * the mechanically valid arcs for that charge. This does not move the gun, pick
+ * an arc or include wind/impact correction; it only formats the same fictional
+ * ballistic truth already used by the projectile and readout.
+ */
+export function notebookSolutions(range) {
+  range = finite(range, 'range');
+  return Object.freeze(CHARGES.slice(1).map(charge => {
+    const band = chargeBand(charge.id);
+    const elevations = elevationsForRange(charge.id, range);
+    return Object.freeze({ charge: charge.id, min: band.min, max: band.max, elevations });
+  }).filter(entry => entry.elevations.length));
+}
+
+/**
  * Bearing is clockwise from north: 0 = -Y, 90 = +X.
  * `time` is absolute simulated time since launch, not a frame delta.
  * A shell stops on the ground at its actual impact; world bounds never move it.
