@@ -2,35 +2,45 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrewCabinBridge } from '../modules/crew-cabin-bridge.js';
 
-test('crew cabin bridge publishes local pose then renders remote samples in the same frame', () => {
+test('crew cabin bridge publishes only the compact validated local pose then renders remotes', () => {
   const calls = [];
-  const localPose = { x: 1.25, z: -2.5, yaw: .4, pitch: -.1, travelled: 3 };
-  const remotes = Object.freeze([{ id: 'peer-b', from: localPose, to: { ...localPose, x: 2 }, alpha: .5 }]);
+  const cabinSnapshot = {
+    position: { x: 0, z: 2.4 },
+    yaw: .4,
+    pitch: -.1,
+    travelled: 3,
+    station: 'radio',
+    renderer: { drawCalls: 99 },
+  };
+  const remotes = Object.freeze([{ id: 'peer-b', pose: { x: .5, z: 2.1, yaw: 0, pitch: 0 } }]);
   const runtime = {
     update(pose, at) { calls.push(['runtime.update', pose, at]); return Object.freeze({ mode: 'host' }); },
     renderSamples(at, delay) { calls.push(['runtime.renderSamples', at, delay]); return remotes; },
   };
   const cabin = {
-    snapshot() { calls.push(['cabin.snapshot']); return localPose; },
+    snapshot() { calls.push(['cabin.snapshot']); return cabinSnapshot; },
     updateRemoteCrew(samples, dt) { calls.push(['cabin.updateRemoteCrew', samples, dt]); },
   };
 
   const bridge = createCrewCabinBridge({ runtime, cabin, interpolationDelay: .12 });
   const result = bridge.update(.016, 42.5);
 
-  assert.deepEqual(calls, [
-    ['cabin.snapshot'],
-    ['runtime.update', localPose, 42.5],
-    ['runtime.renderSamples', 42.5, .12],
-    ['cabin.updateRemoteCrew', remotes, .016],
-  ]);
+  assert.equal(calls[0][0], 'cabin.snapshot');
+  assert.equal(calls[1][0], 'runtime.update');
+  assert.deepEqual(calls[1][1], { x: 0, z: 2.4, yaw: .4, pitch: -.1, section: 'cabin' });
+  assert.equal(calls[1][2], 42.5);
+  assert.equal('travelled' in calls[1][1], false);
+  assert.equal('station' in calls[1][1], false);
+  assert.equal('renderer' in calls[1][1], false);
+  assert.deepEqual(calls[2], ['runtime.renderSamples', 42.5, .12]);
+  assert.deepEqual(calls[3], ['cabin.updateRemoteCrew', remotes, .016]);
   assert.deepEqual(result, { status: { mode: 'host' }, remoteCount: 1 });
 });
 
-test('crew cabin bridge preserves offline/single-player rendering when runtime is absent', () => {
+test('crew cabin bridge preserves offline rendering when runtime is absent', () => {
   const calls = [];
   const cabin = {
-    snapshot() { return { x: 0, z: 0, yaw: 0, pitch: 0, travelled: 0 }; },
+    snapshot() { return { position: { x: 0, z: 2.4 }, yaw: 0, pitch: 0 }; },
     updateRemoteCrew(samples, dt) { calls.push([samples, dt]); },
   };
 
@@ -42,6 +52,24 @@ test('crew cabin bridge preserves offline/single-player rendering when runtime i
   assert.deepEqual(calls.at(-1), [[], 0]);
 });
 
+test('crew cabin bridge rejects invalid cabin snapshots before runtime publication', () => {
+  let published = false;
+  const calls = [];
+  const runtime = {
+    update() { published = true; },
+    renderSamples() { return []; },
+  };
+  const cabin = {
+    snapshot() { return { position: { x: Number.NaN, z: 2.4 }, yaw: 0, pitch: 0, station: 'aim' }; },
+    updateRemoteCrew(samples, dt) { calls.push([samples, dt]); },
+  };
+
+  const result = createCrewCabinBridge({ runtime, cabin }).update(.01, 1);
+  assert.equal(published, false);
+  assert.deepEqual(result, { status: null, remoteCount: 0 });
+  assert.deepEqual(calls, [[[], .01]]);
+});
+
 test('crew cabin bridge fails closed when runtime returns a malformed sample collection', () => {
   const calls = [];
   const runtime = {
@@ -49,7 +77,7 @@ test('crew cabin bridge fails closed when runtime returns a malformed sample col
     renderSamples() { return null; },
   };
   const cabin = {
-    snapshot() { return { x: 0, z: 0, yaw: 0, pitch: 0, travelled: 0 }; },
+    snapshot() { return { position: { x: 0, z: 2.4 }, yaw: 0, pitch: 0 }; },
     updateRemoteCrew(samples) { calls.push(samples); },
   };
 

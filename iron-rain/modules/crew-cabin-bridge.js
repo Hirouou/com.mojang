@@ -1,19 +1,21 @@
+import { crewLocalPoseFromCabinSnapshot } from './crew-local-pose.js';
+
 const clampDelay = value => Math.max(0, Number.isFinite(value) ? value : .1);
 const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
 
 /**
  * Frame-level boundary between the Mamute cabin and crew runtime.
  *
- * The renderer stays transport-agnostic: this bridge only publishes the local
- * cabin pose to the runtime and feeds renderer-ready remote samples back into
- * cabin-view. The game loop owns when this runs and which transport/runtime is
- * active.
+ * The renderer stays transport-agnostic: this bridge publishes only the
+ * compact collision-safe local crew pose and feeds renderer-ready remote
+ * samples back into cabin-view. The game loop owns when this runs and which
+ * transport/runtime is active.
  */
 export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 } = {}) {
   const delay = clampDelay(interpolationDelay);
 
   function update(dt = 0, at) {
-    const localPose = cabin?.snapshot?.();
+    const localPose = crewLocalPoseFromCabinSnapshot(cabin?.snapshot?.());
     if (!localPose || typeof runtime?.update !== 'function' || typeof runtime?.renderSamples !== 'function' || typeof cabin?.updateRemoteCrew !== 'function') {
       cabin?.updateRemoteCrew?.([], clampDt(dt));
       return Object.freeze({ status: null, remoteCount: 0 });
