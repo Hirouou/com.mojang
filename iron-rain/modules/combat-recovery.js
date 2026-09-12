@@ -13,6 +13,7 @@ export const COMBAT_RECOVERY_THRESHOLDS = Object.freeze({
 });
 
 const finiteOr = (value, fallback) => Number.isFinite(value) ? value : fallback;
+const SUPPLY_GATED_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
 
 /**
  * Pure recovery policy for aggregate infantry forces.
@@ -43,17 +44,21 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
 }
 
 /**
- * Recovery-only phase gate. A caller can apply this before its normal tactical
- * phase selector: `null` means ordinary phase selection may continue.
+ * Recovery/readiness phase gate. A caller can apply this before its normal
+ * tactical phase selector: `null` means ordinary phase selection may continue.
  *
  * Once a formation reaches regroup it stays there until the healthier recovery
- * band is satisfied. This gives reinforcements, morale, suppression, ammo and
- * local logistics time to matter instead of cycling retreat/regroup by timer.
+ * band is satisfied. Outside retreat/regroup, a formation with exhausted or
+ * unknown local supply waits for support instead of starting/continuing an
+ * offensive phase. This lets logistics constrain assaults without inventing a
+ * second combat state machine.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
   if (phase === 'regroup') return recovery.recovered ? null : 'regroup';
   if (phase === 'retreat') return 'regroup';
   if (recovery.broken) return 'retreat';
+  const supplied = finiteOr(supply, 0) >= COMBAT_RECOVERY_THRESHOLDS.supply;
+  if (!supplied && SUPPLY_GATED_PHASES.has(phase)) return 'wait_support';
   return null;
 }
