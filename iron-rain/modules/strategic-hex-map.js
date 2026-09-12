@@ -1,4 +1,4 @@
-import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
+import { THEATRE_SIZE, controlLineX, lineSnapshot, shiftControlLine } from './theatre-control.js';
 
 const SQRT3 = Math.sqrt(3);
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
@@ -151,6 +151,37 @@ export function sectorCaptureAllowed({ team, hex, sectorId, allHexes = [] } = {}
   const [dq, dr] = direction;
   const neighbor = allHexes.find(candidate => candidate?.q === hex.q + dq && candidate?.r === hex.r + dr);
   return hexControl(neighbor) === team;
+}
+
+/**
+ * Resolve a connected sector capture and its front deformation atomically.
+ * This keeps ownership and the canonical theatre line from drifting into two
+ * independent truths: Allied gains push the local line east, Axis gains push it
+ * west, and rejected captures leave both snapshots unchanged.
+ */
+export function captureSectorWithFront({
+  team,
+  hex,
+  sectorId,
+  allHexes = [],
+  points,
+  pushMetres = 1_800,
+  radius = 9_000,
+} = {}) {
+  const line = lineSnapshot(points);
+  if (!sectorCaptureAllowed({ team, hex, sectorId, allHexes })) {
+    return Object.freeze({ ok: false, changed: false, reason: 'disconnected', hex, line });
+  }
+
+  const sector = hex?.sectors?.find?.(candidate => candidate.id === sectorId);
+  if (!sector) return Object.freeze({ ok: false, changed: false, reason: 'missing-sector', hex, line });
+  if (sector.owner === team) return Object.freeze({ ok: true, changed: false, reason: 'already-owned', hex, line });
+
+  const nextHex = setSectorOwner(hex, sectorId, team);
+  const magnitude = Math.abs(Number.isFinite(pushMetres) ? pushMetres : 0);
+  const signedPush = team === 'ally' ? magnitude : -magnitude;
+  const nextLine = shiftControlLine(line, sector.y, signedPush, radius);
+  return Object.freeze({ ok: true, changed: true, reason: 'captured', hex: nextHex, line: nextLine });
 }
 
 /**
