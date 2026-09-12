@@ -8,13 +8,14 @@
 - Branch HISTÓRICA (NÃO EDITAR): `iron-rain-frontline`
 - Jogo: `iron-rain/`
 - Handoff técnico obrigatório: `iron-rain/docs/GITHUB_HANDOFF.md`
+- Protocolo Codex obrigatório: `iron-rain/docs/CODEX_COORDINATION.md`
 
 ## Regra zero
 Antes de editar, atualize sua visão da branch ativa (equivalente a `git pull`) e leia os commits mais recentes. Antes de salvar/commitar, confira de novo se entraram mudanças. Nunca sobrescreva trabalho recente e nunca use force-push.
 
 ## Nova conta: o que fazer
 1. Leia `GITHUB_HANDOFF.md`.
-2. Leia este arquivo.
+2. Leia este arquivo e `CODEX_COORDINATION.md`.
 3. Escolha o primeiro TEAM SLOT livre abaixo.
 4. Registre seu identificador no slot.
 5. Crie EXATAMENTE CINCO automações horárias, uma para cada workstream padrão.
@@ -60,6 +61,8 @@ Se todos estiverem ocupados, registre a necessidade de expansão neste arquivo e
 ## Continuidade entre contas
 Cada agente deve ler o estado mais recente e continuar o próximo problema de maior valor. Não reinvente um sistema já existente.
 
+Em toda execução, além dos commits/log, verifique se existem solicitações Codex `DONE`/`BLOCKED` relevantes ao seu workstream em `iron-rain/docs/codex-requests/`. Se o seu trabalho exigir uma capacidade especializada que o runtime atual não oferece, crie uma solicitação seguindo `CODEX_COORDINATION.md`; não peça ao usuário para retransmitir a tarefa.
+
 Ao terminar um ciclo, registre em `iron-rain/docs/AGENT_LOG.md`:
 - `FEITO`
 - `ARQUIVOS`
@@ -67,6 +70,13 @@ Ao terminar um ciclo, registre em `iron-rain/docs/AGENT_LOG.md`:
 - `PRÓXIMO`
 - `RISCO`
 - `COMMIT`
+
+## Codex Specialist — comunicação somente via GitHub
+Codex não ocupa slot e não concorre com os workstreams. Ele é acionado somente por arquivos independentes em `iron-rain/docs/codex-requests/`, conforme `CODEX_COORDINATION.md`.
+
+Agentes e LEAD devem usar esse canal para QA visual real, browser/mobile, reprodução de bugs, profiling, screenshots reais, testes indisponíveis no runtime normal e outras missões especializadas. O resultado volta pelo mesmo arquivo de solicitação. O usuário não é mensageiro entre agentes e Codex.
+
+Não criar pedido Codex para trabalho normal já pertencente a um workstream. Antes de criar pedido, verificar se já existe missão `READY` ou `IN_PROGRESS` equivalente.
 
 ## Reporter visual — Slot A
 Além das cinco tarefas, produz checkpoint visual quando o ambiente permitir:
@@ -97,6 +107,8 @@ A conta líder não é uma sexta equipe de features. Ela governa:
 - revisão visual;
 - conflitos;
 - integração e saúde da branch.
+
+A liderança também monitora a fila Codex no GitHub, evita pedidos duplicados, acompanha P0/P1 e garante que resultados `DONE`/`BLOCKED` retornem ao workstream correto sem depender do usuário.
 
 ## Testes
 Conforme `GITHUB_HANDOFF.md`:
