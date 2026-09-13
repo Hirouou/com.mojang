@@ -6,9 +6,11 @@ export function cameraAnchor(state, viewportWidth) {
   const zoom = Number.isFinite(state.cam.zoom) && state.cam.zoom > 0 ? state.cam.zoom : 1;
   const fallbackX = Number.isFinite(state.cam.x) ? state.cam.x : 0;
   const fallbackY = Number.isFinite(state.cam.y) ? state.cam.y : 0;
-  const robotX = Number.isFinite(state.robot?.x) ? state.robot.x : fallbackX;
-  const robotY = Number.isFinite(state.robot?.y) ? state.robot.y : fallbackY;
-  return { x: robotX + Math.min(230, width / zoom * .12), y: robotY };
+  const robotXValid = Number.isFinite(state.robot?.x);
+  const robotYValid = Number.isFinite(state.robot?.y);
+  const robotX = robotXValid ? state.robot.x : fallbackX;
+  const robotY = robotYValid ? state.robot.y : fallbackY;
+  return { x: robotX + (robotXValid ? Math.min(230, width / zoom * .12) : 0), y: robotY };
 }
 export function finishCamera(state, viewportWidth) {
   const p = cameraAnchor(state, viewportWidth);
