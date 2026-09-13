@@ -110,12 +110,13 @@ export function createCrewRuntime({
 
   function acceptCrewEffect(packet) {
     if (!roomMatches(packet) || !EFFECT_TYPES.has(String(packet.type || ''))) return false;
-    const status = session.status(), sender = cleanId(packet.sender);
+    const status = session.status(), sender = cleanId(packet.sender), effectType = String(packet.type || '');
     if (!sender || !status.peers.some(peer => peer.id === sender)) return false;
+    if ((effectType === 'fire' || effectType === 'reload') && (status.mode === 'host' || (status.mode === 'guest' && sender !== cleanId(status.hostId)))) return false;
     const seq = Number(packet.seq), last = seenEffects.get(sender) ?? -1;
     if (!Number.isFinite(seq) || seq < 0 || seq <= last) return false;
     seenEffects.set(sender, seq);
-    const event = Object.freeze({ sender, type: String(packet.type), payload: packet.payload ?? null, sentAt: Number(packet.sentAt) || 0, seq });
+    const event = Object.freeze({ sender, type: effectType, payload: packet.payload ?? null, sentAt: Number(packet.sentAt) || 0, seq });
     notifyEffect(event, packet);
     return true;
   }
