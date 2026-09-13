@@ -1,6 +1,6 @@
 /* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
-const CACHE_NAME = `${CACHE_PREFIX}v7.20`;
+const CACHE_NAME = `${CACHE_PREFIX}v7.21`;
 const OFFLINE_FILES = [
   './index.html','./style-v6.css','./style-v7.css','./mobile-station-ui.css','./bootstrap.js','./game-v6.js',
   './modules/ballistics.js','./modules/pointer-controls.js','./modules/war-simulation.js','./modules/war-simulation-core.js','./modules/table-map.js','./modules/map-touch-precision.js','./modules/camera-director.js','./modules/battlefield-view.js','./modules/cabin-controls.js','./modules/cabin-view.js','./modules/cabin-view-core.js','./modules/cabin-hit-feedback.js','./modules/remote-hull-impact-feedback.js','./modules/factions.js','./modules/crew-presence.js','./modules/crew-avatar-visual.js','./modules/crew-visual-layer.js','./modules/crew-replication.js','./modules/crew-session.js','./modules/crew-runtime.js','./modules/crew-cabin-bridge.js','./modules/crew-broadcast-transport.js','./modules/crew-mqtt-transport.js','./modules/crew-station-authority.js','./modules/crew-station-gate.js','./modules/crew-lobby-ui.js','./modules/mamute-command-authority.js','./modules/integration-live.js','./modules/spawn-selector.js','./modules/maintenance-effect-cadence.js','./modules/mobile-ux-review.js','./modules/theatre-control.js','./modules/theatre-sectors.js','./modules/strategic-hex-map.js','./modules/strategic-war-live.js','./modules/strategic-war-live-v2.js','./modules/strategic-war-live-v3.js','./modules/world-map-intel.js','./modules/local-missions.js','./modules/territory-development.js','./modules/territory-ai.js','./modules/strategic-logistics.js','./modules/mamute-logistics.js','./modules/persistent-war-clock.js','./modules/loading-cycle.js','./modules/loader-arm.js','./modules/loader-audio-cue.js','./modules/war-audio.js','./modules/key-bindings.js','./modules/engine-system.js','./modules/maintenance-feedback.js','./modules/maintenance-overlay.js','./vendor/three.module.min.js','./manifest-v6.webmanifest','./icons/m47.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png',
@@ -35,15 +35,25 @@ self.addEventListener('fetch', event => {
   if (!navigation && !knownAssets.has(url.href)) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
+
+    // Modules/assets must never wait forever on GitHub Pages. Serve the complete
+    // versioned shell immediately; the next SW install atomically refreshes it.
+    // This keeps one coherent JS module graph instead of mixing old/new files.
+    if (!navigation) {
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      return fetch(request, { cache: 'no-store' });
+    }
+
     try {
       const response = await fetch(request, { cache: 'no-store' });
       if (response.ok && (response.type === 'basic' || response.type === 'default')) {
-        try { await cache.put(navigation ? indexURL : request, response.clone()); } catch {}
+        try { await cache.put(indexURL, response.clone()); } catch {}
       }
-      if (response.ok || !navigation) return response;
+      if (response.ok) return response;
       return await cache.match(indexURL) || response;
     } catch (error) {
-      const cached = await cache.match(navigation ? indexURL : request);
+      const cached = await cache.match(indexURL);
       if (cached) return cached;
       throw error;
     }
