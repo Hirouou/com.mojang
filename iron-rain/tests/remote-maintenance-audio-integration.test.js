@@ -13,8 +13,9 @@ test('remote maintenance effects use their semantic audio path instead of loader
   assert.doesNotMatch(source, /effect\.type === 'extinguisher'\) audio\.load/);
 });
 
-test('remote maintenance keeps canonical replicated progress as the audio and visual intensity input', () => {
-  assert.match(source, /const detail = \{ active: true, kind, progress, remote: true \}/);
+test('remote maintenance rebuilds canonical replicated progress into the shared audio and visual contract', () => {
+  assert.match(source, /const detail = remoteMaintenanceFeedback\(kind, progress\)/);
+  assert.match(source, /if \(!detail\) return/);
   assert.match(source, /dispatchEvent\(new CustomEvent\('iron-rain:maintenance-feedback', \{ detail \}\)\)/);
   assert.match(source, /showRemoteMaintenance\('repair', effect\.payload\?\.progress\)/);
   assert.match(source, /showRemoteMaintenance\('extinguish', effect\.payload\?\.progress\)/);
