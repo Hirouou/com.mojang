@@ -61,6 +61,24 @@ test('invalid impact hold cannot trap the projectile camera away from the Mamute
   }
 });
 
+test('invalid impact frame delta begins the canonical return instead of freezing impact hold', () => {
+  for (const dt of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -0.016]) {
+    const state = stateWithCorruptCamera();
+    state.cam.x = 6000;
+    state.cam.y = 1600;
+    state.impactHold = 0.7;
+
+    stepCamera(state, dt, 1000);
+
+    assert.equal(state.cam.mode, 'return');
+    assert.equal(state.returning, true);
+    assert.equal(state.cam.elapsed, 0);
+    assert.equal(state.cam.manualX, 0);
+    assert.equal(state.cam.manualY, 0);
+    assert.equal(state.impactHold, 0.7);
+  }
+});
+
 test('invalid return frame delta snaps safely back to the Mamute instead of freezing cinematic state', () => {
   for (const dt of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -0.016]) {
     const state = stateWithCorruptCamera();
