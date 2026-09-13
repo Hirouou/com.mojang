@@ -41,8 +41,18 @@ test('nearby canonical capitals reuse logistics node positions and live territor
   assert.match(war, /level: capitalVisualLevel\(structures\)/);
   assert.match(war, /__strategicCapitalVisual: true/);
   assert.match(war, /host\.war\.bases\.push\(\.\.\.capitals\)/);
-  assert.match(war, /stripStrategicCapitalVisuals\(state\);/);
-  assert.ok(war.indexOf('stripStrategicCapitalVisuals(state);') < war.indexOf('coreUpdateWar(state, dt)'));
+});
+
+test('capital visuals persist between throttled strategic traffic projections instead of flickering per frame', () => {
+  const publishStart = war.indexOf('function publishStrategicTraffic(state)');
+  const throttle = war.indexOf('if (now < (state.warSimulation.nextTrafficProjection || 0)) return;', publishStart);
+  const strip = war.indexOf('stripStrategicCapitalVisuals(state);', publishStart);
+  assert.ok(publishStart >= 0 && throttle > publishStart && strip > throttle);
+
+  const updateStart = war.indexOf('export function updateWar(state, dt)');
+  const updateEnd = war.indexOf('export function assessRoute', updateStart);
+  assert.ok(updateStart >= 0 && updateEnd > updateStart);
+  assert.doesNotMatch(war.slice(updateStart, updateEnd), /stripStrategicCapitalVisuals\(state\);/);
 });
 
 test('hostile convoy materialization is earned locally or by active intel target', () => {
