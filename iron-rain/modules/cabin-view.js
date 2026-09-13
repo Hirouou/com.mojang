@@ -144,6 +144,17 @@ function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
     flashEnergy = Math.max(0, flashEnergy - step * 2.6);
     dustEnergy = Math.max(0, dustEnergy - step * 1.65);
     flickerEnergy = Math.max(0, flickerEnergy - step * 3.4);
+    const particlesActive = energy > .015 || dustEnergy > .015;
+    const lightActive = flashEnergy > .015 || flickerEnergy > .015;
+    group.visible = particlesActive;
+    if (!particlesActive && !lightActive) {
+      energy = flashEnergy = dustEnergy = flickerEnergy = 0;
+      age = 1;
+      flash.intensity = 0;
+      dustMaterial.opacity = shardMaterial.opacity = 0;
+      shardMaterial.emissiveIntensity = 0;
+      return;
+    }
     const motionAge = reducedMotion ? 0 : age;
     const burst = reducedMotion ? 0 : Math.max(0, 1 - age * 2.2);
     const flicker = reducedMotion ? flickerEnergy * 1.6 : flickerEnergy * (1.3 + Math.abs(Math.sin(age * 83)) * 2.2);
@@ -151,6 +162,7 @@ function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
     dustMaterial.opacity = Math.min(.68, dustEnergy * .72);
     shardMaterial.opacity = Math.min(.82, energy * .9);
     shardMaterial.emissiveIntensity = flashEnergy * 1.15;
+    if (!particlesActive) return;
     particles.forEach((particle, i) => {
       const seed = particle.userData.seed;
       const spread = .16 + (i % 5) * .08;
@@ -166,7 +178,6 @@ function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
       );
       particle.scale.setScalar(reducedMotion ? .82 : .55 + burst * (.8 + (i % 4) * .16));
     });
-    group.visible = energy > .015 || dustEnergy > .015;
   }
 
   return {
@@ -177,6 +188,7 @@ function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
       age = 1;
       flash.intensity = 0;
       dustMaterial.opacity = shardMaterial.opacity = 0;
+      shardMaterial.emissiveIntensity = 0;
       group.visible = false;
     },
     snapshot() { return { active: group.visible, intensity: energy, flash: flashEnergy, dust: dustEnergy, flicker: flickerEnergy }; },
