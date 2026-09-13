@@ -40,6 +40,17 @@ export function knownSupplyRouteThreat({ team, destination, sources = [], logist
   return clamp(best?.threat || 0, 0, 1);
 }
 
+export function releaseTerminalConvoyFlight(inFlight, event) {
+  if (!(inFlight instanceof Map) || !event?.convoyId || !['convoy-arrived', 'convoy-destroyed'].includes(event.type)) return false;
+  let released = false;
+  for (const [key, convoyId] of inFlight) {
+    if (convoyId !== event.convoyId) continue;
+    inFlight.delete(key);
+    released = true;
+  }
+  return released;
+}
+
 function makeTheatre() {
   const hexes = createStrategicHexMap().map(hex => ({ ...hex, sectors: hex.sectors.map(sector => ({ ...sector, structures: [] })) }));
   const records = new Map();
@@ -91,10 +102,6 @@ function makeTheatre() {
   const logistics = createStrategicLogistics({ nodes: logisticNodes, routes });
   const sources = logisticNodes.filter(node => node.kind === 'depot').map(node => node.id);
   const inFlight = new Map();
-
-  function clearFlight(convoyId) {
-    for (const [key, current] of inFlight) if (current === convoyId) inFlight.delete(key);
-  }
 
   function rememberFlight(key, sent) {
     if (sent?.ok && sent.status !== 'arrived' && sent.convoyId) inFlight.set(key, sent.convoyId);
@@ -161,10 +168,10 @@ function makeTheatre() {
   function step(seconds) {
     const elapsed = Math.min(8, Math.max(.1, seconds));
     for (const event of logistics.step(elapsed)) {
+      releaseTerminalConvoyFlight(inFlight, event);
       if (event.type !== 'convoy-arrived') continue;
       const node = territory.get(event.to);
       if (node && event.cargo) receiveTerritoryDelivery(node, { team: event.team, cargo: event.cargo });
-      clearFlight(event.convoyId);
     }
 
     const logisticsSnapshot = logistics.snapshot();
