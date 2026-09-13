@@ -1,3 +1,5 @@
+import { assessIntelAge } from './intel-knowledge.js';
+
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const stockKeys = Object.freeze(['materials', 'ammo', 'fuel']);
 export const LOGISTICS_ASSET_KEYS = Object.freeze(['trucks', 'tanks', 'troops']);
@@ -18,7 +20,16 @@ export function createLogisticsNode({ id, team, x = 0, y = 0, stock = {}, assets
 }
 
 export function createSupplyRoute({ id, team, from, to, distance = 1_000 } = {}) {
-  return { id: String(id ?? `${from}-${to}`), team: team === 'ally' || team === 'enemy' ? team : null, from: String(from ?? ''), to: String(to ?? ''), distance: Math.max(1, Number(distance) || 1_000), open: true, threat: 0 };
+  return {
+    id: String(id ?? `${from}-${to}`),
+    team: team === 'ally' || team === 'enemy' ? team : null,
+    from: String(from ?? ''),
+    to: String(to ?? ''),
+    distance: Math.max(1, Number(distance) || 1_000),
+    open: true,
+    threat: 0,
+    threatIntel: null,
+  };
 }
 
 function canPay(stock, cargo) { return stockKeys.every(key => (stock?.[key] || 0) >= (cargo?.[key] || 0)); }
@@ -33,6 +44,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   const routeMap = new Map(routes.map(route => [route.id, route]));
   const convoys = new Map();
   let serial = 0;
+  let intelNow = 0;
 
   function adjacency(team) {
     const graph = new Map();
@@ -52,11 +64,18 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     return graph;
   }
 
-  function routeCost(item) {
-    return item.distance * (1 + clamp(item.threat, 0, 1));
+  function knownRouteThreat(item, now = intelNow) {
+    const intel = item?.threatIntel;
+    if (!intel) return 0;
+    const state = assessIntelAge({ reportedAt: intel.reportedAt }, now).state;
+    return state === 'fresh' || state === 'aging' ? clamp(intel.threat, 0, 1) : 0;
   }
 
-  function route(team, from, to) {
+  function routeCost(item, now = intelNow) {
+    return item.distance * (1 + knownRouteThreat(item, now));
+  }
+
+  function route(team, from, to, { now = intelNow } = {}) {
     if (from === to) return Object.freeze([]);
     const graph = adjacency(team), frontier = [{ id: from, cost: 0, path: [] }], best = new Map([[from, 0]]);
     while (frontier.length) {
@@ -64,7 +83,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       const current = frontier.shift();
       if (current.id === to) return Object.freeze(current.path.map(step => Object.freeze(step)));
       for (const edge of graph.get(current.id) || []) {
-        const nextCost = current.cost + routeCost(edge.route);
+        const nextCost = current.cost + routeCost(edge.route, now);
         if ((best.get(edge.node) ?? Infinity) <= nextCost) continue;
         best.set(edge.node, nextCost);
         frontier.push({ id: edge.node, cost: nextCost, path: [...current.path, { routeId: edge.route.id, from: current.id, to: edge.node, distance: edge.route.distance }] });
@@ -73,13 +92,13 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     return null;
   }
 
-  function dispatch({ team, from, to, cargo = {}, assets = {}, speed = 14, kind = 'supply' } = {}) {
+  function dispatch({ team, from, to, cargo = {}, assets = {}, speed = 14, kind = 'supply', now = intelNow } = {}) {
     const origin = nodeMap.get(String(from)), destination = nodeMap.get(String(to));
     const load = copyStock(cargo), manifest = copyAssets(assets);
     if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return Object.freeze({ ok: false, reason: 'invalid-endpoint' });
     if (!canPay(origin.stock, load)) return Object.freeze({ ok: false, reason: 'origin-stock-insufficient' });
     if (!canPayAssets(origin.assets, manifest)) return Object.freeze({ ok: false, reason: 'origin-assets-insufficient' });
-    const path = route(team, origin.id, destination.id);
+    const path = route(team, origin.id, destination.id, { now });
     if (!path) return Object.freeze({ ok: false, reason: 'route-cut' });
     debit(origin.stock, load);
     debitAssets(origin.assets, manifest);
@@ -173,6 +192,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
 
   function step(dt, { damageByConvoy = {} } = {}) {
     const elapsed = clamp(dt, 0, 60), events = [];
+    intelNow += elapsed;
     for (const convoy of convoys.values()) {
       if (['arrived', 'destroyed'].includes(convoy.status)) continue;
       convoy.hp = clamp(convoy.hp - Math.max(0, Number(damageByConvoy[convoy.id]) || 0), 0, 100);
@@ -247,7 +267,20 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     const item = routeMap.get(String(routeId));
     if (!item) return false;
     item.open = Boolean(open);
+    // `threat` is authoritative simulation state only. Routing deliberately does
+    // not consume it until the owning faction has received a valid report.
     if (Number.isFinite(threat)) item.threat = clamp(threat, 0, 1);
+    return true;
+  }
+
+  function reportRouteThreat(routeId, { team, threat, reportedAt = intelNow } = {}) {
+    const item = routeMap.get(String(routeId));
+    const observedAt = Number(reportedAt);
+    if (!item || item.team !== team || !Number.isFinite(threat) || !Number.isFinite(observedAt)) return false;
+    const previous = item.threatIntel;
+    if (previous && Number(previous.reportedAt) > observedAt) return false;
+    item.threatIntel = { threat: clamp(threat, 0, 1), reportedAt: observedAt };
+    intelNow = Math.max(intelNow, observedAt);
     return true;
   }
 
@@ -258,7 +291,10 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         stock: Object.freeze({ ...node.stock }),
         assets: Object.freeze({ ...node.assets }),
       }))),
-      routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({ ...route }))),
+      routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({
+        ...route,
+        threatIntel: route.threatIntel ? Object.freeze({ ...route.threatIntel }) : null,
+      }))),
       convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({
         ...convoy,
         cargo: Object.freeze({ ...convoy.cargo }),
@@ -268,5 +304,5 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     });
   }
 
-  return Object.freeze({ dispatch, step, route, setRouteOpen, snapshot, getNode: id => nodeMap.get(String(id)) || null });
+  return Object.freeze({ dispatch, step, route, setRouteOpen, reportRouteThreat, snapshot, getNode: id => nodeMap.get(String(id)) || null });
 }
