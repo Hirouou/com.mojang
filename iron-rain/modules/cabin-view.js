@@ -75,7 +75,10 @@ export function createCabinView(canvas, options = {}) {
   globalThis.addEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
 
   function leaveCrewStation() {
-    if (activeCrewStation && enteringCrewStation !== activeCrewStation) { releaseCrewStation(activeCrewStation); activeCrewStation = null; }
+    if (activeCrewStation && enteringCrewStation !== activeCrewStation) {
+      if (!releaseCrewStation(activeCrewStation)) return false;
+      activeCrewStation = null;
+    }
     return core.leaveStation?.();
   }
 
