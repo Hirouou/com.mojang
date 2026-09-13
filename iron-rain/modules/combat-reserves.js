@@ -15,6 +15,7 @@ export function combatRouteOpen({ logistics, team, from, to } = {}) {
   const origin = logistics.getNode(String(from ?? ''));
   const destination = logistics.getNode(String(to ?? ''));
   if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return false;
+  if (origin.id === destination.id) return true;
   try {
     const path = logistics.route(team, origin.id, destination.id);
     return Array.isArray(path) && path.length > 0;
