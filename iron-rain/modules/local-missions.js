@@ -20,8 +20,7 @@ export function localMissionFeed({
     const nearby = dist(playerPosition, mission) <= radius;
     if (nearby) return true;
     const commandRadio = mission.scope === 'command' && mission.hexId && radio.has(mission.hexId);
-    const sameRegion = currentHexId && mission.hexId === currentHexId;
-    return Boolean(commandRadio || sameRegion);
+    return Boolean(commandRadio);
   }).sort((a, b) => {
     const priority = Number(b.priority || 0) - Number(a.priority || 0);
     return priority || dist(playerPosition, a) - dist(playerPosition, b);
