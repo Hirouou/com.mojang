@@ -1,3 +1,5 @@
+import { drawCapitalCities } from './capital-city-renderer.js';
+
 /**
  * Low-poly battlefield dressing for the persistent war simulation.
  * Rendering only: it never reveals a target, changes a force, or creates damage.
@@ -355,27 +357,11 @@ function roadHash(road) {
   return hash >>> 0;
 }
 
-function roadPolyline(road, frame, roadWidth) {
-  const a = frame.worldToScreen(road.from.x, road.from.y), b = frame.worldToScreen(road.to.x, road.to.y);
-  const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
-  if (length < 1) return [a, b];
-  const nx = -dy / length, ny = dx / length;
-  const hash = roadHash(road);
-  const phase = ((hash & 0xffff) / 0xffff) * TAU;
-  const bias = (((hash >>> 16) & 0xff) / 255 - .5) * .34;
-  const amplitude = Math.min(length * .115, roadWidth * .56);
-  const steps = clamp(Math.ceil(length / 72), 9, 24);
-  const points = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const envelope = Math.sin(Math.PI * t);
-    const broad = Math.sin(Math.PI * t + phase) * .64;
-    const second = Math.sin(Math.PI * 3 * t + phase * .73) * .28;
-    const rough = (seed(hash * .00017 + i * 2.71) - .5) * .16;
-    const offset = (broad + second + bias + rough) * amplitude * envelope;
-    points.push({ x: a.x + dx * t + nx * offset, y: a.y + dy * t + ny * offset });
-  }
-  return points;
+function roadPolyline(road, frame) {
+  const source = Array.isArray(road?.points) && road.points.length >= 2 ? road.points : [road?.from, road?.to];
+  return source
+    .filter(point => Number.isFinite(point?.x) && Number.isFinite(point?.y))
+    .map(point => frame.worldToScreen(point.x, point.y));
 }
 
 function offsetRoadPolyline(points, offset) {
@@ -395,55 +381,52 @@ function strokeRoadPolyline(ctx, points) {
 }
 
 function drawStrategicRoad(ctx, road, frame) {
-  const from = road?.from, to = road?.to;
+  const source = Array.isArray(road?.points) && road.points.length >= 2 ? road.points : [road?.from, road?.to];
+  const from = source[0], to = source[source.length - 1];
   if (!Number.isFinite(from?.x) || !Number.isFinite(from?.y) || !Number.isFinite(to?.x) || !Number.isFinite(to?.y)) return;
   const midpoint = { x: (from.x + to.x) * .5, y: (from.y + to.y) * .5 };
   if (frame.visible && !frame.visible(midpoint.x, midpoint.y, Math.hypot(to.x - from.x, to.y - from.y) * frame.zoom * .55 + 96)) return;
 
-  // Keep the canonical logistics segment, but dress it as a broad, imperfect dirt road.
-  // The meander stays inside the widened corridor so canonical convoy positions remain visibly on-road.
-  const roadWidth = Math.max(30, 58 * frame.zoom);
-  const points = roadPolyline(road, frame, roadWidth);
-  const shoulder = roadWidth + Math.max(11, roadWidth * .34);
+  // Draw exactly the canonical route geometry. Urban meanders come only from capital layout.roads.
+  const roadWidth = clamp(48 * frame.zoom, 4, 16);
+  const points = roadPolyline(road, frame);
+  if (points.length < 2) return;
+  const shoulder = roadWidth + Math.max(2, roadWidth * .35);
   const rutOffset = roadWidth * .23;
   const leftRut = offsetRoadPolyline(points, -rutOffset), rightRut = offsetRoadPolyline(points, rutOffset);
   const hash = roadHash(road);
 
   ctx.save();
-  ctx.lineCap = 'round';
+  ctx.lineCap = 'butt';
   ctx.lineJoin = 'round';
 
-  // Wide broken shoulder/berm, then compacted earth body.
-  ctx.strokeStyle = 'rgba(65,59,47,.86)'; ctx.lineWidth = shoulder;
+  ctx.strokeStyle = 'rgba(65,59,47,.78)'; ctx.lineWidth = shoulder;
   strokeRoadPolyline(ctx, points);
-  ctx.strokeStyle = road.open === false ? 'rgba(92,82,63,.82)' : 'rgba(130,116,86,.96)'; ctx.lineWidth = roadWidth;
-  strokeRoadPolyline(ctx, points);
-
-  // Uneven central wear keeps it from reading like a perfect vector stripe.
-  ctx.strokeStyle = road.open === false ? 'rgba(137,122,91,.14)' : 'rgba(180,160,113,.20)';
-  ctx.lineWidth = roadWidth * .56;
+  ctx.strokeStyle = road.open === false ? 'rgba(92,82,63,.78)' : 'rgba(130,116,86,.88)'; ctx.lineWidth = roadWidth;
   strokeRoadPolyline(ctx, points);
 
-  // Twin wheel ruts make the road feel used without turning it into an asphalt lane.
-  ctx.strokeStyle = 'rgba(73,66,50,.30)';
-  ctx.lineWidth = Math.max(1.4, roadWidth * .065);
+  ctx.strokeStyle = road.open === false ? 'rgba(137,122,91,.12)' : 'rgba(180,160,113,.17)';
+  ctx.lineWidth = roadWidth * .52;
+  strokeRoadPolyline(ctx, points);
+
+  ctx.strokeStyle = 'rgba(73,66,50,.28)';
+  ctx.lineWidth = Math.max(.8, roadWidth * .065);
   strokeRoadPolyline(ctx, leftRut);
   strokeRoadPolyline(ctx, rightRut);
 
-  // Deterministic eroded edge marks/potholes. Stable between frames, cheap enough for the local view.
-  for (let i = 2; i < points.length - 2; i += 3) {
+  for (let i = 2; i < points.length - 1; i += 3) {
     const point = points[i], prev = points[i - 1], next = points[i + 1];
     const dx = next.x - prev.x, dy = next.y - prev.y, len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len, ny = dx / len;
     const side = seed(hash * .00011 + i * 4.17) > .5 ? 1 : -1;
     const edge = roadWidth * (.38 + seed(hash * .00023 + i) * .08);
     const x = point.x + nx * edge * side, y = point.y + ny * edge * side;
-    const rx = Math.max(2.5, roadWidth * (.055 + seed(hash * .00031 + i) * .045));
-    const ry = Math.max(1.4, rx * (.34 + seed(hash * .00047 + i) * .25));
+    const rx = Math.max(1.2, roadWidth * (.055 + seed(hash * .00031 + i) * .045));
+    const ry = Math.max(.8, rx * (.34 + seed(hash * .00047 + i) * .25));
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.atan2(dy, dx));
-    ctx.fillStyle = i % 2 ? 'rgba(69,62,48,.24)' : 'rgba(171,149,104,.10)';
+    ctx.fillStyle = i % 2 ? 'rgba(69,62,48,.22)' : 'rgba(171,149,104,.08)';
     ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, TAU); ctx.fill();
     ctx.restore();
   }
@@ -463,6 +446,9 @@ export function drawWarInfrastructure(ctx, state, options) {
   ctx.save();
   ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
   for (const road of (state.warSimulation?.strategicRoads || []).slice(0, 48)) drawStrategicRoad(ctx, road, frame);
+  // Capitals consume the shared deterministic layout. Local roads cover the thin strategic connector,
+  // so city junctions read as continuous streets rather than overlaid round-ended strips.
+  drawCapitalCities(ctx, state, frame);
   for (const sector of (state.sectors || [])) {
     const war = sector.war;
     if (!war) continue;
