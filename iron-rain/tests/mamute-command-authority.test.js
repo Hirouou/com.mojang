@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMamuteCommandAuthority } from '../modules/mamute-command-authority.js';
+import { createMamuteInventory } from '../modules/mamute-logistics.js';
 
 test('driver and gunner can operate different stations at the same time', () => {
   const owners = new Map([['drive', 'driver'], ['aim', 'gunner']]);
@@ -65,4 +66,68 @@ test('rejected fire does not burn shotId before a successful retry', () => {
   assert.equal(authority.receive({ playerId: 'gunner', seq: 11, type: 'fire', payload }).ok, true);
   assert.equal(authority.receive({ playerId: 'gunner', seq: 12, type: 'fire', payload }).reason, 'duplicate-shot');
   assert.equal(applied.length, 2);
+});
+
+test('accepted fire consumes exactly one shell from canonical Mamute inventory', () => {
+  const inventory = createMamuteInventory({
+    capacity: { HE: 4, SMOKE: 2, FRAG: 2 },
+    shells: { HE: 2, SMOKE: 1, FRAG: 1 },
+  });
+  const authority = createMamuteCommandAuthority({
+    stationOwner: () => 'gunner',
+    fireInventory: inventory,
+  });
+  const payload = { shotId: 'mamute-a:gunner:ammo-1', shell: 'HE' };
+
+  const accepted = authority.receive({ playerId: 'gunner', seq: 20, type: 'fire', payload });
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.ammoRemaining, 1);
+  assert.equal(inventory.shells.HE, 1);
+
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 21, type: 'fire', payload }).reason, 'duplicate-shot');
+  assert.equal(inventory.shells.HE, 1);
+});
+
+test('fire fails closed on empty canonical inventory without applying the shot', () => {
+  const inventory = createMamuteInventory({
+    capacity: { HE: 2, SMOKE: 2, FRAG: 2 },
+    shells: { HE: 0, SMOKE: 1, FRAG: 1 },
+  });
+  const applied = [];
+  const authority = createMamuteCommandAuthority({
+    stationOwner: () => 'gunner',
+    fireInventory: () => inventory,
+    apply: command => { applied.push(command); return true; },
+  });
+
+  const result = authority.receive({
+    playerId: 'gunner',
+    seq: 30,
+    type: 'fire',
+    payload: { shotId: 'mamute-a:gunner:empty', shell: 'HE' },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'out-of-ammo');
+  assert.equal(applied.length, 0);
+  assert.equal(inventory.shells.HE, 0);
+});
+
+test('rejected fire leaves canonical ammo available for retry', () => {
+  const inventory = createMamuteInventory({
+    capacity: { HE: 2, SMOKE: 2, FRAG: 2 },
+    shells: { HE: 1, SMOKE: 1, FRAG: 1 },
+  });
+  let allow = false;
+  const authority = createMamuteCommandAuthority({
+    stationOwner: () => 'gunner',
+    fireInventory: inventory,
+    apply: () => allow,
+  });
+  const payload = { shotId: 'mamute-a:gunner:ammo-retry', shell: 'HE' };
+
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 40, type: 'fire', payload }).reason, 'command-rejected');
+  assert.equal(inventory.shells.HE, 1);
+  allow = true;
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 41, type: 'fire', payload }).ok, true);
+  assert.equal(inventory.shells.HE, 0);
 });
