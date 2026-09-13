@@ -4,9 +4,9 @@ import { combatReservePlan } from '../modules/combat-reserves.js';
 
 function logisticsGraph({ cut = false } = {}) {
   const nodes = new Map([
-    ['rear', { id: 'rear', team: 'ally', alive: true }],
-    ['front', { id: 'front', team: 'ally', alive: true }],
-    ['enemy', { id: 'enemy', team: 'enemy', alive: true }],
+    ['rear', { id: 'rear', team: 'ally', alive: true, kind: 'depot', assets: { troops: 20 } }],
+    ['front', { id: 'front', team: 'ally', alive: true, kind: 'depot', assets: { troops: 10 } }],
+    ['enemy', { id: 'enemy', team: 'enemy', alive: true, kind: 'depot', assets: { troops: 10 } }],
   ]);
   const routes = [{ id: 'rear-front', from: 'rear', to: 'front', knownThreat: 0 }];
   return {
@@ -26,7 +26,7 @@ const depotTerritory = Object.freeze({
   structures: Object.freeze(['depot']),
 });
 
-test('reserve plan composes route, territory effects, admission and batch once', () => {
+test('reserve plan composes route, territory effects, admission and physical batch once', () => {
   const result = combatReservePlan({
     strategicLogistics: logisticsGraph(),
     territory: depotTerritory,
@@ -41,9 +41,13 @@ test('reserve plan composes route, territory effects, admission and batch once',
   assert.equal(result.routeOpen, true);
   assert.equal(result.logistics.connected, true);
   assert.equal(result.logistics.reinforcementSupport, .12);
+  assert.equal(result.logistics.availableTroops, 10);
+  assert.equal(result.logistics.deployableTroops, 8);
   assert.equal(result.ready, true);
   assert.equal(result.reason, 'ready');
-  assert.equal(result.amount, 2.4);
+  // Physical reserve stock is discrete: support 2.4 admits two actual troops,
+  // rather than recreating a fractional legacy reinforcement at the front.
+  assert.equal(result.amount, 2);
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.logistics), true);
 });
