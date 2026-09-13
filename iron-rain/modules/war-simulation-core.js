@@ -1,4 +1,4 @@
-import { combatRecoveryPhase } from './combat-recovery.js';
+import { combatOffensiveReady, combatRecoveryPhase } from './combat-recovery.js';
 import { combatReservePlanCycle } from './combat-reserves.js';
 
 /** Persistent fronts, with tactical soldiers instantiated only where detail is needed. */
@@ -343,7 +343,13 @@ function strategicStep(state) {
       const enemyStrength = sec[strengthKey(otherTeam(team))];
       const ownPower = sec[key] * force.morale;
       const enemyPower = enemyStrength * foe.morale;
-      const canOccupy = sec[key] >= 23 && force.morale >= .23 && force.suppression < .68 && force.ammo > .18 &&
+      const offensiveReady = combatOffensiveReady({
+        morale: force.morale,
+        suppression: force.suppression,
+        ammo: force.ammo,
+        supply: support.supply
+      });
+      const canOccupy = sec[key] >= 23 && offensiveReady &&
         (enemyStrength < 12 || ownPower > enemyPower * 1.3);
       // A cleared line is exploited immediately, independent of the old
       // suppress/wait loop. The next 640 m becomes persistent territory, but
