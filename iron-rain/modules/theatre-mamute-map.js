@@ -1,5 +1,16 @@
 const text = value => typeof value === 'string' ? value.trim() : '';
 
+function shouldReplaceIntel(previous, next) {
+  if (!previous) return true;
+  const previousReportedAt = Number(previous?.reportedAt);
+  const nextReportedAt = Number(next?.reportedAt);
+  const previousTimed = Number.isFinite(previousReportedAt);
+  const nextTimed = Number.isFinite(nextReportedAt);
+  if (previousTimed && nextTimed) return nextReportedAt >= previousReportedAt;
+  if (previousTimed && !nextTimed) return false;
+  return true;
+}
+
 /**
  * Builds renderer-safe Mamute contacts for one faction.
  * Friendly Mamutes may use canonical theatre positions; enemy positions are
@@ -12,7 +23,9 @@ export function buildTheatreMamuteMapContacts(roster, viewerFaction, intelEntrie
   const intelById = new Map();
   for (const entry of Array.isArray(intelEntries) ? intelEntries : []) {
     const id = text(entry?.id);
-    if (id) intelById.set(id, entry);
+    if (!id) continue;
+    const previous = intelById.get(id);
+    if (shouldReplaceIntel(previous, entry)) intelById.set(id, entry);
   }
 
   const contacts = [];
