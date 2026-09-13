@@ -32,6 +32,19 @@ test('driver prompt follows the visible controls as well as the aisle focus poin
   assert.equal(movement.focus()?.id, 'drive');
 });
 
+test('station prompt clears when the player looks far above the console', () => {
+  const movement = createCabinMovement();
+  const from = { x: -.95, z: -.15 };
+  const focus = { x: -.9, z: .7 };
+  const console = { x: -1.6, y: 1.03, z: .7 };
+
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, focus), pitch: .91 }), true);
+  assert.notEqual(movement.focus()?.id, 'map', 'horizontal overlap alone must not keep the map prompt active while looking at the ceiling');
+
+  assert.equal(movement.lookToward(console, 1), true);
+  assert.equal(movement.focus()?.id, 'map', 'looking back at the physical console restores the prompt');
+});
+
 test('narrow interaction ray still cannot cross cabin machinery', () => {
   const movement = createCabinMovement();
   const from = { x: -1.2, z: -.3 };
