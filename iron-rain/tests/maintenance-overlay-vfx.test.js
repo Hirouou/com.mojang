@@ -28,13 +28,13 @@ test('maintenance overlay exposes perceptible foam and repair vfx with safe fall
   assert.match(source, /vfx\.className = 'ir-maintenance-vfx'/);
 });
 
-test('mobile landscape keeps local maintenance motion but stops large compositor loops', () => {
+test('coarse pointers keep the compact maintenance readout but quiesce screen-space vfx', () => {
+  assert.match(source, /function coarseMaintenanceVfx\(\)/);
+  assert.match(source, /matchMedia\?\.\('\(hover: none\) and \(pointer: coarse\)'\)\?\.matches === true/);
+  assert.match(source, /const vfxActive = localVfx && !coarseMaintenanceVfx\(\) &&/);
   assert.match(source, /@media\(max-width:900px\) and \(orientation:landscape\)/);
-  assert.match(source, /\.ir-maintenance-vfx\{left:46%;top:42%;right:0;bottom:0;inset:auto;contain:layout paint;background:none\}/);
-  assert.match(source, /\.ir-maintenance-vfx\.extinguish:after,\.ir-maintenance-vfx\.repair:after\{animation:none\}/);
-  assert.match(source, /\.ir-maintenance-vfx\.extinguish \.foam\{[^}]*animation-duration:\.26s/);
-  assert.match(source, /\.ir-maintenance-vfx\.repair \.tool\{left:72%;top:58%\}/);
-  assert.match(source, /\.ir-maintenance-vfx\.repair \.spark\{left:74%;top:61%\}/);
+  assert.match(source, /\.ir-maintenance-vfx\{display:none!important\}/);
+  assert.match(source, /\.ir-maintenance\{top:61%;min-width:154px/);
 });
 
 test('maintenance overlay identifies replicated work without calling it local', () => {
@@ -45,7 +45,7 @@ test('maintenance overlay identifies replicated work without calling it local', 
 
 test('replicated maintenance keeps status feedback without impersonating the local tool', () => {
   assert.match(source, /const localVfx = detail\.remote !== true/);
-  assert.match(source, /const vfxActive = localVfx && \(isExtinguish \? spray > \.02 : repairMotion > \.02 \|\| sparks > \.02\)/);
+  assert.match(source, /const vfxActive = localVfx && !coarseMaintenanceVfx\(\) && \(isExtinguish \? spray > \.02 : repairMotion > \.02 \|\| sparks > \.02\)/);
   assert.doesNotMatch(source, /\.ir-maintenance-vfx\.remote\{/);
   assert.doesNotMatch(source, /detail\.remote === true \? ' remote' : ''/);
 });
