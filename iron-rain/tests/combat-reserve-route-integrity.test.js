@@ -9,22 +9,27 @@ function logisticsMock({ malformed = false, empty = false, disconnected = false 
     { id: 'junction', team: 'ally', kind: 'road', alive: true },
     { id: 'front', team: 'ally', kind: 'outpost', alive: true },
   ];
+  const routes = [
+    { id: 'rear-near-front', from: 'rear-near', to: 'front', knownThreat: 0 },
+    { id: 'rear-near-junction', from: 'rear-near', to: 'junction', knownThreat: 0 },
+    { id: 'rear-safe-front', from: 'rear-safe', to: 'front', knownThreat: 0 },
+  ];
   const byId = new Map(nodes.map(node => [node.id, node]));
   return {
     getNode(id) { return byId.get(id) || null; },
-    snapshot() { return { nodes }; },
+    snapshot() { return { nodes, routes }; },
     route(team, from, to) {
       if (team !== 'ally' || to !== 'front') return null;
       if (from === 'rear-near') {
         if (empty) return [];
-        if (malformed) return [{ from, to, distance: 0 }];
+        if (malformed) return [{ routeId: 'rear-near-front', from, to, distance: 0 }];
         if (disconnected) return [
-          { from, to: 'junction', distance: 40 },
-          { from: 'rear-safe', to, distance: 40 },
+          { routeId: 'rear-near-junction', from, to: 'junction', distance: 40 },
+          { routeId: 'rear-safe-front', from: 'rear-safe', to, distance: 40 },
         ];
-        return [{ from, to, distance: 80 }];
+        return [{ routeId: 'rear-near-front', from, to, distance: 80 }];
       }
-      if (from === 'rear-safe') return [{ from, to, distance: 140 }];
+      if (from === 'rear-safe') return [{ routeId: 'rear-safe-front', from, to, distance: 140 }];
       return null;
     },
   };

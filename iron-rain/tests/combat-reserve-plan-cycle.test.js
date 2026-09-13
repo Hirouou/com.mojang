@@ -7,11 +7,13 @@ function logisticsGraph({ cut = false } = {}) {
     ['rear', { id: 'rear', team: 'ally', alive: true }],
     ['front', { id: 'front', team: 'ally', alive: true }],
   ]);
+  const routes = [{ id: 'rear-front', from: 'rear', to: 'front', knownThreat: 0 }];
   return {
     getNode(id) { return nodes.get(id) || null; },
+    snapshot() { return { nodes: [...nodes.values()], routes }; },
     route(team, from, to) {
       if (cut || team !== 'ally' || from !== 'rear' || to !== 'front') return null;
-      return [{ from: 'rear', to: 'front', distance: 100 }];
+      return [{ routeId: 'rear-front', from: 'rear', to: 'front', distance: 100 }];
     },
   };
 }

@@ -7,9 +7,10 @@ function logisticsGraph(troops = 4) {
     ['rear', { id: 'rear', team: 'ally', alive: true, kind: 'depot', assets: { troops: 12 } }],
     ['front', { id: 'front', team: 'ally', alive: true, kind: 'outpost', assets: { troops } }],
   ]);
+  const routes = [{ id: 'rear-front', from: 'rear', to: 'front', knownThreat: 0 }];
   return {
     getNode(id) { return nodes.get(id) || null; },
-    snapshot() { return { nodes: [...nodes.values()] }; },
+    snapshot() { return { nodes: [...nodes.values()], routes }; },
     route(team, from, to) {
       if (team !== 'ally' || from !== 'rear' || to !== 'front') return null;
       return [{ routeId: 'rear-front', from: 'rear', to: 'front', distance: 100 }];
