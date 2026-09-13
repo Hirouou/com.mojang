@@ -48,6 +48,14 @@ test('healthy formations wait for support instead of launching low-supply assaul
   assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy }), 'wait_support', 'missing supply fails closed for offensive readiness');
 });
 
+test('depleted formations withdraw before hard break when local supply is gone', () => {
+  const base = { phase: 'hold', strength: 48, morale: .6, suppression: .3, ammo: .8, supply: .19 };
+  assert.equal(combatRecoveryPhase({ ...base, ammo: .19 }), 'retreat', 'empty magazines plus failed supply trigger a withdrawal');
+  assert.equal(combatRecoveryPhase({ ...base, morale: .31 }), 'retreat', 'shaken troops withdraw when failed supply cannot sustain the line');
+  assert.equal(combatRecoveryPhase({ ...base, suppression: .66 }), 'retreat', 'pinned troops withdraw when failed supply cannot sustain the line');
+  assert.equal(combatRecoveryPhase(base), 'wait_support', 'composed and armed troops may still hold for support');
+});
+
 test('staging formations do not counter-attack until morale, suppression, ammo and supply are all ready', () => {
   const base = { phase: 'hold', strength: 55, morale: .7, suppression: .2, ammo: .8, supply: .8 };
   assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'shaken formation stays in cover');
