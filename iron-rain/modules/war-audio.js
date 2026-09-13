@@ -193,10 +193,19 @@ export function createWarAudio() {
     lifecycleHidden = false;
     applyVolumes();
   });
+  const onOperatorGesture = () => safely(() => {
+    // Do not attempt autoplay recovery while hidden. Once Safari/iOS returns an
+    // interrupted/suspended context, the first real operator gesture resumes
+    // the already-built graph instead of waiting for an unrelated UI control.
+    if (muted || documentHidden() || !context || context.state === 'running' || context.state === 'closed') return;
+    wake();
+  });
   globalThis.addEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
   globalThis.addEventListener?.('pagehide', onPageHide);
   globalThis.addEventListener?.('pageshow', onPageShow);
   globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
+  globalThis.document?.addEventListener?.('pointerdown', onOperatorGesture, { passive: true });
+  globalThis.document?.addEventListener?.('keydown', onOperatorGesture);
 
   function clearContext() {
     for (const voice of [...voices]) voice.cleanup();
@@ -304,6 +313,8 @@ export function createWarAudio() {
       globalThis.removeEventListener?.('pagehide', onPageHide);
       globalThis.removeEventListener?.('pageshow', onPageShow);
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
+      globalThis.document?.removeEventListener?.('pointerdown', onOperatorGesture);
+      globalThis.document?.removeEventListener?.('keydown', onOperatorGesture);
       safely(stopTransientVoices);
       settle(safely(() => context?.close()));
       clearContext(); nextCrank = nextFoot = 0;
