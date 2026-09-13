@@ -6,6 +6,12 @@ const css = readFileSync(new URL('../mobile-viewport-hotfix.css', import.meta.ur
 const bootstrap = readFileSync(new URL('../bootstrap.js', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 
+test('hidden AIM deck wins over mobile display override while menus are open', () => {
+  const game = readFileSync(new URL('../game-v6.js', import.meta.url), 'utf8');
+  assert.match(game, /UI\.fireDeck\.classList\.toggle\('hidden',busy\|\|!!sheetOpen/);
+  assert.match(css, /\.inside\.station-engaged \.fire-deck\[data-station="aim"\]\.hidden\s*\{\s*display:none!important;\s*\}/);
+});
+
 test('mobile AIM anchors both dial containers without Safari display-contents positioning', () => {
   assert.match(css, /\.handwheel-box\.elevation-box\{[\s\S]*position:absolute!important/);
   assert.match(css, /\.handwheel-box:not\(\.elevation-box\)\{[\s\S]*left:var\(--aim-side\)!important/);
