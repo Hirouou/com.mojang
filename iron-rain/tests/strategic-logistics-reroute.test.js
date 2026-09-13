@@ -61,7 +61,7 @@ test('convoy already inside a closed road stays blocked instead of teleporting t
   assert.deepEqual(blocked.path.map(leg => leg.routeId), ['A-D']);
 });
 
-test('convoy routing trades modest distance for a materially safer open road', () => {
+test('convoy routing only avoids a threatened road while faction intel is current', () => {
   const logistics = createStrategicLogistics({
     nodes: [node('A', { fuel: 5 }), node('B'), node('D')],
     routes: [
@@ -71,14 +71,24 @@ test('convoy routing trades modest distance for a materially safer open road', (
     ],
   });
 
+  // Authoritative threat by itself is not faction knowledge and must not make
+  // logistics omniscient.
   assert.equal(logistics.setRouteOpen('A-D', true, .9), true);
-  assert.deepEqual(logistics.route('ally', 'A', 'D').map(leg => leg.routeId), ['A-B', 'B-D']);
+  assert.deepEqual(logistics.route('ally', 'A', 'D', { now: 100 }).map(leg => leg.routeId), ['A-D']);
 
-  const dispatch = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 } });
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'enemy', threat: .9, reportedAt: 100 }), false);
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: .9, reportedAt: 100 }), true);
+  assert.deepEqual(logistics.route('ally', 'A', 'D', { now: 100 }).map(leg => leg.routeId), ['A-B', 'B-D']);
+
+  const dispatch = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 }, now: 100 });
   assert.equal(dispatch.ok, true);
   const convoy = logistics.snapshot().convoys.find(item => item.id === dispatch.convoyId);
   assert.deepEqual(convoy.path.map(leg => leg.routeId), ['A-B', 'B-D']);
 
-  assert.equal(logistics.setRouteOpen('A-D', true, 0), true);
-  assert.deepEqual(logistics.route('ally', 'A', 'D').map(leg => leg.routeId), ['A-D']);
+  // The shared intel policy treats reports older than the aging window as stale;
+  // stale contact remains history, not live route avoidance.
+  assert.deepEqual(logistics.route('ally', 'A', 'D', { now: 401 }).map(leg => leg.routeId), ['A-D']);
+
+  // Older observations cannot overwrite a newer threat report.
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: 0, reportedAt: 99 }), false);
 });
