@@ -7,11 +7,12 @@ const facadeSource = await readFile(new URL('../modules/strategic-war-live.js', 
 
 test('live strategic renderer consumes authoritative sector-control projection', () => {
   assert.match(liveSource, /import \{ applyAuthoritativeSectorControl \} from '\.\/strategic-capture-state\.js';/);
-  assert.match(liveSource, /function applySectorControl\(\{ sectorId, owner, contested = false \} = \{\}\)/);
+  assert.match(liveSource, /function applySectorControl\(\{ sectorId, owner, contested = false, revision \} = \{\}\)/);
   assert.match(liveSource, /record = theatre\.records\.get\(id\)/);
   assert.match(liveSource, /territoryNode = theatre\.territory\.get\(id\)/);
   assert.match(liveSource, /logistics: theatre\.logistics/);
   assert.match(liveSource, /applyAuthoritativeSectorControl\(\{/);
+  assert.match(liveSource, /owner,\s*contested,\s*revision,/s);
   assert.match(liveSource, /window\.ironRainStrategicMap = Object\.freeze\(\{ locate, combatReserveContext, applySectorControl,/);
 });
 
