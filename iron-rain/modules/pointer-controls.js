@@ -1,6 +1,11 @@
 /** Pointer Events controls for mouse, pen and independent simultaneous touches. */
 const noop = () => {};
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const finitePointerFrame = (event, bounds) => Boolean(
+  Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY) &&
+  [bounds?.left, bounds?.top, bounds?.width, bounds?.height].every(Number.isFinite) &&
+  bounds.width > 0 && bounds.height > 0
+);
 
 function pointerBinding(element, { start, move, stop, onEngage = noop, isEnabled = () => true }) {
   const doc = element.ownerDocument;
@@ -85,6 +90,11 @@ export function bindJoystick(element, knob, { onChange = noop, onEngage, isEnabl
   const zone = clamp(deadZone, 0, 0.9);
   function move(event) {
     const bounds = element.getBoundingClientRect();
+    if (!finitePointerFrame(event, bounds)) {
+      knob.style.transform = 'translate(0px, 0px)';
+      onChange({ x: 0, y: 0 });
+      return;
+    }
     const radius = Math.max(1, Math.min(bounds.width, bounds.height) * 0.35);
     const dx = event.clientX - bounds.left - bounds.width / 2;
     const dy = event.clientY - bounds.top - bounds.height / 2;
@@ -112,6 +122,7 @@ export function bindHandwheel(element, arm, { onDelta = noop, onEngage, isEnable
   let visualDegrees = 0;
   function angleAt(event) {
     const bounds = element.getBoundingClientRect();
+    if (!finitePointerFrame(event, bounds)) return null;
     const x = event.clientX - bounds.left - bounds.width / 2;
     const y = event.clientY - bounds.top - bounds.height / 2;
     if (Math.hypot(x, y) < Math.min(bounds.width, bounds.height) * 0.14) return null;
