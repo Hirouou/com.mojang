@@ -46,6 +46,12 @@ function effectFromLocalShooter(effect) {
   return Boolean(shooterId && localId && shooterId === localId);
 }
 
+function showRemoteMaintenance(kind, progress) {
+  const detail = { active: true, kind, progress, remote: true };
+  audio.maintenance(detail);
+  try { dispatchEvent(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
+}
+
 function applyRemoteEffect(effect) {
   if (!effect?.type) return;
   if (effect.type === 'fire' && !remoteShotReplayGuard.accept(remoteFireReplayKey(effect))) return;
@@ -58,8 +64,8 @@ function applyRemoteEffect(effect) {
     audio.impact(feedback || effect.payload || effect);
     toast(effect.type === 'critical' ? 'ESTADO CRÍTICO · toda a tripulação recebeu o alerta.' : 'IMPACTO NO CASCO · sentido por toda a tripulação.', 'CASCO');
   }
-  else if (effect.type === 'repair') audio.maintenance({ active: true, kind: 'repair', progress: effect.payload?.progress });
-  else if (effect.type === 'extinguisher') audio.maintenance({ active: true, kind: 'extinguish', progress: effect.payload?.progress });
+  else if (effect.type === 'repair') showRemoteMaintenance('repair', effect.payload?.progress);
+  else if (effect.type === 'extinguisher') showRemoteMaintenance('extinguish', effect.payload?.progress);
 }
 
 function bindRuntime() {
@@ -150,6 +156,7 @@ function installSelectorWhenReady() {
 }
 
 addEventListener('iron-rain:maintenance-feedback', event => {
+  if (event.detail?.remote) return;
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.emitEffect) return;
   const cadence = maintenanceEffectCadence(maintenanceCadenceState, event.detail || {}, performance.now() / 1000);
