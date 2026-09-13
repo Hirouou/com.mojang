@@ -1,0 +1,25 @@
+name: Iron Rain Capital Logistics Agent Tests
+
+on:
+  push:
+    branches:
+      - agent/capital-logistics-20260913
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout agent branch
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Iron Rain test suite
+        working-directory: iron-rain
+        run: npm test
