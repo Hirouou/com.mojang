@@ -39,13 +39,16 @@ function knownLocalRouteThreat(strategicLogistics, to) {
   try { routes = strategicLogistics.snapshot()?.routes; } catch { return 1; }
   if (!Array.isArray(routes)) return 1;
   const nodeId = String(to ?? '');
-  let threat = 0;
+  let threat = 0, sawRoute = false;
   for (const route of routes) {
     if (String(route?.from ?? '') !== nodeId && String(route?.to ?? '') !== nodeId) continue;
+    sawRoute = true;
     const knownThreat = Number(route?.knownThreat);
     if (Number.isFinite(knownThreat)) threat = Math.max(threat, knownThreat);
   }
-  return threat;
+  // No adjacent route record is not evidence of safety. Keep the defensive
+  // reserve until canonical route intel can account for the field node.
+  return sawRoute ? threat : 1;
 }
 
 /** Ask the canonical strategic-logistics graph whether a friendly route really exists. */
