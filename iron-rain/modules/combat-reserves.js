@@ -28,7 +28,10 @@ function routeIntelSafe(logistics, path) {
     const route = byId.get(String(leg?.routeId ?? ''));
     if (!route) return false;
     const knownThreat = Number(route.knownThreat);
-    if (Number.isFinite(knownThreat) && knownThreat >= COMBAT_ROUTE_THREAT_LIMIT) return false;
+    // A route record without earned threat intel is not evidence that the road
+    // is safe enough for regular reinforcements. Fail closed until recon/radio
+    // supplies a finite knownThreat value; never substitute raw hidden threat.
+    if (!Number.isFinite(knownThreat) || knownThreat >= COMBAT_ROUTE_THREAT_LIMIT) return false;
   }
   return true;
 }
