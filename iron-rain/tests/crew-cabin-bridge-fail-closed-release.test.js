@@ -28,7 +28,7 @@ test('crew cabin bridge releases the active station when a runtime frame fails c
 
 test('crew cabin bridge clear releases the currently occupied station before leaving it locally', () => {
   const calls = [];
-  let station = 'driver';
+  let station = 'drive';
   const runtime = {
     releaseStation(id) { calls.push(['release', id]); return true; },
   };
@@ -41,7 +41,7 @@ test('crew cabin bridge clear releases the currently occupied station before lea
   createCrewCabinBridge({ runtime, cabin }).clear();
 
   assert.deepEqual(calls, [
-    ['release', 'driver'],
+    ['release', 'drive'],
     ['leave'],
     ['remotes', [], 0],
   ]);
