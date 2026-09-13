@@ -136,13 +136,15 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
 
   // A convoy may only choose a detour while physically sitting on a route node.
   // If a road closes after it already entered that leg, it stays blocked there
-  // rather than teleporting back to the junction to obtain a new path.
+  // rather than teleporting back to the junction to obtain a new path. The same
+  // physical rule applies to threat-aware replanning: open roads may be avoided
+  // only before the convoy commits to their segment.
   function rerouteFromCurrentNode(convoy) {
-    const blockedLeg = convoy.path[convoy.leg] || null;
-    if (!blockedLeg || convoy.legProgress > 1e-6) return null;
-    const detour = route(convoy.team, blockedLeg.from, convoy.to);
-    if (!detour?.length) return null;
-    const previousRouteId = blockedLeg.routeId;
+    const currentLeg = convoy.path[convoy.leg] || null;
+    if (!currentLeg || convoy.legProgress > 1e-6) return null;
+    const detour = route(convoy.team, currentLeg.from, convoy.to);
+    if (!detour?.length || detour[0].routeId === currentLeg.routeId) return null;
+    const previousRouteId = currentLeg.routeId;
     const prefix = convoy.path.slice(0, convoy.leg);
     convoy.path = [...prefix, ...detour];
     convoy.legProgress = 0;
@@ -150,7 +152,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     return {
       previousRouteId,
       routeId: nextLeg?.routeId ?? null,
-      fromNode: nextLeg?.from ?? blockedLeg.from,
+      fromNode: nextLeg?.from ?? currentLeg.from,
       toNode: nextLeg?.to ?? null,
     };
   }
@@ -183,6 +185,8 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         continue;
       }
       const previousStatus = convoy.status;
+      const junctionReroute = rerouteFromCurrentNode(convoy);
+      if (junctionReroute) events.push(rerouteEvent(convoy, junctionReroute));
       if (!routeStillOpen(convoy)) {
         const reroute = rerouteFromCurrentNode(convoy);
         if (!reroute) {
@@ -200,6 +204,10 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       }
       let travel = convoy.speed * elapsed;
       while (travel > 0 && convoy.leg < convoy.path.length) {
+        if (convoy.legProgress <= 1e-6) {
+          const reroute = rerouteFromCurrentNode(convoy);
+          if (reroute) events.push(rerouteEvent(convoy, reroute));
+        }
         const leg = convoy.path[convoy.leg], remaining = leg.distance - convoy.legProgress;
         const move = Math.min(travel, remaining);
         convoy.legProgress += move; travel -= move;
