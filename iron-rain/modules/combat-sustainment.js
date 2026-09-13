@@ -17,6 +17,11 @@ export function combatSustainmentSupply({ strategicLogistics, territory, team, f
   const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to: destination });
   const logistics = combatLogisticsState({ territory, team, routeOpen });
   if (!logistics.connected) return .08;
+  // Stock parked on a generic road/sector node is not frontline sustainment by
+  // itself. A real field node must exist before tactical formations can turn
+  // delivered ammunition into offensive supply; otherwise they fail closed and
+  // wait for logistics instead of attacking from an undeveloped map point.
+  if (!logistics.hasOutpost && !logistics.hasDepot && !logistics.hasGarage) return .08;
 
   let endpoint = null;
   try { endpoint = strategicLogistics.getNode(destination); } catch {}
