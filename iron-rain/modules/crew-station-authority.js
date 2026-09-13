@@ -7,7 +7,7 @@ const cleanId = value => (typeof value === 'string' || typeof value === 'number'
 const cleanStation = value => stationSet.has(String(value)) ? String(value) : null;
 
 /**
- * Host-authoritative exclusive station ownership for one Mamute crew.
+ * Exclusive physical-station ownership mirrored from the shared Mamute authority.
  * Exactly one crew member can own a physical station/control surface at a time.
  * Walking around remains shared; only machine interaction is locked.
  */
@@ -74,6 +74,11 @@ export function createCrewStationAuthority() {
       const station = cleanStation(entry?.station), owner = cleanId(entry?.owner);
       if (!station || !owner || next.has(station)) continue;
       next.set(station, owner);
+    }
+    if (nextRevision === revision) {
+      if (next.size !== claims.size) return false;
+      for (const [station, owner] of next) if (claims.get(station) !== owner) return false;
+      return true;
     }
     claims.clear();
     for (const [station, owner] of next) claims.set(station, owner);
