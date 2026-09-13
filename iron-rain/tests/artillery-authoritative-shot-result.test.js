@@ -72,6 +72,22 @@ test('duplicate fire keeps the ammo balance from the accepted shot result', () =
   assert.equal(inventory.shells.HE, 1);
 });
 
+test('duplicate fire keeps the owner from the accepted shot after AIM handoff', () => {
+  let owner = 'gunner';
+  const authority = createMamuteCommandAuthority({ stationOwner: () => owner });
+  const payload = { shotId: 'mamute-a:gunner:handoff', shell: 'HE' };
+
+  const accepted = authority.receive({ playerId: 'gunner', seq: 1, type: 'fire', payload });
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.owner, 'gunner');
+
+  owner = 'other-gunner';
+  const duplicate = authority.receive({ playerId: 'gunner', seq: 1, type: 'fire', payload });
+  assert.equal(duplicate.reason, 'duplicate-shot');
+  assert.equal(duplicate.owner, 'gunner');
+  assert.equal(duplicate.shotId, payload.shotId);
+});
+
 test('authoritative fire keeps accepted shell identity without an inventory adapter', () => {
   const authority = createMamuteCommandAuthority({ stationOwner: () => 'gunner' });
   const payload = { shotId: 'mamute-a:gunner:no-inventory', shell: 'SMOKE' };
