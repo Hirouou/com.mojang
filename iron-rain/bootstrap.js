@@ -5,8 +5,6 @@ import { createCrewMqttTransport } from './modules/crew-mqtt-transport.js';
 import { createCrewCabinBridge } from './modules/crew-cabin-bridge.js';
 import { stationGateMessage } from './modules/crew-station-gate.js';
 import { normalizeFaction, factionInfo } from './modules/factions.js';
-import { installStrategicWarLive } from './modules/strategic-war-live.js';
-import './modules/integration-live.js';
 
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
@@ -18,6 +16,7 @@ let crewBridge = null;
 let crewFrame = 0;
 let strategicWar = null;
 let crewToastTimer = 0;
+let liveIntegrationPromise = null;
 let lastCrewFrameAt = performance.now();
 
 if (!document.querySelector('link[data-iron-rain-mobile-station]')) {
@@ -68,6 +67,31 @@ function showCrewToast(message, source = 'TRIPULAÇÃO') {
   return true;
 }
 
+function loadLiveIntegration() {
+  if (!liveIntegrationPromise) {
+    liveIntegrationPromise = import('./modules/integration-live.js').catch(error => {
+      console.error('Iron Rain live integration:', error);
+      return null;
+    });
+  }
+  return liveIntegrationPromise;
+}
+
+async function fallbackSpawn(faction) {
+  const selected = globalThis.ironRainSpawnChoice;
+  if (selected) return { ...selected };
+  try {
+    const { resolveSpawnChoice } = await import('./modules/spawn-selector.js');
+    const fallback = resolveSpawnChoice(faction);
+    if (!fallback) return null;
+    globalThis.ironRainSpawnChoice = { ...fallback };
+    return { ...fallback };
+  } catch (error) {
+    console.error('Iron Rain spawn fallback:', error);
+    return null;
+  }
+}
+
 function sessionDescriptor(status = {}, fallbackMode = 'offline') {
   const faction = normalizeFaction(status.faction || lobby?.faction());
   const spawn = globalThis.ironRainSpawnChoice ? { ...globalThis.ironRainSpawnChoice } : null;
@@ -110,18 +134,22 @@ async function startGame(status = {}, fallbackMode = 'offline') {
   if (started) return;
   const entry = sessionDescriptor(status, fallbackMode);
   if (!entry.faction) { setNotice('ESCOLHA ALIADOS OU EIXO', 'A facção define de que lado da mesma guerra persistente você vai lutar.'); return; }
-  if (!entry.spawn) { setNotice('ESCOLHA ONDE NASCER', 'Selecione um hexágono 100% dominado pela sua facção antes de entrar no Mamute.'); return; }
+  if (!entry.spawn) entry.spawn = await fallbackSpawn(entry.faction);
+  if (!entry.spawn) { setNotice('LOCAL DE NASCIMENTO INDISPONÍVEL', 'O mapa não conseguiu resolver um hexágono seguro. Reabra o aplicativo para tentar novamente.'); return; }
   started = true;
   window.ironRainEntry = entry;
   app.dataset.faction = entry.faction;
   app.classList.toggle('faction-allies', entry.faction === 'allies');
   app.classList.toggle('faction-axis', entry.faction === 'axis');
-  lobby.hide();
-  strategicWar ||= installStrategicWarLive({ app });
-  try { await import('./game-v6.js'); }
-  catch (error) {
+  try {
+    const strategicModule = await import('./modules/strategic-war-live.js');
+    strategicWar ||= strategicModule.installStrategicWarLive({ app });
+    lobby.hide();
+    void loadLiveIntegration();
+    await import('./game-v6.js');
+  } catch (error) {
     started = false; stopCrewFrame(); lobby.show();
-    setNotice('FALHA AO ABRIR O MAMUTE', 'A interface de entrada foi carregada, mas o jogo principal não iniciou. Reabra o aplicativo.');
+    setNotice('FALHA AO ABRIR O MAMUTE', 'A entrada continua disponível, mas um módulo da partida falhou ao iniciar. Recarregue a página para receber a build mais recente.');
     console.error('Iron Rain bootstrap:', error);
   }
 }
@@ -156,6 +184,7 @@ lobby = createCrewLobbyUI({
 lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, capacity: 3, lastEvent: 'choose-faction' });
 setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
 lobby.show();
+void loadLiveIntegration();
 if (crewQa) setNotice('QA MULTIPLAYER LOCAL', 'Modo de teste: duas abas no mesmo computador podem criar/entrar na mesma sala sem usar a internet pública.');
 
 window.addEventListener('beforeunload', () => {
