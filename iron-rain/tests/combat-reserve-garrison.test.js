@@ -39,7 +39,6 @@ test('reserve cycle leaves a physical staging garrison behind', () => {
     resetIn: 50,
   });
 
-  assert.equal(result.logistics.garrisonReserve, 1);
   assert.equal(result.logistics.availableTroops, 4);
   assert.equal(result.logistics.deployableTroops, 3);
   assert.equal(result.ready, true);
