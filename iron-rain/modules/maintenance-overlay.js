@@ -1,6 +1,7 @@
 const EVENT_NAME = 'iron-rain:maintenance-feedback';
 
 let root = null;
+let source = null;
 let label = null;
 let value = null;
 let vfx = null;
@@ -46,6 +47,7 @@ function ensureOverlay() {
   root.className = 'ir-maintenance';
   root.hidden = true;
   root.innerHTML = '<div class="ir-maintenance-ring"><span class="ir-maintenance-value">0%</span></div><div class="ir-maintenance-copy"><b>MANUTENÇÃO LOCAL</b><span>AGUARDANDO</span></div>';
+  source = root.querySelector('.ir-maintenance-copy b');
   label = root.querySelector('.ir-maintenance-copy span');
   value = root.querySelector('.ir-maintenance-value');
   document.body.appendChild(root);
@@ -74,6 +76,7 @@ function render(detail) {
   element.classList.toggle('extinguish', isExtinguish);
   element.classList.toggle('repair', detail.kind === 'repair');
   element.style.setProperty('--p', String(progress));
+  source.textContent = detail.remote ? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL';
   label.textContent = isExtinguish ? 'APAGANDO INCÊNDIO' : 'REPARANDO MOTOR';
   value.textContent = `${Math.round(progress * 100)}%`;
   if (vfx) {

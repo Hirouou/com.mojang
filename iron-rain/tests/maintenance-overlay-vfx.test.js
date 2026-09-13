@@ -20,3 +20,7 @@ test('maintenance overlay exposes perceptible foam and repair vfx with safe fall
   assert.match(source, /prefers-reduced-motion:reduce/);
   assert.match(source, /vfx\.className = 'ir-maintenance-vfx'/);
 });
+
+test('maintenance overlay identifies replicated work without calling it local', () => {
+  assert.match(source, /source\.textContent = detail\.remote \? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL'/);
+});
