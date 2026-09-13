@@ -19,7 +19,7 @@ test('recovery-strength formation can keep using the existing tactical selector'
   assert.equal(combatRecoveryPhase({ ...assault, strength: COMBAT_RECOVERY_THRESHOLDS.strength }), null);
 });
 
-test('the same depleted strength does not force a composed defensive line to retreat by itself', () => {
+test('the same depleted strength keeps a composed defensive line in cover instead of counter-attacking', () => {
   const depleted = COMBAT_RECOVERY_THRESHOLDS.strength - .1;
-  assert.equal(combatRecoveryPhase({ ...assault, phase: 'hold', strength: depleted }), null);
+  assert.equal(combatRecoveryPhase({ ...assault, phase: 'hold', strength: depleted }), 'hold');
 });
