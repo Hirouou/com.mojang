@@ -7,15 +7,6 @@ import { beginLoading, stepLoading } from './loading-cycle.js';
 import './maintenance-overlay.js';
 
 export function createCabinView(canvas, options = {}) {
-  // Offline/single-player must never depend on the multiplayer scene wrapper.
-  // This keeps the proven cabin renderer isolated from crew authority/presence
-  // plumbing and gives us a hard fail-safe against a black boot screen.
-  if (globalThis.ironRainEntry?.mode === 'offline') {
-    const core = createCabinViewCore(canvas, options);
-    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:cabin-ready', { detail: { cabin: core } })); } catch {}
-    return core;
-  }
-
   let scene = null;
   let view = null;
   let activeCrewStation = null;
@@ -63,10 +54,10 @@ export function createCabinView(canvas, options = {}) {
   function updateRemoteCrew(remotes = [], dt = 0) { return crewVisuals.update(remotes, 1, safeDt(dt)); }
   function publishMaintenance(engine) {
     const detail = maintenanceFeedback(engine);
-    try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
+    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail })); } catch {}
     return detail;
   }
-  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } })); } catch {} }
+  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail: { active: false } })); } catch {} }
 
   function onSharedCrewEffect(event) {
     const effect = event.detail || {};
