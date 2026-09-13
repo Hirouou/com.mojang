@@ -15,15 +15,15 @@ test('map prompt survives tight but visible clearance without relaxing body coll
   assert.equal(movement.focus()?.id, 'map');
 });
 
-test('map prompt can use its directly visible table surface when the aisle focus is blocked by the table', () => {
+test('map prompt can use a reachable near-edge focus when the aisle focus is blocked by the table', () => {
   const movement = createCabinMovement();
   const from = { x: -1.9, z: -.3 };
   const aisleFocus = { x: -.9, z: .7 };
-  const visibleTable = { x: -1.6, z: .7 };
+  const nearEdgeFocus = { x: -1.6, z: -.16 };
 
   assert.equal(canReachCabinPoint(from.x, from.z, aisleFocus.x, aisleFocus.z, .08), false, 'the table itself blocks the remote aisle focus point');
-  assert.equal(canSeeCabinPoint(from.x, from.z, visibleTable.x, visibleTable.z), true, 'the near table surface is directly visible');
-  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, visibleTable) }), true);
+  assert.equal(canReachCabinPoint(from.x, from.z, nearEdgeFocus.x, nearEdgeFocus.z, .08), true, 'the near table edge remains physically reachable');
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, nearEdgeFocus) }), true);
   assert.equal(movement.focus()?.id, 'map');
 });
 
