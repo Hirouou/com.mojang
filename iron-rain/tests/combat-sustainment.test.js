@@ -46,12 +46,14 @@ test('threatened critical logistics nodes can regroup for defense without regain
   // case is a dangerous-but-still-open road, not a route the shared graph has
   // already rejected outright.
   const threatened = graph({ ammo: 80, knownThreat: .74 });
+  const routeCut = graph({ ammo: 80, knownThreat: .75 });
   const criticalTerritory = Object.freeze({ owner: 'ally', contested: false, structures: ['depot'] });
   const criticalSupply = combatSustainmentSupply({ strategicLogistics: threatened, territory: criticalTerritory, team: 'ally', to: 'field' });
   const outpostSupply = combatSustainmentSupply({ strategicLogistics: threatened, territory, team: 'ally', to: 'field' });
 
   assert.equal(criticalSupply, COMBAT_RECOVERY_THRESHOLDS.supply, 'stocked depot keeps only the existing defensive recovery floor under severe known route threat');
   assert.ok(outpostSupply < COMBAT_RECOVERY_THRESHOLDS.supply, 'a basic field node does not receive the critical-infrastructure defensive floor');
+  assert.equal(combatSustainmentSupply({ strategicLogistics: routeCut, territory: criticalTerritory, team: 'ally', to: 'field' }), .08, 'the defensive floor never reopens a route rejected by the canonical threat gate');
   assert.equal(combatRecoveryPhase({ phase: 'regroup', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: criticalSupply }), 'consolidate', 'critical-node defenders can reorganize locally instead of remaining permanently broken by route threat');
   assert.equal(combatRecoveryPhase({ phase: 'regroup', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: outpostSupply }), 'regroup', 'ordinary outposts still wait for the threatened supply route to recover');
   assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: criticalSupply }), 'retreat', 'the defensive floor never authorizes continuing an assault');
