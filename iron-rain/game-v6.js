@@ -49,7 +49,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   let bindings={...DEFAULT_BINDINGS},touchMode=matchMedia('(pointer: coarse)').matches;
   const seenWarEvents=new Set(),heldKeys=new Set(),audio=createWarAudio();
   const stationInfo={aim:['PONTARIA','Gire as manivelas. Ajuste a carga e confira alcance e ápice.'],load:['PAIOL / CULATRA','Selecione o projétil. A carga pode ser ajustada também no painel de pontaria. HE · estruturas / FRG · infantaria / SMK · cobertura.'],map:['MESA DE CARTAS','Informe → coordenadas → régua. Volte à pontaria para ajustar a peça.'],radio:['RÁDIO DE CAMPANHA','Informes dos observadores e da infantaria.'],hatch:['ESCOTILHA','A folha abre ao se aproximar. Pressione Esc para se afastar.']};
-  const inside=()=>state?.view==='cabin'&&!cinematicActive(state)&&!cabinFailed;
+  const inside=()=>!!cabin&&state?.view==='cabin'&&!cinematicActive(state)&&!cabinFailed;
 
   const sectorsData = [
     ['FALCON',17600,12600],['BIRCH',24800,33200],['CINDER',35600,45800],['DAGGER',49300,18800],['ECHO',61100,39100],['FROST',58000,11200],['LINHA 07',8950,30000]
@@ -293,7 +293,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   function drawShell(){if(!state.shell)return;const s=state.shell,p=worldToScreen(s.x,s.y);ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.fillText(`ALT ${Math.max(0,Math.round(s.z))} m`,p.x+12,p.y-10);}
 
   function draw(){
-    if(inside()&&cabin){cabin.render();return;}
+    if(inside()&&cabin){try{cabin.render();return;}catch(error){console.error('Cabin render failed:',error);cabinFailed=true;state.view='field';syncControls();}}
     ctx.clearRect(0,0,SW,SH);drawTerrain();drawBase();drawCrater();drawSmokes();
     const view={worldToScreen,visible,zoom:state.cam.zoom,time:state.time,width:SW,height:SH};
     drawWarInfrastructure(ctx,state,view);for(const s of state.sectors)drawSector(s);drawObserver();drawPlane();drawRobot();drawTracers();drawShell();drawEffects();drawWarAtmosphere(ctx,state,view);
@@ -500,8 +500,8 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
     state.engineLastArmor=state.robot.armor;
     const walking=inside()&&enabled()&&!state.station;
     const move={x:walking?clamp(cabinMove.x+(heldKeys.has('right')?1:0)-(heldKeys.has('left')?1:0),-1,1):0,y:walking?clamp(cabinMove.y+(heldKeys.has('back')?1:0)-(heldKeys.has('forward')?1:0),-1,1):0};
-    cabin?.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});
-    const cabinPosition=cabin?.snapshot?.().position;
+    try{cabin?.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});}catch(error){console.error('Cabin update failed:',error);cabinFailed=true;state.view='field';syncControls();}
+    let cabinPosition=null;try{cabinPosition=cabin?.snapshot?.().position||null;}catch(error){console.error('Cabin snapshot failed:',error);cabinFailed=true;state.view='field';syncControls();}
     const nearEngine=inside()&&cabinPosition&&Math.hypot(cabinPosition.x-.82,cabinPosition.z-6.6)<=1.35;
     const engineEvent=stepEngine(state.engine,dt,{nearEngine});
     if(engineEvent?.message){
@@ -618,7 +618,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   $('fullscreenBtn').addEventListener('click',async()=>{if(document.documentElement.requestFullscreen){try{await document.documentElement.requestFullscreen({navigationUI:'hide'});return}catch{}}UI.installHint.classList.remove('hidden');});
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',resume));
 
-  function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop);}
+  function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;try{update(dt);}catch(error){console.error('Frame update failed:',error);if(state?.view==='cabin'){cabinFailed=true;state.view='field';try{syncControls();}catch{}}}try{draw();}catch(error){console.error('Frame draw failed:',error);if(state?.view==='cabin'){cabinFailed=true;state.view='field';try{syncControls();}catch{}}}requestAnimationFrame(loop);}
   tableMap=createTableMap(UI.notebook,{onClose:()=>state.station==='map'?leaveStation():resume()});
   loadSettings();resize();resetGame();requestAnimationFrame(loop);
   import('./modules/cabin-view.js').then(({createCabinView})=>{
