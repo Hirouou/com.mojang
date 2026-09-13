@@ -26,11 +26,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Test Iron Rain
+        id: iron-rain-tests
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -o pipefail
           cd iron-rain
-          npm test
+          mkdir -p test-results
+          npm test 2>&1 | tee test-results/ci-test.log
+      - name: Upload failed test log
+        if: steps.iron-rain-tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iron-rain-ci-test-log
+          path: iron-rain/test-results/ci-test.log
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce Iron Rain tests
+        if: steps.iron-rain-tests.outcome == 'failure'
+        shell: bash
+        run: exit 1
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Assemble Iron Rain site
