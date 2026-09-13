@@ -30,7 +30,11 @@ export function createCabinView(canvas, options = {}) {
   const stationResultEvent = result => { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:station-gate', { detail: { ...result } })); } catch {} };
   const requestCrewStation = station => {
     const bridge = crewBridge();
-    if (!bridge?.requestStation) return { ok: true, ready: true, reason: 'single-player', station };
+    if (!bridge?.requestStation) {
+      const result = { ok: false, ready: false, pending: false, reason: 'authority-unavailable', station };
+      stationResultEvent(result);
+      return result;
+    }
     let result; try { result = bridge.requestStation(station); } catch { result = { ok: false, ready: false, reason: 'claim-failed', station }; }
     stationResultEvent(result); return result;
   };
@@ -91,10 +95,27 @@ export function createCabinView(canvas, options = {}) {
     return core.leaveStation?.();
   }
 
+  function reconcileCrewStation() {
+    if (!activeCrewStation || enteringCrewStation === activeCrewStation) return true;
+    const station = activeCrewStation;
+    const bridge = crewBridge();
+    let state = null;
+    if (bridge?.stationState) {
+      try { state = bridge.stationState(station); } catch { state = null; }
+    }
+    if (state?.ready) return true;
+
+    activeCrewStation = null;
+    stationResultEvent(state || { ok: false, ready: false, pending: false, reason: bridge ? 'claim-failed' : 'authority-unavailable', station });
+    core.leaveStation?.();
+    return false;
+  }
+
   view = {
     ...core,
     leaveStation: leaveCrewStation,
     update(dt, data = {}) {
+      reconcileCrewStation();
       const elapsed = safeDt(dt);
       if (remoteLoading) { stepLoading(remoteLoading, elapsed); if (remoteLoading.complete) remoteLoading = null; }
       remoteRecoil = Math.max(0, remoteRecoil - elapsed * 2.2);
