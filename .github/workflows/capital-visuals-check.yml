@@ -1,0 +1,23 @@
+name: Capital Visuals Check
+
+on:
+  push:
+    branches:
+      - agent/capital-visuals-20260913
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Iron Rain tests
+        shell: bash
+        run: |
+          cd iron-rain
+          npm test
