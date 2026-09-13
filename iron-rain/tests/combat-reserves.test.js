@@ -120,6 +120,22 @@ test('combat route reachability delegates to the canonical strategic logistics g
   assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), false);
 });
 
+test('reserve routes fail closed when canonical threat intel cannot be inspected', () => {
+  const nodes = {
+    rear: createLogisticsNode({ id: 'rear', team: 'ally' }),
+    front: createLogisticsNode({ id: 'front', team: 'ally' }),
+  };
+  const path = [{ routeId: 'rear-front', from: 'rear', to: 'front', distance: 1000 }];
+  const base = {
+    getNode(id) { return nodes[id] || null; },
+    route() { return path; },
+  };
+
+  assert.equal(combatRouteOpen({ logistics: base, team: 'ally', from: 'rear', to: 'front' }), false);
+  assert.equal(combatRouteOpen({ logistics: { ...base, snapshot() { throw new Error('intel unavailable'); } }, team: 'ally', from: 'rear', to: 'front' }), false);
+  assert.equal(combatRouteOpen({ logistics: { ...base, snapshot() { return { routes: [] }; } }, team: 'ally', from: 'rear', to: 'front' }), false);
+});
+
 test('combat reserves avoid a route only when canonical intel marks it lethally threatened', () => {
   const logistics = createStrategicLogistics({
     nodes: [
@@ -200,4 +216,20 @@ test('known lethal pressure keeps extra defenders at a logistics node without re
   assert.equal(defended.logistics.availableTroops, 5);
   assert.equal(defended.logistics.deployableTroops, 1);
   assert.equal(defended.amount, 1);
+});
+
+test('unknown local threat keeps a critical logistics garrison instead of exporting it', () => {
+  const front = createLogisticsNode({ id: 'front', team: 'ally', kind: 'depot', assets: { troops: 5 } });
+  const strategicLogistics = {
+    getNode(id) { return id === 'front' ? front : null; },
+    route() { return []; },
+    snapshot() { throw new Error('intel unavailable'); },
+  };
+  const territory = { owner: 'ally', contested: false, structures: ['depot'] };
+  const result = combatReservePlan({ strategicLogistics, territory, team: 'ally', from: 'front', to: 'front', timerExpired: true, fallbackComplete: true, deficit: 20 });
+
+  assert.equal(result.routeOpen, true);
+  assert.equal(result.logistics.availableTroops, 5);
+  assert.equal(result.logistics.deployableTroops, 1);
+  assert.equal(result.amount, 1);
 });
