@@ -9,7 +9,7 @@ test('cabin publishes canonical maintenance feedback to the presentation event s
   assert.match(cabinSource, /import \{ maintenanceFeedback \} from '\.\/maintenance-feedback\.js';/);
   assert.match(cabinSource, /import '\.\/maintenance-overlay\.js';/);
   assert.match(cabinSource, /const detail = maintenanceFeedback\(engine\);/);
-  assert.match(cabinSource, /iron-rain:maintenance-feedback/);
+  assert.match(cabinSource, /ironrain:maintenance-feedback/);
   assert.match(cabinSource, /if \(own\(data, 'engine'\)\) publishMaintenance\(data\.engine\);/);
 
   const detail = maintenanceFeedback({
