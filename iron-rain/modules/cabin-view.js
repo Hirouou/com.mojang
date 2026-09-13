@@ -63,10 +63,10 @@ export function createCabinView(canvas, options = {}) {
   function updateRemoteCrew(remotes = [], dt = 0) { return crewVisuals.update(remotes, 1, safeDt(dt)); }
   function publishMaintenance(engine) {
     const detail = maintenanceFeedback(engine);
-    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail })); } catch {}
+    try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
     return detail;
   }
-  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail: { active: false } })); } catch {} }
+  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } })); } catch {} }
 
   function onSharedCrewEffect(event) {
     const effect = event.detail || {};
