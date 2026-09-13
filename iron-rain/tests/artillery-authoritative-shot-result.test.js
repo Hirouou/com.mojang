@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createMamuteCommandAuthority } from '../modules/mamute-command-authority.js';
 import { createMamuteInventory } from '../modules/mamute-logistics.js';
 
-test('authoritative fire results preserve shotId across acceptance and rejection', () => {
+test('authoritative fire results preserve shotId across acceptance and exact packet retry', () => {
   const inventory = createMamuteInventory({
     capacity: { HE: 2, SMOKE: 1, FRAG: 2 },
     shells: { HE: 1, SMOKE: 0, FRAG: 1 },
@@ -22,7 +22,7 @@ test('authoritative fire results preserve shotId across acceptance and rejection
   assert.equal(accepted.ammoRemaining, 0);
 
   const duplicate = authority.receive({
-    playerId: 'gunner', seq: 2, type: 'fire',
+    playerId: 'gunner', seq: 1, type: 'fire',
     payload: { shotId: 'mamute-a:gunner:shot-1', shell: 'FRAG' },
   });
   assert.equal(duplicate.reason, 'duplicate-shot');
@@ -30,6 +30,7 @@ test('authoritative fire results preserve shotId across acceptance and rejection
   assert.equal(duplicate.shell, 'HE');
   assert.equal(duplicate.ammoRemaining, 0);
   assert.equal(inventory.shells.FRAG, 1);
+  assert.equal(authority.snapshot().accepted, 1);
 
   const empty = authority.receive({
     playerId: 'gunner', seq: 3, type: 'fire',
