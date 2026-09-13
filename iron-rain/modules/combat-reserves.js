@@ -41,12 +41,16 @@ export function combatRouteOpen({ logistics, team, from, to } = {}) {
  * Combat AI does not create an adjacency graph or guess a straight-line path:
  * every candidate is measured using `strategicLogistics.route()` itself. This
  * lets orchestration provide only the destination sector when the rear origin
- * is already represented by the shared world logistics state.
+ * is already represented by the shared world logistics state. A stocked depot
+ * that is itself the staging destination is already physically reachable, so
+ * it is accepted as the canonical zero-hop origin instead of requiring another
+ * rear depot and road leg.
  */
 export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
   if (!validTeam(team) || !strategicLogistics || typeof strategicLogistics.route !== 'function' || typeof strategicLogistics.getNode !== 'function' || typeof strategicLogistics.snapshot !== 'function') return null;
   const destination = strategicLogistics.getNode(String(to ?? ''));
   if (!destination?.alive || destination.team !== team) return null;
+  if (destination.kind === 'depot' && (!destination.assets || !hasOwn(destination.assets, 'troops') || positiveFinite(Number(destination.assets.troops)))) return destination.id;
   let nodes;
   try {
     nodes = strategicLogistics.snapshot()?.nodes;
