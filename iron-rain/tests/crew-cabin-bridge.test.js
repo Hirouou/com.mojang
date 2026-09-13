@@ -37,7 +37,7 @@ test('crew cabin bridge publishes only the compact validated local pose then ren
   assert.deepEqual(result, { status: { mode: 'host' }, remoteCount: 1 });
 });
 
-test('crew cabin bridge preserves offline rendering when runtime is absent', () => {
+test('crew cabin bridge preserves rendering but not station authority when runtime is absent', () => {
   const calls = [];
   const cabin = {
     snapshot() { return { position: { x: 0, z: 2.4 }, yaw: 0, pitch: 0 }; },
@@ -47,11 +47,11 @@ test('crew cabin bridge preserves offline rendering when runtime is absent', () 
   const bridge = createCrewCabinBridge({ cabin });
   assert.deepEqual(bridge.update(.25), { status: null, remoteCount: 0 });
   assert.deepEqual(calls, [[[], .1]]);
-  const offline = bridge.requestStation('aim');
-  assert.deepEqual(bridge.stationState('aim'), { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
-  assert.deepEqual(offline, { ok: true, ready: true, pending: false, reason: 'single-player', station: 'aim', owner: null });
-  assert.equal(bridge.stationMessage(offline), '');
-  assert.equal(bridge.releaseStation('aim'), true);
+  const unavailable = bridge.requestStation('aim');
+  assert.deepEqual(bridge.stationState('aim'), { ok: false, ready: false, pending: false, reason: 'authority-unavailable', station: 'aim', owner: null });
+  assert.deepEqual(unavailable, { ok: false, ready: false, pending: false, reason: 'authority-unavailable', station: 'aim', owner: null });
+  assert.equal(bridge.stationMessage(unavailable), 'POSTO INDISPONÍVEL');
+  assert.equal(bridge.releaseStation('aim'), false);
 
   bridge.clear();
   assert.deepEqual(calls.at(-1), [[], 0]);
