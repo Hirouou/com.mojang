@@ -42,6 +42,29 @@ test('available station is claimed before cabin interaction becomes ready', () =
   assert.equal(stationGateState(runtime, 'drive').reason, 'available');
 });
 
+test('successful station claim survives a transient status read failure', () => {
+  let statusReads = 0;
+  const runtime = {
+    status() {
+      statusReads++;
+      if (statusReads >= 2) throw new Error('runtime status unavailable');
+      return { mode: 'host', connected: true, localId: 'local' };
+    },
+    stationOwner: () => null,
+    claimStation: station => ({ ok: true, reason: 'claimed', station }),
+  };
+
+  const claimed = requestStationGate(runtime, 'drive');
+  assert.deepEqual(claimed, {
+    ok: true,
+    ready: true,
+    pending: false,
+    reason: 'claimed',
+    station: 'drive',
+    owner: null,
+  });
+});
+
 test('station release fails closed when multiplayer authority is unavailable', () => {
   const runtimeWithoutRelease = {
     status: () => ({ mode: 'host', connected: true, localId: 'local' }),
