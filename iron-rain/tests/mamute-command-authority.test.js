@@ -39,7 +39,8 @@ test('fire shotId is idempotent even when transport retries with a newer sequenc
   assert.equal(authority.receive({ playerId: 'gunner', seq: 7, type: 'fire', payload }).ok, true);
   const duplicate = authority.receive({ playerId: 'gunner', seq: 8, type: 'fire', payload });
 
-  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
   assert.equal(duplicate.reason, 'duplicate-shot');
   assert.equal(applied.length, 1);
   assert.equal(authority.receive({ playerId: 'gunner', seq: 9, type: 'fire', payload: { ...payload, shotId: 'mamute-a:gunner:8' } }).ok, true);
