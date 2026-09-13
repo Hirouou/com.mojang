@@ -25,15 +25,17 @@ test('impact camera transitions back to the Mamute and clears manual offset', ()
 });
 
 test('invalid or negative frame deltas cannot extend impact hold or corrupt return timing', () => {
-  const state = makeState();
-  const hold = state.impactHold;
-  stepCamera(state, -1, 1200);
-  assert.equal(state.impactHold, hold);
-  assert.equal(state.cam.mode, 'impact');
-  stepCamera(state, Number.NaN, 1200);
-  assert.equal(state.impactHold, hold);
-  assert.equal(state.cam.mode, 'impact');
+  for (const dt of [-1, Number.NaN]) {
+    const state = makeState();
+    const hold = state.impactHold;
+    stepCamera(state, dt, 1200);
+    assert.equal(state.impactHold, hold);
+    assert.equal(state.cam.mode, 'return');
+    assert.equal(state.returning, true);
+    assert.equal(state.cam.elapsed, 0);
+  }
 
+  const state = makeState();
   beginReturn(state);
   stepCamera(state, Number.POSITIVE_INFINITY, 1200);
   assert.equal(state.cam.mode, 'follow');
