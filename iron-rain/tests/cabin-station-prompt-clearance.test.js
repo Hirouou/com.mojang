@@ -39,3 +39,19 @@ test('narrow interaction ray still cannot cross cabin machinery', () => {
   assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, target) }), true);
   assert.notEqual(movement.focus()?.id, 'map');
 });
+
+test('radio keeps the prompt at its own focus when extinguisher is collinear', () => {
+  const movement = createCabinMovement();
+  const from = { x: -1.55, z: 2.53 };
+  const extinguisher = { x: -1.55, z: 1.88 };
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, extinguisher) }), true);
+  assert.equal(movement.focus()?.id, 'radio');
+});
+
+test('extinguisher keeps the prompt at its own focus when radio is collinear', () => {
+  const movement = createCabinMovement();
+  const from = { x: -1.55, z: 1.88 };
+  const radio = { x: -1.55, z: 2.53 };
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, radio) }), true);
+  assert.equal(movement.focus()?.id, 'extinguisher');
+});
