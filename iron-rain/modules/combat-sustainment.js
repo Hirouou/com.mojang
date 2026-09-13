@@ -21,6 +21,7 @@ export function combatSustainmentSupply({ strategicLogistics, territory, team, f
   let endpoint = null;
   try { endpoint = strategicLogistics.getNode(destination); } catch {}
   const ammoStock = Math.max(0, Number(endpoint?.stock?.ammo) || 0);
+  if (ammoStock <= 0) return .08;
   const ammoBand = clamp(ammoStock / 80, 0, 1);
   const supportBand = clamp(Number(logistics.reinforcementSupport) || 0, 0, 1);
   return clamp(.12 + ammoBand * .58 + supportBand * .30, .08, 1);
