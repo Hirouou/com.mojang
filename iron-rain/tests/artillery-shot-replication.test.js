@@ -6,13 +6,15 @@ const source = fs.readFileSync(new URL('../modules/integration-live.js', import.
 
 test('live artillery fire submits the committed shot state through command authority once', () => {
   assert.match(source, /function liveShotPayload\(\)/);
-  assert.match(source, /runtime\.issueCommand\('fire', liveShotPayload\(\)\)/);
+  assert.match(source, /function emitLocalShot\(payload = liveShotPayload\(\)\)/);
+  assert.match(source, /runtime\.issueCommand\('fire', payload\)/);
   assert.match(source, /shell,\s*\n\s*charge: numericReadout\('chargeValue'\)/);
   assert.match(source, /bearing: numericReadout\('azValue'\)/);
   assert.match(source, /elevation: numericReadout\('elValue'\)/);
   assert.match(source, /ammoRemaining: numericReadout\(ammoId\)/);
   assert.doesNotMatch(source, /runtime\.emitEffect\('fire'/);
   assert.doesNotMatch(source, /runtime\.emitEffect\('reload'/);
+  assert.equal((source.match(/issueCommand\('fire'/g) || []).length, 1, 'fire must keep one command authority seam');
 });
 
 test('replication reads the live ballistic readouts instead of adding another ballistic table', () => {
