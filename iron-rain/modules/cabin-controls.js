@@ -23,7 +23,7 @@ export const CABIN_OBSTACLES = Object.freeze([
   { minX: -2.48, maxX: -1.3, minZ: 6.19, maxZ: 7.78 },
 ]);
 export const CABIN_STATIONS = Object.freeze([
-  { id: 'aim', label: 'POSTO DE PONTARIA', action: 'Operar manivelas', x: -.21, y: 1.23, z: -1.05, focusX: -.21, focusZ: -.78, radius: 1.48 },
+  { id: 'aim', label: 'POSTO DE PONTARIA', action: 'Operar manivelas', x: -.21, y: 1.23, z: -1.05, focusX: -.21, focusZ: -.78, fallbackFocusX: -.98, fallbackFocusZ: -1.2, radius: 1.48 },
   { id: 'map', label: 'MESA DE NAVEGAÇÃO', action: 'Abrir mapa de mesa', x: -1.6, y: 1.03, z: .7, focusX: -.9, focusZ: .7, fallbackFocusX: -1.6, fallbackFocusZ: -.16, radius: 1.58 },
   { id: 'load', label: 'PAIOL / CULATRA', action: 'Preparar munição', x: 2.03, y: 1.34, z: 1.7, focusX: 1.55, focusZ: 1.7, radius: 1.48 },
   { id: 'drive', label: 'POSTO DO CONDUTOR', action: 'Assumir marcha', x: -1.57, y: 1.18, z: -2.68, focusX: -.7, focusZ: -2.4, radius: 1.5 },
