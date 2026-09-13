@@ -16,7 +16,8 @@ export function combatRouteOpen({ logistics, team, from, to } = {}) {
   const destination = logistics.getNode(String(to ?? ''));
   if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return false;
   try {
-    return Array.isArray(logistics.route(team, origin.id, destination.id));
+    const path = logistics.route(team, origin.id, destination.id);
+    return Array.isArray(path) && path.length > 0;
   } catch {
     return false;
   }
@@ -50,8 +51,18 @@ export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
     } catch {
       continue;
     }
-    if (!Array.isArray(path)) continue;
-    const distance = path.reduce((sum, leg) => sum + (positiveFinite(Number(leg?.distance)) ? Number(leg.distance) : 0), 0);
+    if (!Array.isArray(path) || path.length === 0) continue;
+    let distance = 0;
+    let validPath = true;
+    for (const leg of path) {
+      const legDistance = Number(leg?.distance);
+      if (!positiveFinite(legDistance)) {
+        validPath = false;
+        break;
+      }
+      distance += legDistance;
+    }
+    if (!validPath || !positiveFinite(distance)) continue;
     if (!best || distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))) best = { id: node.id, distance };
   }
   return best?.id || null;
