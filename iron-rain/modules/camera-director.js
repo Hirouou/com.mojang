@@ -1,5 +1,6 @@
 import { stepMarchAutopilot } from './march-autopilot.js';
-import { publishReconVisual } from './operator-enhancements.js';
+import { installOperatorEnhancements, publishReconVisual } from './operator-enhancements.js';
+import { stepTankTactics } from './tank-tactics.js';
 
 // Local camera only. Cinematic states never change scale to fit the theatre.
 const CAMERA_MODES = new Set(['follow', 'shell', 'intel', 'impact', 'return']);
@@ -46,10 +47,17 @@ export function stepCamera(state, dt, viewportWidth) {
   const frameDtValid = Number.isFinite(dt) && dt >= 0;
   const frameDt = frameDtValid ? dt : 0;
 
+  installOperatorEnhancements();
+
   // Strategic-map movement is physical movement of the same Mamute. Running it
   // here keeps manual driving, camera follow, multiplayer/war updates and the
   // world marker on one state instead of inventing a second vehicle position.
   stepMarchAutopilot(state, frameDt);
+
+  // Armour now manoeuvres in two dimensions instead of sliding on one X axis:
+  // damaged tanks fall back, assault armour closes, fire-support armour holds
+  // standoff distance and crews relocate laterally when smoke blocks the lane.
+  stepTankTactics(state, frameDt);
   updateOperatorZoom(state, frameDt);
 
   // The radio/recon aircraft presentation lives in a transparent overlay so it
