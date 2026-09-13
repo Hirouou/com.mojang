@@ -28,8 +28,9 @@ export function maintenanceEffectCadence(previous, detail, nowSeconds) {
   }
 
   const progress = Number.isFinite(Number(detail.progress)) ? Math.max(0, Math.min(1, Number(detail.progress))) : 0;
+  const remote = detail?.remote === true;
   const prior = previous && typeof previous === 'object' ? previous : null;
-  const changed = prior?.type !== type;
+  const changed = prior?.type !== type || Boolean(prior?.remote) !== remote;
   const priorAt = Number(prior?.at);
   const clockReset = Number.isFinite(priorAt) && nowSeconds < priorAt;
   const elapsed = clockReset ? Infinity : nowSeconds - (Number.isFinite(priorAt) ? priorAt : -Infinity);
@@ -38,12 +39,15 @@ export function maintenanceEffectCadence(previous, detail, nowSeconds) {
   // Presentation clocks can restart after reconnects, scene resets or browser
   // lifecycle changes. Treat a backwards clock as a new cadence window rather
   // than suppressing feedback until the old timestamp is reached again.
+  // Local/remote source changes are also semantic transitions: do not let a
+  // same-tool cadence window swallow the first audible cue from another crew
+  // member (or the operator taking the tool back).
   if (!changed && !completed && !clockReset && elapsed < EFFECT_INTERVAL) {
     return Object.freeze({ emit: null, state: prior });
   }
 
-  const state = Object.freeze({ type, at: nowSeconds, progress });
-  return Object.freeze({ emit: Object.freeze({ type, payload: Object.freeze({ progress }) }), state });
+  const state = Object.freeze({ type, at: nowSeconds, progress, remote });
+  return Object.freeze({ emit: Object.freeze({ type, payload: Object.freeze({ progress, remote }) }), state });
 }
 
 export const MAINTENANCE_EFFECT_INTERVAL = EFFECT_INTERVAL;
