@@ -86,10 +86,18 @@ export function createCrewRuntime({
     catch { return Object.freeze({ ok: false, reason: 'transport-send-failed', event }); }
   }
 
-  function replicateAcceptedFire(payload, shooterId, { notifyLocal = false, packet = null } = {}) {
+  function replicateAcceptedFire(payload, result, shooterId, { notifyLocal = false, packet = null } = {}) {
     const shooter = cleanId(shooterId) || id;
     const source = payload && typeof payload === 'object' ? payload : {};
-    const firePayload = Object.freeze({ ...source, shooterId: shooter });
+    const accepted = result && typeof result === 'object' ? result : {};
+    const { shotId: _shotId, shell: _shell, ammoRemaining: _ammoRemaining, shooterId: _shooterId, ...presentation } = source;
+    const firePayload = Object.freeze({
+      ...presentation,
+      ...(cleanId(accepted.shotId) ? { shotId: cleanId(accepted.shotId) } : {}),
+      ...(accepted.shell != null ? { shell: accepted.shell } : {}),
+      ...(accepted.ammoRemaining !== undefined ? { ammoRemaining: accepted.ammoRemaining } : {}),
+      shooterId: shooter,
+    });
     const reloadPayload = Object.freeze({ duration: 2.8, phase: 'extract', shell: firePayload.shell || null, shotId: firePayload.shotId || null, shooterId: shooter });
     if (notifyLocal) {
       const sentAt = Number(now()) || 0;
@@ -122,7 +130,7 @@ export function createCrewRuntime({
     emitMamuteCommandResult(result, packet);
     if (result.ok) {
       emitMamuteState(packet.type || 'command');
-      if (packet.type === 'fire') replicateAcceptedFire(packet.payload, sender, { notifyLocal: true, packet });
+      if (packet.type === 'fire') replicateAcceptedFire(packet.payload, result, sender, { notifyLocal: true, packet });
     }
     return true;
   }
@@ -189,7 +197,7 @@ export function createCrewRuntime({
       notifyCommandResult(result, command);
       if (result.ok && status.mode === 'host') {
         emitMamuteState(type);
-        if (type === 'fire') replicateAcceptedFire(payload, id);
+        if (type === 'fire') replicateAcceptedFire(payload, result, id);
       }
       return result;
     }
