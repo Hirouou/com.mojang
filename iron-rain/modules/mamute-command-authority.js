@@ -74,6 +74,10 @@ export function createMamuteCommandAuthority({
       rejected += 1;
       return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null });
     }
+    // Once an authorized fire command reaches the authority, its sequence is spent
+    // even if ammo/apply rejects it. A delayed replay must never become a live shot
+    // after the Mamute is resupplied or its transient state changes.
+    if (type === 'fire') sequences.set(playerId, seq);
     const shotId = type === 'fire' ? cleanId(command.payload?.shotId) : null;
     const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
     if (shotKey && acceptedFireShots.has(shotKey)) {
