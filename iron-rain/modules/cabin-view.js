@@ -222,8 +222,14 @@ export function createCabinView(canvas, options = {}) {
   let remoteImpact = 0;
   const originalOnStation = options.onStation;
   const originalOnPointerUnlock = options.onPointerUnlock;
+  const originalOnWheelDelta = options.onWheelDelta;
   const originalSceneAdd = THREE.Scene.prototype.add;
   const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  const coarseAimPointer = (() => {
+    try { return globalThis.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches === true; }
+    catch { return false; }
+  })();
+  const touchAimReduction = axis => coarseAimPointer ? (axis === 'elevation' ? .055 : .12) : 1;
 
   const crewBridge = () => globalThis.ironRainEntry?.crewBridge || null;
   const stationResultEvent = result => { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:station-gate', { detail: { ...result } })); } catch {} };
@@ -247,6 +253,11 @@ export function createCabinView(canvas, options = {}) {
 
   const gatedOptions = {
     ...options,
+    onWheelDelta(event = {}) {
+      const degrees = Number(event.degrees);
+      if (!Number.isFinite(degrees)) return;
+      return originalOnWheelDelta?.({ ...event, degrees: degrees * touchAimReduction(event.axis) });
+    },
     onStation(station) {
       const result = requestCrewStation(station);
       if (!result?.ready) {
