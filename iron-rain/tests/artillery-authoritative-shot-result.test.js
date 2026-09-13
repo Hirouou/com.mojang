@@ -26,12 +26,15 @@ test('authoritative fire results preserve shotId across acceptance and exact pac
     playerId: 'gunner', seq: 1, type: 'fire',
     payload: { shotId: 'mamute-a:gunner:shot-1', shell: 'FRAG' },
   });
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
   assert.equal(duplicate.reason, 'duplicate-shot');
   assert.equal(duplicate.shotId, 'mamute-a:gunner:shot-1');
   assert.equal(duplicate.shell, 'HE');
   assert.equal(duplicate.ammoRemaining, 0);
   assert.equal(inventory.shells.FRAG, 1);
   assert.equal(authority.snapshot().accepted, 1);
+  assert.equal(authority.snapshot().rejected, 0);
 
   const empty = authority.receive({
     playerId: 'gunner', seq: 3, type: 'fire',
@@ -67,9 +70,13 @@ test('duplicate fire keeps the ammo balance from the accepted shot result', () =
     playerId: 'gunner', seq: 1, type: 'fire',
     payload: { shotId: 'mamute-a:gunner:first', shell: 'HE' },
   });
+  assert.equal(retryFirst.ok, true);
+  assert.equal(retryFirst.duplicate, true);
   assert.equal(retryFirst.reason, 'duplicate-shot');
   assert.equal(retryFirst.ammoRemaining, 2);
   assert.equal(inventory.shells.HE, 1);
+  assert.equal(authority.snapshot().accepted, 2);
+  assert.equal(authority.snapshot().rejected, 0);
 });
 
 test('duplicate fire keeps the owner from the accepted shot after AIM handoff', () => {
@@ -83,6 +90,8 @@ test('duplicate fire keeps the owner from the accepted shot after AIM handoff', 
 
   owner = 'other-gunner';
   const duplicate = authority.receive({ playerId: 'gunner', seq: 1, type: 'fire', payload });
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
   assert.equal(duplicate.reason, 'duplicate-shot');
   assert.equal(duplicate.owner, 'gunner');
   assert.equal(duplicate.shotId, payload.shotId);
@@ -102,6 +111,8 @@ test('authoritative fire keeps accepted shell identity without an inventory adap
     playerId: 'gunner', seq: 10, type: 'fire',
     payload: { ...payload, shell: 'HE' },
   });
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
   assert.equal(duplicate.reason, 'duplicate-shot');
   assert.equal(duplicate.shotId, payload.shotId);
   assert.equal(duplicate.shell, 'SMOKE');
