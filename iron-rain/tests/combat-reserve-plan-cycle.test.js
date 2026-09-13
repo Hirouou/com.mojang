@@ -11,7 +11,7 @@ function logisticsGraph({ cut = false } = {}) {
     getNode(id) { return nodes.get(id) || null; },
     route(team, from, to) {
       if (cut || team !== 'ally' || from !== 'rear' || to !== 'front') return null;
-      return ['rear', 'front'];
+      return [{ from: 'rear', to: 'front', distance: 100 }];
     },
   };
 }
