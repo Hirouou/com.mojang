@@ -89,7 +89,6 @@ function bunker(ctx, x, y, width, height, team, level = 1) {
   for (let i = 0; i < level; i++) {
     ctx.fillStyle = '#d0c29b'; ctx.fillRect(width / 2 - 14 - i * 5, -height / 2 + 12, 2, 5);
   }
-  // Roof vent and a projecting communications antenna.
   ctx.fillStyle = '#535a4b'; ctx.fillRect(7, -10, 20, 14);
   for (let i = 0; i < 4; i++) { ctx.fillStyle = '#333d32'; ctx.fillRect(10 + i * 4, -8, 2, 10); }
   line(ctx, [[-width / 2 + 19, 5], [-width / 2 + 15, -30]], '#343d32', 2);
@@ -148,7 +147,6 @@ function drawBase(ctx, base, frame) {
     }
     const edge = 89 + level * 26;
     polygon(ctx, [[-edge, -edge * .67], [edge - 13, -edge * .81], [edge + 18, edge * .59], [edge * .61, edge * .9], [-edge - 15, edge * .56]], 'rgba(102,91,68,.48)');
-    // Wheel tracks form a service lane through each compound.
     line(ctx, [[-edge - 23, 66], [14, 67], [edge + 40, 90]], 'rgba(49,47,37,.25)', 8);
     line(ctx, [[-edge - 23, 83], [14, 84], [edge + 40, 107]], 'rgba(49,47,37,.25)', 8);
     sandbagRow(ctx, -edge + 10, -edge * .7, Math.floor(edge / 9));
@@ -169,7 +167,6 @@ function drawBase(ctx, base, frame) {
     if (level >= 2) {
       bunker(ctx, -83, -107, 60, 41, team, 1);
       watchtower(ctx, edge - 18, -edge * .68 + 18, team);
-      // Cable from command bunker to observation post.
       line(ctx, [[5, -20], [edge - 16, -edge * .62]], '#393d31', 1);
     }
     if (level >= 3) {
@@ -178,7 +175,6 @@ function drawBase(ctx, base, frame) {
       for (let i = 0; i < 4; i++) crate(ctx, 70 + (i % 2) * 20, 75 + Math.floor(i / 2) * 18, 17, 14);
       sandbagRow(ctx, 1, edge * .76, Math.floor(edge / 14));
     }
-    // New extensions are built on a visible foundation, with timber and scaffold.
     const build = finite(base.buildProgress);
     if (build > .01 && level < 4) {
       ctx.save(); ctx.translate(-17, -edge * .93);
@@ -245,6 +241,50 @@ function crew(ctx, x, y, team, angle = 0) {
   ctx.restore();
 }
 
+function drawTruck(ctx, truck, frame) {
+  local(ctx, truck, frame, 76, () => {
+    ctx.rotate(finite(truck.angle));
+    const enemy = truck.team === 'enemy';
+    const moving = truck.moving !== false && finite(truck.speed) > .2;
+    ctx.fillStyle = 'rgba(18,24,20,.38)'; ctx.fillRect(-33, -17, 76, 39);
+    if (moving) {
+      for (let i = 0; i < 3; i++) ellipse(ctx, -43 - i * 17, Math.sin(frame.time * 2.5 + i) * 4, 11 + i * 7, 7 + i * 3, `rgba(157,145,108,${.105 - i * .025})`);
+    }
+    const body = enemy ? '#6d6955' : '#64725b';
+    const light = enemy ? '#91886b' : '#899377';
+    ctx.fillStyle = '#293129';
+    for (const x of [-24, 20]) for (const y of [-19, 19]) ellipse(ctx, x, y, 8, 5, '#252d26');
+    ctx.fillStyle = body; ctx.fillRect(-39, -15, 50, 30);
+    ctx.fillStyle = light; ctx.fillRect(-37, -13, 46, 5);
+    polygon(ctx, [[11, -16], [30, -16], [42, -8], [42, 13], [11, 13]], body);
+    polygon(ctx, [[18, -13], [29, -13], [36, -7], [19, -7]], '#9ca080');
+    ctx.fillStyle = '#303a31'; ctx.fillRect(26, 1, 14, 9);
+    ctx.fillStyle = sideColor(truck.team); ctx.fillRect(14, 10, 17, 3);
+    line(ctx, [[-35, -15], [-35, 15], [8, 15], [8, -15]], '#343d32', 2);
+
+    const passengers = Math.max(0, Math.floor(finite(truck.assets?.troops)));
+    const carryingCargo = ['supply'].includes(truck.kind) && Object.values(truck.cargo || {}).some(value => finite(value) > 0);
+    if (truck.kind === 'troops' || passengers > 0) {
+      for (let i = 0; i < Math.min(5, Math.max(3, Math.ceil(passengers / 6))); i++) {
+        const x = -29 + (i % 3) * 14, y = -7 + Math.floor(i / 3) * 14;
+        ellipse(ctx, x, y, 4.2, 3.5, enemy ? '#4b5143' : '#405949');
+        ctx.fillStyle = enemy ? '#84755c' : '#78876c'; ctx.fillRect(x - 3, y + 2, 6, 7);
+      }
+    } else if (carryingCargo) {
+      crate(ctx, -31, -9, 16, 12); crate(ctx, -13, -8, 15, 11);
+      ctx.fillStyle = '#777056'; ctx.fillRect(-35, 5, 39, 7);
+    } else {
+      line(ctx, [[-34, -8], [3, -8], [3, 8], [-34, 8]], '#81816a', 2);
+    }
+    if (truck.blocked) {
+      polygon(ctx, [[-3, -27], [4, -38], [11, -27]], '#d0a95f');
+      ctx.fillStyle = '#483d25'; ctx.fillRect(3, -34, 2, 5);
+    }
+    ctx.rotate(-finite(truck.angle));
+    damageSmoke(ctx, truck, frame.time, .7);
+  });
+}
+
 function drawMortar(ctx, mortar, frame) {
   local(ctx, mortar, frame, 64, () => {
     const dead = mortar.alive === false;
@@ -307,7 +347,7 @@ function drawSupportProjectile(ctx, shot, frame) {
 
 /**
  * Draw after terrain/trenches and before impact effects. Expected state schema:
- * sector.war.{bases,vehicles,mortars} and state.warSimulation.support.
+ * sector.war.{bases,vehicles,mortars}, strategic traffic, and support projectiles.
  * Options: { worldToScreen(x,y), visible(x,y,pad), zoom, time, width, height }.
  * Unknown enemies stay hidden unless locally observed or in active recon/impact.
  */
@@ -322,6 +362,11 @@ export function drawWarInfrastructure(ctx, state, options) {
     for (const base of (war.bases || []).slice(0, 8)) if (observable(state, base, sector)) drawBase(ctx, base, frame);
     for (const mortar of (war.mortars || []).slice(0, 8)) if (observable(state, mortar, sector)) drawMortar(ctx, mortar, frame);
     for (const tank of (war.vehicles || []).slice(0, 12)) if (tank.type === 'tank' && observable(state, tank, sector)) drawTank(ctx, tank, frame);
+  }
+  for (const traffic of (state.warSimulation?.strategicTraffic || []).slice(0, 40)) {
+    if (!observable(state, traffic, null)) continue;
+    if (traffic.kind === 'armor' || finite(traffic.assets?.tanks) > 0) drawTank(ctx, { ...traffic, type: 'tank' }, frame);
+    else drawTruck(ctx, traffic, frame);
   }
   for (const shot of (state.warSimulation?.support || []).slice(0, 96)) {
     if (finite(shot.life, 1) <= 0 || !observable(state, shot, shot.sector)) continue;
@@ -338,7 +383,6 @@ export function drawWarAtmosphere(ctx, state, options) {
   if (width <= 0 || height <= 0) return;
   const time = finite(options.time, finite(state?.time));
   ctx.save();
-  // Desaturated, cold overcast. Keeps silhouettes readable at mobile resolutions.
   ctx.fillStyle = 'rgba(71,77,71,.045)'; ctx.fillRect(0, 0, width, height);
   const drift = (time * 9) % (width + 550);
   const haze = ctx.createLinearGradient(0, 0, width * .8, height);
@@ -346,7 +390,6 @@ export function drawWarAtmosphere(ctx, state, options) {
   haze.addColorStop(.4, 'rgba(120,133,118,.015)');
   haze.addColorStop(1, 'rgba(25,37,32,.065)');
   ctx.fillStyle = haze; ctx.fillRect(0, 0, width, height);
-  // A handful of wide wisps instead of a per-pixel postprocess.
   for (let i = 0; i < 3; i++) {
     const x = ((drift + i * (width + 550) / 3) % (width + 550)) - 340;
     polygon(ctx, [[x, height * .13], [x + 175, height * .09], [x + 475, height * .72], [x + 288, height * .8]], 'rgba(177,177,151,.019)');
@@ -354,7 +397,6 @@ export function drawWarAtmosphere(ctx, state, options) {
   const vignette = ctx.createRadialGradient(width * .5, height * .46, Math.min(width, height) * .2, width * .5, height * .48, Math.max(width, height) * .65);
   vignette.addColorStop(0, 'rgba(11,18,15,0)'); vignette.addColorStop(1, 'rgba(11,18,15,.22)');
   ctx.fillStyle = vignette; ctx.fillRect(0, 0, width, height);
-  // Sparse drifting ash is screen-space and bounded, independent of world scale.
   for (let i = 0; i < 24; i++) {
     const x = (seed(i + 19) * width + time * (4 + seed(i) * 5)) % width;
     const y = (seed(i + 43) * height + time * (2 + seed(i + 1) * 4)) % height;
