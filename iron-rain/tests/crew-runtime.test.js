@@ -49,7 +49,7 @@ test('runtime fails closed when transport cannot start', () => {
 });
 
 test('three crew can own different stations while shared Mamute commands remain owner-authorized', () => {
-  const bus = [], clock = { value: 30 }, applied = [];
+  const bus = [], clock = { value: 30 }, applied = [], hostEffects = [], gunnerEffects = [], loaderEffects = [];
   const factory = options => new FakeTransport(options, bus);
   const host = createCrewRuntime({
     localId: 'driver',
@@ -60,6 +60,9 @@ test('three crew can own different stations while shared Mamute commands remain 
   const gunner = createCrewRuntime({ localId: 'gunner', now: () => clock.value, transportFactory: factory });
   const loader = createCrewRuntime({ localId: 'loader', now: () => clock.value, transportFactory: factory });
   const fourth = createCrewRuntime({ localId: 'fourth', now: () => clock.value, transportFactory: factory });
+  host.subscribeEffects(effect => hostEffects.push(effect));
+  gunner.subscribeEffects(effect => gunnerEffects.push(effect));
+  loader.subscribeEffects(effect => loaderEffects.push(effect));
 
   assert.equal(host.host('M47-P0', 'allies').ok, true);
   assert.equal(gunner.join('M47-P0', 'allies').ok, true);
@@ -88,16 +91,26 @@ test('three crew can own different stations while shared Mamute commands remain 
   assert.equal(loader.stationOwner('aim'), 'gunner');
 
   assert.equal(host.issueCommand('drive-vector', { throttle: .75, turn: -.2 }).ok, true);
-  const gunnerFire = gunner.issueCommand('fire', { shell: 'HE' });
+  const gunnerFire = gunner.issueCommand('fire', { shell: 'HE', shotId: 'shot-17', shooterId: 'spoofed-client-id' });
   assert.equal(gunnerFire.ok, true);
   assert.equal(gunnerFire.pending, true);
+  assert.deepEqual(hostEffects.map(effect => effect.type), ['fire', 'reload']);
+  assert.deepEqual(gunnerEffects.map(effect => effect.type), ['fire', 'reload']);
+  assert.deepEqual(loaderEffects.map(effect => effect.type), ['fire', 'reload']);
+  assert.equal(hostEffects[0].payload.shotId, 'shot-17');
+  assert.equal(hostEffects[0].payload.shooterId, 'gunner');
+  assert.equal(loaderEffects[1].payload.shotId, 'shot-17');
+  assert.equal(loaderEffects[1].payload.shooterId, 'gunner');
+
   const loaderReload = loader.issueCommand('reload-shell', { shell: 'HE' });
   assert.equal(loaderReload.ok, true);
   assert.equal(loaderReload.pending, true);
 
-  const illegalFire = loader.issueCommand('fire', { shell: 'HE' });
+  const illegalFire = loader.issueCommand('fire', { shell: 'HE', shotId: 'illegal-shot' });
   assert.equal(illegalFire.ok, false);
   assert.equal(illegalFire.reason, 'station-not-owned');
+  assert.equal(hostEffects.length, 2);
+  assert.equal(loaderEffects.length, 2);
   assert.equal(applied.length, 3);
   assert.deepEqual(applied.map(command => [command.playerId, command.type, command.station]), [
     ['driver', 'drive-vector', 'drive'],
