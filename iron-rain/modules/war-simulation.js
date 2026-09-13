@@ -128,7 +128,6 @@ function refreshCombatReserveContext(state) {
     const direct = strategicMap.combatReserveContext(sectorId, team);
     if (fieldReady(direct)) return direct;
     if (!['ally', 'enemy'].includes(team) || typeof strategicMap.locate !== 'function') return null;
-
     const front = state.sectors?.find(candidate => candidate.strategicSectorId === sectorId);
     if (!front) return null;
     const center = front.war ? getFrontGeometry(front).center : front;
@@ -206,7 +205,6 @@ function reconcileStrategicAssets(state, before) {
         force.reinforcements = Math.max(previous.reinforcements, (Number(force.reinforcements) || 0) - rollback);
       }
     }
-
     for (const tank of sector.war.vehicles || []) {
       if (tank?.type !== 'tank') continue;
       const previous = before.get(`tank:${tank.id}`) || { alive: false, claimed: false };
@@ -241,10 +239,6 @@ function strategicLogistics(state) {
   return null;
 }
 
-/**
- * Render-only projection of canonical strategic convoys into the local world.
- * It never moves or creates a unit: positions come from strategic-logistics.
- */
 function publishStrategicTraffic(state) {
   state.warSimulation ||= {};
   const now = Number(state.time) || 0;
@@ -305,7 +299,9 @@ function dispatchHullState(state, armorBefore) {
   const armorAfter = Number(state?.robot?.armor);
   if (!Number.isFinite(armorBefore) || !Number.isFinite(armorAfter)) return;
   const damage = Math.max(0, armorBefore - armorAfter);
-  if (damage > 0) { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {}
+  if (damage > 0) {
+    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {}
+  }
   state.warSimulation ||= {};
   if (armorAfter <= 0 && !state.warSimulation.destroyedNotified) {
     state.warSimulation.destroyedNotified = true;
