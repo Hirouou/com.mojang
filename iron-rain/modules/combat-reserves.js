@@ -248,9 +248,10 @@ export function combatReserveCycle({ logistics, timer = 0, fallbackUntil = 0, ti
 /**
  * Canonical one-shot reserve tick for the strategic simulator. Route reachability,
  * territory effects, fallback readiness, deficit sizing and timer consumption all
- * come from the same inputs. When canonical staging inventory exists, an admitted
- * batch is debited from that exact destination node in the same tick so delivered
- * troops cannot be reused by later reserve cycles.
+ * come from the same inputs. Standalone consumers debit the destination staging
+ * inventory here. The live world wrapper already owns an atomic `claimAsset`
+ * reconciliation step, so contexts exposing that seam defer the mutation to it
+ * and avoid charging the same delivered troops twice.
  */
 export function combatReservePlanCycle({
   strategicLogistics,
@@ -258,6 +259,7 @@ export function combatReservePlanCycle({
   team,
   from,
   to,
+  claimAsset,
   timer = 0,
   fallbackUntil = 0,
   tick = 0,
@@ -269,6 +271,10 @@ export function combatReservePlanCycle({
   const logistics = withDeliveredTroops(combatLogisticsState({ territory, team, routeOpen }), strategicLogistics, to);
   const cycle = combatReserveCycle({ logistics, timer, fallbackUntil, tick, strength, resetIn });
   if (!cycle.ready || !hasOwn(logistics, 'availableTroops')) return Object.freeze({ origin, routeOpen, logistics, ...cycle });
+
+  if (typeof claimAsset === 'function') {
+    return Object.freeze({ origin, routeOpen, logistics, ...cycle, debitDelegated: true });
+  }
 
   const remainingTroops = consumeDeliveredTroops(strategicLogistics, to, cycle.amount);
   if (remainingTroops === false) {
