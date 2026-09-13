@@ -19,6 +19,37 @@ jobs:
       - name: Syntax check Mamute entrypoint
         working-directory: iron-rain
         run: node --check game-v6.js
-      - name: Run Iron Rain tests
+      - name: Identify failing test files
+        id: scan
         working-directory: iron-rain
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          : > /tmp/iron-rain-failures.txt
+          failed=()
+          for file in tests/*.test.js; do
+            node --test "$file" > /tmp/iron-rain-test.log 2>&1
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              name="$(basename "$file" .test.js)"
+              failed+=("$name")
+              echo "$name" >> /tmp/iron-rain-failures.txt
+              cat /tmp/iron-rain-test.log
+            fi
+          done
+          if [ "${#failed[@]}" -eq 0 ]; then
+            marker="none"
+          else
+            marker="$(IFS=_; echo "${failed[*]}")"
+          fi
+          echo "marker=$marker" >> "$GITHUB_OUTPUT"
+      - name: Publish diagnostic marker
+        uses: actions/upload-artifact@v4
+        with:
+          name: failures-${{ steps.scan.outputs.marker }}
+          path: /tmp/iron-rain-failures.txt
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce complete test suite
+        if: steps.scan.outputs.marker != 'none'
+        run: exit 1
