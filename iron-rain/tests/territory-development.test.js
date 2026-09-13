@@ -67,16 +67,19 @@ test('tank cannot be produced at an ordinary capital without armor works', () =>
   assert.equal(node.assets.tanks, 0);
 });
 
-test('tank is created only after armor works, stock payment and production time', () => {
+test('tank is created only after armor works, stock payment and bounded production time', () => {
   const node = createTerritoryNode({ id: 'CAP-ARMOR', owner: 'ally', stock: { materials: 250, ammo: 80, fuel: 100 } });
   node.contested = false;
   node.structures.push('garage', 'factory', 'armorWorks');
   const order = startVehicleProduction(node, 'tank');
   assert.equal(order.ok, true);
   assert.deepEqual(node.stock, { materials: 60, ammo: 44, fuel: 28 });
-  stepTerritoryDevelopment(node, 120, { routeOpen: true, contested: false });
+  stepTerritoryDevelopment(node, 60, { routeOpen: true, contested: false });
+  stepTerritoryDevelopment(node, 60, { routeOpen: true, contested: false });
+  stepTerritoryDevelopment(node, 14, { routeOpen: true, contested: false });
   assert.equal(node.assets.tanks, 0);
-  stepTerritoryDevelopment(node, 15, { routeOpen: true, contested: false });
+  assert.equal(node.vehicleProductionProgress, 134);
+  stepTerritoryDevelopment(node, 1, { routeOpen: true, contested: false });
   assert.equal(node.assets.tanks, 1);
   assert.equal(node.vehicleProduction, null);
 });
