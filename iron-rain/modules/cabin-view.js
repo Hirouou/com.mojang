@@ -100,6 +100,73 @@ function createLoaderArmVisual(scene) {
   };
 }
 
+function createHullImpactVisual(scene) {
+  const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
+  const group = new THREE.Group();
+  scene.add(group);
+  const dustGeometry = new THREE.IcosahedronGeometry(.045, 0);
+  const shardGeometry = new THREE.BoxGeometry(.055, .025, .11);
+  const dustMaterial = new THREE.MeshLambertMaterial({ color: '#8f8a76', transparent: true, opacity: 0, flatShading: true });
+  const shardMaterial = new THREE.MeshLambertMaterial({ color: '#6b7168', emissive: '#21140b', transparent: true, opacity: 0, flatShading: true });
+  const flash = new THREE.PointLight('#ffc58d', 0, 5.4, 2);
+  flash.position.set(.15, 2.1, -.8);
+  scene.add(flash);
+  const particles = [];
+  for (let i = 0; i < 12; i++) {
+    const particle = new THREE.Mesh(i % 3 ? dustGeometry : shardGeometry, i % 3 ? dustMaterial : shardMaterial);
+    particle.userData.seed = i * 1.618;
+    group.add(particle);
+    particles.push(particle);
+  }
+  group.visible = false;
+  let energy = 0;
+  let age = 1;
+
+  function kick(intensity) {
+    energy = Math.max(energy, clamp01(intensity));
+    age = 0;
+    group.visible = energy > .01;
+  }
+
+  function update(dt) {
+    const step = Math.min(.1, Math.max(0, Number(dt) || 0));
+    age += step;
+    energy = Math.max(0, energy - step * 1.85);
+    const burst = Math.max(0, 1 - age * 2.2);
+    flash.intensity = energy * 6.2;
+    dustMaterial.opacity = Math.min(.62, energy * .68);
+    shardMaterial.opacity = Math.min(.82, energy * .9);
+    shardMaterial.emissiveIntensity = energy * .42;
+    particles.forEach((particle, i) => {
+      const seed = particle.userData.seed;
+      const spread = .16 + (i % 5) * .08;
+      particle.position.set(
+        Math.sin(seed * 4.1) * spread * (1 + age * 1.8),
+        2.36 - age * (.45 + (i % 4) * .09),
+        -.95 + Math.cos(seed * 2.7) * spread - age * (.1 + (i % 3) * .05),
+      );
+      particle.rotation.set(seed + age * (2 + i % 3), seed * .6 + age * 1.7, age * (3 + i % 4));
+      particle.scale.setScalar(.55 + burst * (.8 + (i % 4) * .16));
+    });
+    group.visible = energy > .015;
+  }
+
+  return {
+    kick,
+    update,
+    reset() { energy = 0; age = 1; flash.intensity = 0; dustMaterial.opacity = shardMaterial.opacity = 0; group.visible = false; },
+    snapshot() { return { active: group.visible, intensity: energy }; },
+    dispose() {
+      scene.remove(group);
+      scene.remove(flash);
+      dustGeometry.dispose();
+      shardGeometry.dispose();
+      dustMaterial.dispose();
+      shardMaterial.dispose();
+    },
+  };
+}
+
 export function createCabinView(canvas, options = {}) {
   // Diagnostic escape hatch only. Product solo play stays on the crew-aware
   // authority seam; this path exists strictly to isolate renderer boot/WebGL QA.
@@ -155,6 +222,7 @@ export function createCabinView(canvas, options = {}) {
   if (!scene) throw new Error('Cabin scene was not created');
   const crewVisuals = createCabinCrewVisualLayer(scene, { capacity: 2 });
   const loaderVisual = createLoaderArmVisual(scene);
+  const hullImpactVisual = createHullImpactVisual(scene);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   const safeDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
 
@@ -176,7 +244,10 @@ export function createCabinView(canvas, options = {}) {
     }
     if (effect.type === 'impact' || effect.type === 'critical') {
       const feedback = remoteHullImpactFeedback(effect);
-      if (feedback) remoteImpact = Math.max(remoteImpact, feedback.intensity);
+      if (feedback) {
+        remoteImpact = Math.max(remoteImpact, feedback.intensity);
+        hullImpactVisual.kick(feedback.intensity);
+      }
     }
   }
   globalThis.addEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
@@ -214,6 +285,7 @@ export function createCabinView(canvas, options = {}) {
       if (remoteLoading) { stepLoading(remoteLoading, elapsed); if (remoteLoading.complete) remoteLoading = null; }
       remoteRecoil = Math.max(0, remoteRecoil - elapsed * 2.2);
       remoteImpact = Math.max(0, remoteImpact - elapsed * 2.8);
+      hullImpactVisual.update(elapsed);
       const merged = { ...data };
       if (!merged.loading && remoteLoading) merged.loading = remoteLoading;
       merged.recoil = Math.max(Number(merged.recoil) || 0, remoteRecoil);
@@ -240,15 +312,15 @@ export function createCabinView(canvas, options = {}) {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null; remoteLoading = null; remoteRecoil = remoteImpact = 0;
       canvas.style.transform = ''; canvas.style.filter = '';
-      loaderVisual.update(null); clearMaintenance(); core.reset(); crewVisuals.clear();
+      hullImpactVisual.reset(); loaderVisual.update(null); clearMaintenance(); core.reset(); crewVisuals.clear();
     },
-    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot(), loader: loaderVisual.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
+    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot(), loader: loaderVisual.snapshot(), hullImpact: hullImpactVisual.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
     dispose() {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null;
       globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
       canvas.style.transform = ''; canvas.style.filter = '';
-      clearMaintenance(); loaderVisual.dispose(); crewVisuals.dispose(); core.dispose();
+      clearMaintenance(); hullImpactVisual.dispose(); loaderVisual.dispose(); crewVisuals.dispose(); core.dispose();
     },
   };
 
