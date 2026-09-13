@@ -1,5 +1,5 @@
 import { ballistics } from './ballistics.js';
-import { artilleryNotebookTableRows } from './artillery-notebook.js';
+import { artilleryChargeTableRows } from './artillery-charge-table-view.js';
 import { mapPointerSettings, pointerDistance, precisePlotPoint, precisePanView } from './map-touch-precision.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -188,13 +188,10 @@ export function createTableMap(root, { onClose = () => {} } = {}) {
     meta.title = meta.textContent;
     xInput.value = Math.round(point.x); yInput.value = Math.round(point.y);
     find('[data-map-charge-intro]').innerHTML = `Distância traçada: <b>${number(plot.distance)} m</b>.<br>Elevações, ápice e tempo vêm da mesma balística fictícia da peça; nada é aplicado automaticamente.`;
-    const notebookRows = artilleryNotebookTableRows(plot.distance, snapshot.charge);
-    find('[data-map-charge-rows]').innerHTML = notebookRows.map(row => {
-      const arcs = row.arcs.map(arc => {
-        const label = arc.kind === 'low' ? 'BAIXO' : arc.kind === 'high' ? 'ALTO' : 'ÚNICO';
-        return `${label} ${arc.elevation.toFixed(1)}° · A ${number(arc.apex)} m · ${arc.tof.toFixed(1)} s`;
-      }).join('<br>');
-      return `<tr class="${row.arcs.length ? 'compatible ' : ''}${row.current ? 'current' : ''}"><td>${row.current ? '▸' : ' '} C${row.charge}</td><td>${number(row.min)}–${number(row.max)}</td><td>${arcs || '—'}</td></tr>`;
+    const chargeRows = artilleryChargeTableRows(plot.distance, snapshot.charge, snapshot.elev);
+    find('[data-map-charge-rows]').innerHTML = chargeRows.map(row => {
+      const arcs = row.arcs.map(arc => arc.displayLabel).join('<br>');
+      return `<tr class="${row.reachable ? 'compatible ' : ''}${row.current ? 'current' : ''}"><td>${row.current ? '▸' : ' '} C${row.charge}</td><td>${number(row.min)}–${number(row.max)}</td><td>${arcs || '—'}</td></tr>`;
     }).join('');
     const setting = ballistics(snapshot.charge, snapshot.elev);
     find('[data-map-charge-footnote]').innerHTML = `Ao abrir: C${snapshot.charge} · ${Number(snapshot.elev).toFixed(1)}°<br>Alcance ${number(setting.range)} m · ápice ${number(setting.apex)} m.<br>Caderneta somente informativa. Observe o vento e a resposta do tiro.`;
