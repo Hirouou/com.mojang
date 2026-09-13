@@ -4,15 +4,15 @@ import { readFile } from 'node:fs/promises';
 import { combatRecoveryPhase, COMBAT_RECOVERY_THRESHOLDS } from '../modules/combat-recovery.js';
 import { combatSustainmentSupply } from '../modules/combat-sustainment.js';
 
-function graph({ ammo = 80, connected = true, knownThreat = 0, includeRouteIntel = true } = {}) {
+function graph({ ammo = 80, connected = true, knownThreat = 0, includeRouteIntel = true, fieldKind = 'outpost' } = {}) {
   const nodes = new Map([
     ['rear', { id: 'rear', alive: true, team: 'ally', kind: 'depot', stock: { ammo: 220 } }],
-    ['field', { id: 'field', alive: true, team: 'ally', kind: 'outpost', stock: { ammo } }],
+    ['field', { id: 'field', alive: true, team: 'ally', kind: fieldKind, stock: { ammo } }],
   ]);
   const routeId = 'rear-field';
   return {
     getNode(id) { return nodes.get(id) || null; },
-    snapshot() { return { nodes: [...nodes.values()], routes: includeRouteIntel ? [{ id: routeId, knownThreat }] : [] }; },
+    snapshot() { return { nodes: [...nodes.values()], routes: includeRouteIntel ? [{ id: routeId, from: 'rear', to: 'field', knownThreat }] : [] }; },
     route(team, from, to) { return connected && team === 'ally' && from === 'rear' && to === 'field' ? [{ routeId, from, to, distance: 9_000 }] : null; },
   };
 }
@@ -59,6 +59,15 @@ test('threatened critical logistics nodes can regroup for defense without regain
   assert.equal(combatRecoveryPhase({ phase: 'regroup', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: criticalSupply }), 'consolidate', 'critical-node defenders can reorganize locally instead of remaining permanently broken by route threat');
   assert.equal(combatRecoveryPhase({ phase: 'regroup', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: outpostSupply }), 'regroup', 'ordinary outposts still wait for the threatened supply route to recover');
   assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: criticalSupply }), 'retreat', 'the defensive floor never authorizes continuing an assault');
+});
+
+test('a threatened staging depot cannot hide local road pressure behind a zero-leg route', () => {
+  const localDepot = graph({ ammo: 80, knownThreat: .74, fieldKind: 'depot' });
+  const criticalTerritory = Object.freeze({ owner: 'ally', contested: false, structures: ['depot'] });
+  const supply = combatSustainmentSupply({ strategicLogistics: localDepot, territory: criticalTerritory, team: 'ally', to: 'field' });
+
+  assert.equal(supply, COMBAT_RECOVERY_THRESHOLDS.supply, 'earned threat on an adjacent road keeps a self-staging depot defensive instead of fully supplied for attack');
+  assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 60, morale: .7, suppression: .1, ammo: .8, supply }), 'retreat', 'local defenders do not launch or sustain an assault while their depot roads are under known pressure');
 });
 
 test('live war wrapper caps tactical base supply from the canonical sustainment seam', async () => {

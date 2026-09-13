@@ -4,14 +4,30 @@ import { COMBAT_OFFENSIVE_THRESHOLDS, COMBAT_RECOVERY_THRESHOLDS } from './comba
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const validTeam = team => team === 'ally' || team === 'enemy';
 
+function knownNodeThreat(routes, nodeId) {
+  const target = String(nodeId ?? '');
+  if (!target || !Array.isArray(routes)) return 0;
+  let highest = 0;
+  for (const route of routes) {
+    if (String(route?.from ?? '') !== target && String(route?.to ?? '') !== target) continue;
+    highest = Math.max(highest, clamp(Number(route?.knownThreat) || 0, 0, 1));
+  }
+  return highest;
+}
+
 function knownPathThreat(strategicLogistics, team, from, to) {
   if (!strategicLogistics || typeof strategicLogistics.route !== 'function' || typeof strategicLogistics.snapshot !== 'function') return 0;
   const origin = String(from ?? ''), destination = String(to ?? '');
-  if (!origin || !destination || origin === destination) return 0;
+  if (!origin || !destination) return 0;
   try {
-    const path = strategicLogistics.route(team, origin, destination);
     const routes = strategicLogistics.snapshot()?.routes;
-    if (!Array.isArray(path) || !Array.isArray(routes)) return 0;
+    if (!Array.isArray(routes)) return 0;
+    // A staging depot can be both the reserve origin and the tactical endpoint.
+    // In that case there is no routed leg to inspect, but earned threat intel on
+    // roads touching the node still means the position is under local pressure.
+    if (origin === destination) return knownNodeThreat(routes, destination);
+    const path = strategicLogistics.route(team, origin, destination);
+    if (!Array.isArray(path)) return 0;
     const threatByRoute = new Map(routes.map(route => [String(route?.id ?? ''), clamp(Number(route?.knownThreat) || 0, 0, 1)]));
     let highest = 0;
     for (const leg of path) {
