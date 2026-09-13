@@ -4,13 +4,13 @@ import { combatReservePlan } from '../modules/combat-reserves.js';
 
 const territory = Object.freeze({ owner: 'ally', contested: false, structures: ['depot'] });
 
-function localDepot(assets) {
+function localDepot(assets, routes = []) {
   const node = { id: 'front', team: 'ally', kind: 'depot', alive: true };
   if (assets !== undefined) node.assets = assets;
   return {
     getNode(id) { return id === 'front' ? node : null; },
     route() { return []; },
-    snapshot() { return { nodes: [node], routes: [] }; },
+    snapshot() { return { nodes: [node], routes }; },
   };
 }
 
@@ -34,9 +34,27 @@ test('canonical combat reserves require physical troop stock at the field node',
   assert.equal(missingInventory.amount, 0);
 });
 
-test('stocked canonical depot still releases only deployable physical troops', () => {
+test('stocked canonical depot keeps extra defenders when adjacent route intel is absent', () => {
   const stocked = combatReservePlan({
     strategicLogistics: localDepot({ troops: 5 }),
+    territory,
+    team: 'ally',
+    from: 'front',
+    to: 'front',
+    timerExpired: true,
+    fallbackComplete: true,
+    deficit: 20,
+  });
+
+  assert.equal(stocked.logistics.availableTroops, 5);
+  assert.equal(stocked.logistics.deployableTroops, 1);
+  assert.equal(stocked.ready, true);
+  assert.equal(stocked.amount, 1);
+});
+
+test('known-safe adjacent route intel restores the normal depot garrison', () => {
+  const stocked = combatReservePlan({
+    strategicLogistics: localDepot({ troops: 5 }, [{ id: 'front-road', from: 'front', to: 'rear', knownThreat: .2 }]),
     territory,
     team: 'ally',
     from: 'front',
