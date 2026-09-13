@@ -1,30 +1,47 @@
 # Iron Rain — LEAD active sprint — 2026-09-12
 
-This file is the current short-horizon integration handoff. It does not replace `IRON_RAIN_VISION.md`, `MULTI_AGENT_CONTROL.md`, `ACTIVE_USER_DIRECTIVES_20260912.md` or `AGENT_LOG.md`.
+This file is the current short-horizon integration handoff. It does not replace `IRON_RAIN_VISION.md`, `MULTI_AGENT_CONTROL.md`, `ACTIVE_USER_DIRECTIVES_20260912.md`, `MAP_REWORK_20260912.md` or `AGENT_LOG.md`.
 
-## LEAD GATE — P0 ATÉ CHECKPOINT REAL DE 2 DISPOSITIVOS
+## LEAD AUDIT — 2026-09-12 21:02 BRT
 
-A branch ganhou bastante fundação útil, mas a integração P0 ainda não chegou ao caminho principal do jogo: `cabin-view.js` ainda não consome a camada visual de tripulação e `game-v6.js` ainda não importa/monta `crew-runtime.js` + `crew-lobby-ui.js`. Portanto, helpers/testes isolados não contam como avanço perceptível do multiplayer.
+A auditoria deste ciclo foi feita na branch ativa `iron-rain-v6-1-continuation`, após reler handoff, visão, diretivas do owner, MAP REWORK, MAP REFERENCE, MULTI_AGENT_CONTROL, AGENT_LOG e commits recentes. `iron-rain-frontline` continua histórica e não deve ser editada.
 
-A partir deste checkpoint, a regra de ritmo é obrigatória para todos os slots:
-- se um workstream completar 2 ciclos sem avanço perceptível/fundacional do seu objetivo e sem bloqueio legítimo, o ciclo seguinte deve ser reorientado para uma fatia integrada de maior impacto;
-- P0 multiplayer supera micro-polish desconectado até existir um checkpoint real de dois dispositivos;
-- não recriar helpers já existentes; consumir a fundação que já está na branch;
-- antes de tocar hotspots compartilhados, reler HEAD/commits e preservar trabalho concorrente;
-- não chamar BroadcastChannel de multiplayer público: ele é somente transporte de QA local;
-- não declarar persistência global pronta sem backend/storage autoritativo compartilhado.
+O checkpoint antigo deste arquivo ficou desatualizado: lobby, runtime, bridge de cabine e presença visual já chegaram ao caminho principal. `bootstrap.js` já monta `crew-lobby-ui.js`, `crew-runtime.js`, transporte real/QA, `crew-cabin-bridge.js` e escolha de facção/spawn; `cabin-view.js` já possui a camada visual de até dois remotos e gate de postos. Não repetir essas integrações como se ainda estivessem ausentes.
 
-### Integração P0 obrigatória — ordem atual
-1. **Presença visual real:** integrar `createCabinCrewVisualLayer()` em `cabin-view.js`, com no máximo dois remotos e API mínima para renderer-ready samples. Nenhum código de rede no renderer.
-2. **Runtime no jogo:** integrar `crew-runtime.js` em `game-v6.js`: pose local -> `runtime.update()` -> `runtime.renderSamples()` -> camada visual. Offline/single-player precisa continuar idêntico.
-3. **Lobby real:** montar `crew-lobby-ui.js` como primeiro fluxo do jogador. Escolha obrigatória antes da sessão: `ALIADOS` azul ou `EIXO` verde; CRIAR / ENTRAR / JOGAR SOZINHO / ENTRAR NO MAMUTE sem linguagem de signaling.
-4. **Posse de postos:** entrada em `drive/aim/load/map/radio/engine/extinguisher` só ocorre após claim exclusivo; ocupado = não engaja e informa indisponibilidade; release em saída/desconexão.
-5. **Transporte cross-device:** substituir transporte QA pelo adapter real retornado/implementado pelo Codex P0, preservando a API do runtime/session.
-6. **Checkpoint de aceitação:** dois dispositivos da mesma facção entram no mesmo Mamute, veem um ao outro, usam postos diferentes simultaneamente, não roubam o mesmo posto, recebem o mesmo feedback de impacto e desconectam limpo; terceiro entra; quarto é recusado; facção oposta é recusada no mesmo Mamute.
+O P0, porém, NÃO está concluído: o request Codex `IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md` permanece `IN_PROGRESS` e ainda falta evidência real PC→PC e PC→mobile no mesmo Mamute. Até esse retorno, nenhum Slot cria stack concorrente de transporte/sinalização e ninguém declara multiplayer pronto apenas por testes unitários/browser locais.
+
+## POLÍTICA DE RITMO — GATE OBRIGATÓRIO
+
+- P0 multiplayer real continua acima de micro-polish desconectado até existir checkpoint real de dois dispositivos.
+- Se um workstream completar 2 ciclos sem avanço perceptível/fundacional e sem bloqueio legítimo, o ciclo seguinte DEVE consumir a fundação existente numa fatia integrada de maior impacto.
+- Helper novo sem consumidor só é aceitável quando remove bloqueio arquitetural explícito; não empilhar adapters/view-models paralelos.
+- Antes de tocar hotspot compartilhado, reler HEAD/commits e preservar trabalho concorrente.
+- BroadcastChannel continua somente QA same-origin; não chamar isso de multiplayer público.
+- Persistência global não está pronta sem backend/storage autoritativo compartilhado.
+
+## P0 MULTIPLAYER — ESTADO ATUAL E PRÓXIMA ACEITAÇÃO
+
+Já integrado no caminho principal:
+1. escolha `ALIADOS` azul / `EIXO` verde antes da sessão;
+2. criar/entrar/jogar sozinho/entrar no Mamute via lobby player-facing;
+3. runtime de tripulação montado no bootstrap;
+4. pose local -> runtime -> samples remotos -> cabine;
+5. presença visual de até dois remotos no interior;
+6. gate de posse exclusiva de postos atravessando a mesma fronteira runtime/cabine;
+7. feedback compartilhado de tiro/recarga/impacto/manutenção em integração incremental;
+8. spawn em hexágono 100% dominado pela facção, aplicado ao Mamute.
+
+Próxima aceitação P0, sem abrir implementação concorrente enquanto Codex estiver `IN_PROGRESS`:
+1. consumir primeiro a evidência/correções devolvidas pelo Codex;
+2. validar PC→PC real: mesma facção, mesmo Mamute, presença visual, dois postos diferentes simultâneos, mesmo posto recusado, tiro/impacto compartilhado, leave/disconnect/reconnect;
+3. validar PC→mobile/iPhone no mesmo fluxo;
+4. terceiro tripulante entra, quarto é recusado;
+5. facção oposta não entra no mesmo Mamute;
+6. erro de runtime/transporte deve falhar fechado sem deixar avatar fantasma nem posse órfã de posto.
 
 ## DIRETIVA MOBILE — POSTO DE PONTARIA
 
-O touch/mobile deve operar as manivelas físicas 3D. Não criar um segundo fire deck concorrente.
+O touch/mobile deve operar as manivelas físicas 3D. Não criar segundo fire deck concorrente.
 
 - esconder UI duplicada de azimute/elevação no mobile;
 - centro e parte inferior da cena ficam livres para tocar as manivelas 3D;
@@ -35,10 +52,38 @@ O touch/mobile deve operar as manivelas físicas 3D. Não criar um segundo fire 
 - desktop/mouse não pode regredir;
 - `mobile-station-ui.css` é o caminho de integração atual.
 
+## MAPA / WORLD WAR — BASELINE E GATE
+
+Qualquer Slot que toque mapa, território, IA dependente de território, logística, rádio, missões ou materialização deve reler `MAP_REWORK_20260912.md` + `MAP_REFERENCE_20260912.svg` no mesmo ciclo.
+
+- Renderer canônico: `modules/strategic-war-live-v3.js`, exposto pela façade `modules/strategic-war-live.js`. Não criar v4/renderer paralelo.
+- Preservar escala uniforme X/Y, hexágonos encaixados SEM sobreposição, leitura de grandes regiões, ALIADOS oeste, EIXO leste, corredor NEUTRO + DISPUTADO e frente contínua.
+- A mudança recente de escala das regiões em `strategic-hex-map.js` é aceitável somente enquanto mantiver encaixe axial correto, hierarquia visual e testes; tamanho maior não autoriza sobreposição.
+- Posição do Mamute deve continuar identificando região/setor e a mesa de cartas deve mostrar a mesma localização estratégica.
+- Informação inimiga depende de intel válida; ownership territorial nunca vem de um contato de intel.
+- Captura conectada + `captureSectorWithFront()` já existem como fundação. O próximo avanço de WORLD WAR deve integrar a linha devolvida no estado vivo e no `drawFront()` do v3; não criar outro helper de frente antes disso.
+
+## REORIENTAÇÃO POR WORKSTREAM — PRÓXIMO CICLO
+
+### FP SYSTEMS — P0
+Consumir a robustez recém-adicionada ao `crew-cabin-bridge.js` e preparar o pós-Codex: validar limpeza de presença/posse em erro, leave, disconnect e reconnect. Não criar outro runtime/bridge/lobby. Se Codex retornar neste ciclo, prioridade absoluta é integrar a correção/evidência dele e fechar checkpoint cross-device.
+
+### FP VISUALS + AUDIO
+Parar micro-polish de apresentação independente. Próxima fatia deve ser perceptível: integrar o loader mecânico existente ao renderer real OU fechar hull-hit/extintor/reparo compartilhados no interior já renderizado. iPhone/Safari áudio continua bug até evidência em aparelho; não fazer tuning subjetivo às cegas.
+
+### COMBAT AI
+A fundação `combatReservePlanCycle()` já passou de helper suficiente. Próxima fatia deve substituir atomicamente no fluxo vivo de `war-simulation-core.js` o modelo legado de reservas, usando IDs/território/logística canônicos. Não criar terceiro helper de reservas e não manter dois modelos ativos.
+
+### ARTILLERY
+A cadeia de orientação/cargas já tem view-model suficiente. Próxima fatia deve consumir `artilleryChargeTableRows()` em `table-map.js` como substituição da apresentação anterior, preservando `ballistics.js` como fonte única e a ligação região/setor sem GPS inimigo. No mobile, manter pontaria física 3D como superfície principal.
+
+### WORLD WAR
+Prioridade é integração, não nova fundação: `captureSectorWithFront()` + linha estratégica ativa -> `strategicFrontPath()` -> `strategic-war-live-v3.js`. Ownership e linha precisam mudar atomicamente, com fallback canônico e sem bolsões mágicos. Depois conectar pressão/IA/logística ao mesmo estado; não abrir renderer paralelo.
+
 ## OUTRAS DIRETIVAS QUE NÃO PODEM REGREDIR
 
 ### Mamute físico/imersão
-- impactos externos devem gerar crack/thump/rattle, shake/luz/poeira dentro do Mamute para toda a tripulação;
+- impactos externos geram crack/thump/rattle, shake/luz/poeira dentro do Mamute para toda a tripulação;
 - loader usa braço mecânico articulado: adquirir -> prender -> girar -> levar à culatra -> inserir -> travar;
 - extintor precisa spray/foam visível;
 - reparo precisa progresso e resposta mecânica/áudio visíveis;
@@ -62,30 +107,33 @@ O touch/mobile deve operar as manivelas físicas 3D. Não criar um segundo fire 
 - `crew-replication.js`: 1 local + 2 remotos, validação/interpolação;
 - `crew-session.js`: handshake, room, faction lock, heartbeat, cap 3, station packets;
 - `crew-runtime.js`: fronteira estável de transporte;
+- `crew-cabin-bridge.js`: runtime/presença/postos -> cabine, incluindo falha fechada de frame;
 - `crew-broadcast-transport.js`: QA same-origin apenas;
-- `crew-station-authority.js`: posse exclusiva;
+- `crew-mqtt-transport.js`: adapter público atual sob auditoria Codex P0;
+- `crew-station-authority.js` + `crew-station-gate.js`: posse exclusiva;
 - `crew-lobby-ui.js`: lobby/facção player-facing;
 - `crew-presence.js`, `crew-avatar-visual.js`, `crew-visual-layer.js`: presença visual remota;
 - `cabin-hit-feedback.js`: contrato de feedback interno de impacto;
 - `loader-arm.js`: pose/rig do loader; não criar clock paralelo;
 - `maintenance-feedback.js` + `maintenance-overlay.js`: feedback de manutenção;
-- `theatre-control.js`, `theatre-sectors.js`, `theatre-regions.js`: linha/território coerente;
+- `theatre-control.js`, `strategic-hex-map.js`, `strategic-front-pressure.js`: linha/território/frente coerentes;
 - `territory-development.js`, `strategic-logistics.js`, `territory-region-control.js`: desenvolvimento/logística física;
 - `persistent-war-clock.js`: relógio/catch-up somente, não autoridade persistente completa;
 - `world-map-intel.js`: intel estratégica parcial; manter sem onisciência.
 
 ## CODEX / BLOQUEIOS ESPECIALIZADOS
 
-- P0 real multiplayer transport/signaling: `docs/codex-requests/IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md`.
+- P0 real multiplayer transport/signaling: `docs/codex-requests/IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md` — `IN_PROGRESS` na última auditoria deste ciclo.
 - P1 autoridade persistente de guerra: `docs/codex-requests/IR-CODEX-20260912-1620-LEAD-persistent-war-authority.md`.
 - QA iPhone/Safari áudio continua necessário; não ajustar mix subjetivamente às cegas.
 - Codex indisponível não paralisa os workstreams: integração local, regressões e fundações independentes continuam.
 
 ## TESTE / PUBLICAÇÃO
 
-- usar somente a branch ativa `iron-rain-v6-1-continuation`; `iron-rain-frontline` é histórica e não deve ser editada;
+- usar somente `iron-rain-v6-1-continuation`; `iron-rain-frontline` é histórica e não deve ser editada;
 - `npm test` antes/depois quando o runtime permitir;
 - QA browser via `tests/v7-browser.mjs` quando Playwright estiver disponível;
 - não rotular helper isolado como mudança visível;
-- manter o MESMO Pages/PWA estável já instalado no iPhone do dono; não criar novo URL de produto;
-- qualquer integração visível deve preservar PC + mobile e a estética low-poly/PS1 militar-industrial.
+- manter o MESMO Pages/PWA estável já instalado no iPhone do owner; não criar novo URL de produto;
+- qualquer integração visível deve preservar PC + mobile e a estética low-poly/PS1 militar-industrial;
+- REPORTING GATE: não reportar ao owner enquanto o workflow Pages/PWA do commit correspondente estiver queued/pending/in_progress.
