@@ -28,15 +28,16 @@ export function createMamuteCommandAuthority({
   const acceptedFireOrder = [];
   let accepted = 0, rejected = 0;
 
-  function rememberFireShot(playerId, payload) {
+  function fireShotKey(playerId, payload) {
     const shotId = cleanId(payload?.shotId);
-    if (!shotId) return true;
-    const key = `${playerId}:${shotId}`;
-    if (acceptedFireShots.has(key)) return false;
+    return shotId ? `${playerId}:${shotId}` : null;
+  }
+
+  function rememberFireShot(key) {
+    if (!key) return;
     acceptedFireShots.add(key);
     acceptedFireOrder.push(key);
     while (acceptedFireOrder.length > FIRE_REPLAY_WINDOW) acceptedFireShots.delete(acceptedFireOrder.shift());
-    return true;
   }
 
   function receive(command) {
@@ -54,7 +55,8 @@ export function createMamuteCommandAuthority({
       rejected += 1;
       return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null });
     }
-    if (type === 'fire' && !rememberFireShot(playerId, command.payload)) {
+    const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
+    if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
       rejected += 1;
       return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner });
@@ -62,6 +64,7 @@ export function createMamuteCommandAuthority({
     let applied = false;
     try { applied = apply(Object.freeze({ playerId, seq, type, station, payload: command.payload ?? null })) !== false; } catch { applied = false; }
     if (!applied) { rejected += 1; return Object.freeze({ ok: false, reason: 'command-rejected', station, owner }); }
+    if (shotKey) rememberFireShot(shotKey);
     sequences.set(playerId, seq); accepted += 1;
     return Object.freeze({ ok: true, station, owner, accepted });
   }

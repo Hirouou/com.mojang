@@ -50,3 +50,19 @@ test('legacy fire without shotId remains compatible', () => {
   assert.equal(authority.receive({ playerId: 'gunner', seq: 1, type: 'fire', payload: { shell: 'HE' } }).ok, true);
   assert.equal(authority.receive({ playerId: 'gunner', seq: 2, type: 'fire', payload: { shell: 'HE' } }).ok, true);
 });
+
+test('rejected fire does not burn shotId before a successful retry', () => {
+  let allow = false;
+  const applied = [];
+  const authority = createMamuteCommandAuthority({
+    stationOwner: () => 'gunner',
+    apply: command => { applied.push(command); return allow; },
+  });
+  const payload = { shotId: 'mamute-a:gunner:retry', shell: 'HE' };
+
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 10, type: 'fire', payload }).reason, 'command-rejected');
+  allow = true;
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 11, type: 'fire', payload }).ok, true);
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 12, type: 'fire', payload }).reason, 'duplicate-shot');
+  assert.equal(applied.length, 2);
+});
