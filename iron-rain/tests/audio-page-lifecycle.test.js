@@ -68,13 +68,14 @@ test('pagehide drains transient voices and pageshow reuses the existing audio gr
   audio.wake();
   const ctx = contexts[0];
   const master = ctx.nodes.find(n => n.kind === 'gain');
+  const beforeFire = ctx.nodes.length;
   audio.fire();
-  const liveTransients = ctx.nodes.filter(n => (n.kind === 'noise' || n.kind === 'oscillator') && n.started);
+  const liveTransients = ctx.nodes.slice(beforeFire).filter(n => (n.kind === 'noise' || n.kind === 'oscillator') && n.started);
   assert.ok(liveTransients.length > 0, 'foreground fire should allocate transient voices');
 
   pageListeners.get('pagehide')?.();
   assert.equal(master.gain.value, 0, 'pagehide should mute the master even when visibilityState has not changed');
-  assert.ok(liveTransients.every(n => n.stopped !== undefined), 'pagehide should stop already active transient sources');
+  assert.ok(liveTransients.every(n => n.stopped !== undefined && n.disconnected === true), 'pagehide should stop and disconnect active transient sources');
   const afterHide = ctx.nodes.length;
   audio.radio();
   audio.impact();
