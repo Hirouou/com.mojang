@@ -93,12 +93,14 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   }
 
   function dispatch({ team, from, to, cargo = {}, assets = {}, speed = 14, kind = 'supply', now = intelNow } = {}) {
+    const dispatchNow = Number(now);
+    if (Number.isFinite(dispatchNow)) intelNow = Math.max(intelNow, dispatchNow);
     const origin = nodeMap.get(String(from)), destination = nodeMap.get(String(to));
     const load = copyStock(cargo), manifest = copyAssets(assets);
     if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return Object.freeze({ ok: false, reason: 'invalid-endpoint' });
     if (!canPay(origin.stock, load)) return Object.freeze({ ok: false, reason: 'origin-stock-insufficient' });
     if (!canPayAssets(origin.assets, manifest)) return Object.freeze({ ok: false, reason: 'origin-assets-insufficient' });
-    const path = route(team, origin.id, destination.id, { now });
+    const path = route(team, origin.id, destination.id, { now: Number.isFinite(dispatchNow) ? dispatchNow : intelNow });
     if (!path) return Object.freeze({ ok: false, reason: 'route-cut' });
     debit(origin.stock, load);
     debitAssets(origin.assets, manifest);
