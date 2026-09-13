@@ -13,18 +13,15 @@ const stationDenial = (runtime, station) => {
   return Object.freeze({ owner });
 };
 
-/**
- * Frame-level boundary between the Mamute cabin and crew runtime.
- *
- * The renderer stays transport-agnostic: this bridge publishes only the
- * compact collision-safe local crew pose and feeds renderer-ready remote
- * samples back into cabin-view. Station interaction also crosses this same
- * boundary so cabin input never needs to know about session packets or
- * transport authority.
- */
 export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 } = {}) {
   const delay = clampDelay(interpolationDelay);
   const pendingStations = new Set();
+
+  function keepCabinOutsideUntilReady(result) {
+    if (result?.ready) return result;
+    try { cabin?.leaveStation?.(); } catch {}
+    return result;
+  }
 
   function update(dt = 0, at) {
     const localPose = crewLocalPoseFromCabinSnapshot(cabin?.snapshot?.());
@@ -32,14 +29,11 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
       cabin?.updateRemoteCrew?.([], clampDt(dt));
       return Object.freeze({ status: null, remoteCount: 0 });
     }
-
     let status = null;
     let remotes = [];
     try {
       status = at === undefined ? runtime.update(localPose) : runtime.update(localPose, at);
-      remotes = at === undefined
-        ? runtime.renderSamples(undefined, delay)
-        : runtime.renderSamples(at, delay);
+      remotes = at === undefined ? runtime.renderSamples(undefined, delay) : runtime.renderSamples(at, delay);
     } catch {
       cabin.updateRemoteCrew([], clampDt(dt));
       return Object.freeze({ status: null, remoteCount: 0 });
@@ -67,13 +61,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
       const denied = stationDenial(runtime, id);
       if (denied) {
         pendingStations.delete(id);
-        return Object.freeze({
-          ...state,
-          ok: false,
-          pending: false,
-          reason: denied.owner ? 'occupied' : 'claim-denied',
-          owner: denied.owner,
-        });
+        return Object.freeze({ ...state, ok: false, pending: false, reason: denied.owner ? 'occupied' : 'claim-denied', owner: denied.owner });
       }
       return Object.freeze({ ...state, ok: false, pending: true, reason: 'pending-host' });
     }
@@ -82,13 +70,13 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
 
   function requestStation(station) {
     const current = stationState(station);
-    if (current.pending || current.ready || (!current.ok && current.reason !== 'available')) return current;
+    if (current.pending || current.ready || (!current.ok && current.reason !== 'available')) return keepCabinOutsideUntilReady(current);
     const result = requestStationGate(runtime, station);
     if (result?.station) {
       if (result.pending) pendingStations.add(result.station);
       else pendingStations.delete(result.station);
     }
-    return result;
+    return keepCabinOutsideUntilReady(result);
   }
 
   function releaseStation(station) {
@@ -97,13 +85,5 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     return released;
   }
 
-  return Object.freeze({
-    update,
-    clear,
-    stationState,
-    requestStation,
-    releaseStation,
-    stationMessage: result => stationGateMessage(result),
-    interpolationDelay: delay,
-  });
+  return Object.freeze({ update, clear, stationState, requestStation, releaseStation, stationMessage: result => stationGateMessage(result), interpolationDelay: delay });
 }
