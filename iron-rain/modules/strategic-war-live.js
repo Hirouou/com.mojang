@@ -20,6 +20,8 @@ export function installStrategicWarLive(options = {}) {
   // v3 owns the canonical theatre/logistics instance. Preserve its strategic
   // seams before this façade replaces the global map surface.
   const combatReserveContext = globalThis.ironRainStrategicMap?.combatReserveContext;
+  const claimAsset = globalThis.ironRainStrategicMap?.claimAsset;
+  const assetCount = globalThis.ironRainStrategicMap?.assetCount;
   const applySectorControl = globalThis.ironRainStrategicMap?.applySectorControl;
   const mamuteSnapshots = createTheatreMamuteSnapshotCycle();
   const mamuteLifecycle = options.mamuteLifecycle || createMamuteTacticalLifecycle(options.mamuteTactical || {});
@@ -27,6 +29,8 @@ export function installStrategicWarLive(options = {}) {
   globalThis.ironRainStrategicMap = Object.freeze({
     locate: point => base.locate?.(point) || null,
     combatReserveContext: (sectorId, team) => combatReserveContext?.(sectorId, team) || null,
+    claimAsset: (sectorId, team, type, count = 1) => claimAsset?.(sectorId, team, type, count) || false,
+    assetCount: (sectorId, team, type) => assetCount?.(sectorId, team, type) || 0,
     applySectorControl: update => applySectorControl?.(update) || Object.freeze({ ok: false, changed: false, reason: 'strategic-map-unavailable' }),
     mamuteSnapshot: snapshotOptions => {
       const snapshot = mamuteSnapshots.build(snapshotOptions);
