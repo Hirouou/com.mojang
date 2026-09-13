@@ -90,11 +90,13 @@ function consumeDeliveredTroops(strategicLogistics, to, amount) {
 function withDeliveredTroops(logistics, strategicLogistics, to) {
   const availableTroops = combatDeliveredTroops(strategicLogistics, to);
   if (availableTroops == null) return logistics;
-  // A canonical field node keeps one fictional aggregate defender instead of
-  // stripping itself empty to feed the front. This uses the existing territory
-  // structure flags and physical troop stock; it is not a second garrison model.
-  const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
-  const deployableTroops = Math.max(0, availableTroops - (fieldNode ? 1 : 0));
+  // Keep physical defenders at the same canonical field node instead of
+  // stripping critical logistics infrastructure to feed the front. Depots and
+  // garages retain two aggregate defenders; a basic outpost retains one.
+  const criticalLogistics = bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
+  const fieldNode = bool(logistics?.hasOutpost) || criticalLogistics;
+  const garrison = criticalLogistics ? 2 : fieldNode ? 1 : 0;
+  const deployableTroops = Math.max(0, availableTroops - garrison);
   return Object.freeze({ ...logistics, availableTroops, deployableTroops });
 }
 
