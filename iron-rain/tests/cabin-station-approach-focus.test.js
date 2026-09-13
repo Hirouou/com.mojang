@@ -23,3 +23,15 @@ test('station focus uses the operator-side point while preserving physical stati
   assert.equal(focused?.z, map.z, 'downstream camera/station logic keeps the real mesh coordinate');
   assert.ok(focused.distance < map.radius, 'walkable approach point controls interaction reach');
 });
+
+test('standing directly on an approach anchor keeps its station interactable', () => {
+  const movement = createCabinMovement();
+  const engine = CABIN_STATIONS.find(station => station.id === 'engine');
+  assert.ok(engine);
+  assert.equal(movement.setPose({ x: engine.focusX, z: engine.focusZ, yaw: Math.PI, pitch: 0 }), true);
+
+  const focused = movement.focus();
+  assert.equal(focused?.id, 'engine');
+  assert.equal(focused?.distance, 0);
+  assert.equal(focused?.facing, 1, 'zero-distance anchors stay interaction-valid regardless of view direction');
+});
