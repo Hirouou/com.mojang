@@ -52,18 +52,22 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     return graph;
   }
 
+  function routeCost(item) {
+    return item.distance * (1 + clamp(item.threat, 0, 1));
+  }
+
   function route(team, from, to) {
     if (from === to) return Object.freeze([]);
-    const graph = adjacency(team), frontier = [{ id: from, distance: 0, path: [] }], best = new Map([[from, 0]]);
+    const graph = adjacency(team), frontier = [{ id: from, cost: 0, path: [] }], best = new Map([[from, 0]]);
     while (frontier.length) {
-      frontier.sort((a, b) => a.distance - b.distance);
+      frontier.sort((a, b) => a.cost - b.cost);
       const current = frontier.shift();
       if (current.id === to) return Object.freeze(current.path.map(step => Object.freeze(step)));
       for (const edge of graph.get(current.id) || []) {
-        const nextDistance = current.distance + edge.route.distance;
-        if ((best.get(edge.node) ?? Infinity) <= nextDistance) continue;
-        best.set(edge.node, nextDistance);
-        frontier.push({ id: edge.node, distance: nextDistance, path: [...current.path, { routeId: edge.route.id, from: current.id, to: edge.node, distance: edge.route.distance }] });
+        const nextCost = current.cost + routeCost(edge.route);
+        if ((best.get(edge.node) ?? Infinity) <= nextCost) continue;
+        best.set(edge.node, nextCost);
+        frontier.push({ id: edge.node, cost: nextCost, path: [...current.path, { routeId: edge.route.id, from: current.id, to: edge.node, distance: edge.route.distance }] });
       }
     }
     return null;
