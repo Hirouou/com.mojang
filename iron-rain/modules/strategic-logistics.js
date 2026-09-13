@@ -38,7 +38,12 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     const graph = new Map();
     for (const route of routeMap.values()) {
       if (!route.open || route.team !== team) continue;
-      if (!nodeMap.get(route.from)?.alive || !nodeMap.get(route.to)?.alive) continue;
+      const fromNode = nodeMap.get(route.from), toNode = nodeMap.get(route.to);
+      if (!fromNode?.alive || !toNode?.alive) continue;
+      // Ownership changes are authoritative at the node. Even if a stale route
+      // has not been explicitly closed yet, supply must never path through a
+      // captured/neutral endpoint for the previous faction.
+      if (fromNode.team !== team || toNode.team !== team) continue;
       if (!graph.has(route.from)) graph.set(route.from, []);
       if (!graph.has(route.to)) graph.set(route.to, []);
       graph.get(route.from).push({ node: route.to, route });
@@ -100,7 +105,15 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     const leg = convoy.path[convoy.leg];
     if (!leg) return true;
     const stored = routeMap.get(leg.routeId);
-    return Boolean(stored?.open && stored.team === convoy.team);
+    const fromNode = nodeMap.get(leg.from), toNode = nodeMap.get(leg.to);
+    return Boolean(
+      stored?.open
+      && stored.team === convoy.team
+      && fromNode?.alive
+      && toNode?.alive
+      && fromNode.team === convoy.team
+      && toNode.team === convoy.team
+    );
   }
 
   function step(dt, { damageByConvoy = {} } = {}) {
