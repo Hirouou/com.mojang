@@ -56,7 +56,7 @@ test('walking away cancels a pending claim and rejects a late ownership grant', 
   };
   const cabin = {
     leaveStation() {},
-    snapshot() { return { x: 0, z: 0, yaw: 0, pitch: 0, focus, station: null }; },
+    snapshot() { return { position: { x: 0, z: 0 }, yaw: 0, pitch: 0, focus, station: null }; },
     updateRemoteCrew() {},
   };
   const bridge = createCrewCabinBridge({ runtime, cabin });
