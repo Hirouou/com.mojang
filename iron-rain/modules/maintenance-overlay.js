@@ -67,14 +67,16 @@ function render(detail) {
   const spray = Math.max(0, Math.min(1, Number(detail.spray) || 0));
   const sparks = Math.max(0, Math.min(1, Number(detail.sparks) || 0));
   const repairMotion = Math.max(0, Math.min(1, Number(detail.repairMotion) || 0));
+  const isExtinguish = detail.kind === 'extinguish';
+  const vfxActive = isExtinguish ? spray > .02 : repairMotion > .02 || sparks > .02;
   element.hidden = false;
-  element.classList.toggle('extinguish', detail.kind === 'extinguish');
+  element.classList.toggle('extinguish', isExtinguish);
   element.classList.toggle('repair', detail.kind === 'repair');
   element.style.setProperty('--p', String(progress));
-  label.textContent = detail.kind === 'extinguish' ? 'APAGANDO INCÊNDIO' : 'REPARANDO MOTOR';
+  label.textContent = isExtinguish ? 'APAGANDO INCÊNDIO' : 'REPARANDO MOTOR';
   value.textContent = `${Math.round(progress * 100)}%`;
   if (vfx) {
-    vfx.className = `ir-maintenance-vfx active ${detail.kind === 'extinguish' ? 'extinguish' : 'repair'}`;
+    vfx.className = `ir-maintenance-vfx${vfxActive ? ' active' : ''} ${isExtinguish ? 'extinguish' : 'repair'}`;
     vfx.style.setProperty('--spray', String(spray));
     vfx.style.setProperty('--sparks', String(sparks));
     vfx.style.setProperty('--repair-speed', `${(.42 - repairMotion * .12).toFixed(3)}s`);
