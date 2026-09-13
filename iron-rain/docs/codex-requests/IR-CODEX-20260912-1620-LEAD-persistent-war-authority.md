@@ -1,6 +1,8 @@
 # IR-CODEX-20260912-1620-LEAD-persistent-war-authority
 
-STATUS: READY
+STATUS: IN_PROGRESS
+CLAIMED_HEAD: 3c7e547fa678b4bc56d2c85cbf3a392c211ec12a
+CLAIMED_AT: 2026-09-12T22:46:35-03:00
 REQUESTER: LEAD
 RETURN_TO: LEAD
 PRIORITY: P0
@@ -14,6 +16,8 @@ This request is no longer a distant P1 architecture exercise. The owner explicit
 After/alongside the active transport P0, this request is now the backend/authority half of the same P0 product checkpoint. Do not recommend player-host migration as world authority.
 
 ## MISSÃO
+CODEX claim: backend/authority half of the active P0 transport. Preparing a dedicated authoritative process and durable state, then wiring the existing client; no player/browser becomes authority. Public backend endpoint/hosting has not yet been found in the repository/environment. Preserve CODEX ownership of server, bootstrap, runtime and main gameplay integration.
+
 Definir e, se the environment permits, prepare the smallest viable backend/authority so the shared Iron Rain war continues advancing independently of any browser, phone or Mamute crew.
 
 The immediate player-test target is concrete: player A joins an ALIADOS Mamute, player B joins an EIXO Mamute, both in the same persistent theatre. A fires at B. The server/world authority validates command/station/ammo, resolves the shot and damage once, updates both Mamutes/theatre, and replicates the same result to both clients. If both players disconnect, the war snapshot remains and can advance/catch up safely.
