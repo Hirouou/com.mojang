@@ -113,7 +113,7 @@ test('regroup waits for local supply even when the opposing line is nearly empty
   assert.ok(force.advance <= 0, 'the formation does not start an opportunistic assault from regroup');
 });
 
-test('a supplied and recovered formation can leave regroup through the normal phase selector', () => {
+test('a supplied and recovered formation leaves regroup through the consolidation buffer', () => {
   const state = makeState();
   const sector = state.sectors[0];
   const force = sector.war.ally;
@@ -128,7 +128,13 @@ test('a supplied and recovered formation can leave regroup through the normal ph
 
   updateWar(state, 1);
 
-  assert.equal(force.phase, 'hold', 'healthy local supply returns control to the existing tactical phase selector');
+  assert.equal(force.phase, 'consolidate', 'recovered infantry consolidates before returning to the normal tactical selector');
+  assert.ok(force.phaseTime > 1, 'consolidation receives a real defensive window instead of collapsing into a same-tick attack');
+
+  const consolidationTime = force.phaseTime;
+  updateWar(state, 1);
+  assert.equal(force.phase, 'consolidate', 'the recovery buffer persists for its phase window');
+  assert.equal(force.phaseTime, consolidationTime - 1, 'consolidation timer advances normally after recovery');
 });
 
 test('low local supply blocks a prepared suppress-to-assault transition on a contested front', () => {
