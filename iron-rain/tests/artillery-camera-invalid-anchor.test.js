@@ -21,3 +21,13 @@ test('invalid Mamute coordinates do not push the artillery return camera across 
   assert.equal(Number.isFinite(state.cam.x), true);
   assert.equal(Number.isFinite(state.cam.y), true);
 });
+
+test('a partial Mamute coordinate never creates a hybrid return anchor', () => {
+  const invalidX = makeState();
+  invalidX.robot = { x: Number.NaN, y: 9100 };
+  assert.deepEqual(cameraAnchor(invalidX, 1200), { x: 5000, y: 4200 });
+
+  const invalidY = makeState();
+  invalidY.robot = { x: 8800, y: Number.NaN };
+  assert.deepEqual(cameraAnchor(invalidY, 1200), { x: 5000, y: 4200 });
+});
