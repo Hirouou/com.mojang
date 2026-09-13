@@ -345,22 +345,109 @@ function drawSupportProjectile(ctx, shot, frame) {
   });
 }
 
+function roadHash(road) {
+  const text = String(road?.id || `${road?.from?.x || 0}:${road?.from?.y || 0}:${road?.to?.x || 0}:${road?.to?.y || 0}`);
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function roadPolyline(road, frame, roadWidth) {
+  const a = frame.worldToScreen(road.from.x, road.from.y), b = frame.worldToScreen(road.to.x, road.to.y);
+  const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
+  if (length < 1) return [a, b];
+  const nx = -dy / length, ny = dx / length;
+  const hash = roadHash(road);
+  const phase = ((hash & 0xffff) / 0xffff) * TAU;
+  const bias = (((hash >>> 16) & 0xff) / 255 - .5) * .34;
+  const amplitude = Math.min(length * .115, roadWidth * .56);
+  const steps = clamp(Math.ceil(length / 72), 9, 24);
+  const points = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const envelope = Math.sin(Math.PI * t);
+    const broad = Math.sin(Math.PI * t + phase) * .64;
+    const second = Math.sin(Math.PI * 3 * t + phase * .73) * .28;
+    const rough = (seed(hash * .00017 + i * 2.71) - .5) * .16;
+    const offset = (broad + second + bias + rough) * amplitude * envelope;
+    points.push({ x: a.x + dx * t + nx * offset, y: a.y + dy * t + ny * offset });
+  }
+  return points;
+}
+
+function offsetRoadPolyline(points, offset) {
+  return points.map((point, index) => {
+    const prev = points[Math.max(0, index - 1)], next = points[Math.min(points.length - 1, index + 1)];
+    const dx = next.x - prev.x, dy = next.y - prev.y, length = Math.hypot(dx, dy) || 1;
+    return { x: point.x - dy / length * offset, y: point.y + dx / length * offset };
+  });
+}
+
+function strokeRoadPolyline(ctx, points) {
+  if (!points.length) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+  ctx.stroke();
+}
+
 function drawStrategicRoad(ctx, road, frame) {
   const from = road?.from, to = road?.to;
   if (!Number.isFinite(from?.x) || !Number.isFinite(from?.y) || !Number.isFinite(to?.x) || !Number.isFinite(to?.y)) return;
   const midpoint = { x: (from.x + to.x) * .5, y: (from.y + to.y) * .5 };
-  if (frame.visible && !frame.visible(midpoint.x, midpoint.y, Math.hypot(to.x - from.x, to.y - from.y) * frame.zoom * .55 + 64)) return;
-  const a = frame.worldToScreen(from.x, from.y), b = frame.worldToScreen(to.x, to.y);
-  const roadWidth = Math.max(5, 13 * frame.zoom);
+  if (frame.visible && !frame.visible(midpoint.x, midpoint.y, Math.hypot(to.x - from.x, to.y - from.y) * frame.zoom * .55 + 96)) return;
+
+  // Keep the canonical logistics segment, but dress it as a broad, imperfect dirt road.
+  // The meander stays inside the widened corridor so canonical convoy positions remain visibly on-road.
+  const roadWidth = Math.max(30, 58 * frame.zoom);
+  const points = roadPolyline(road, frame, roadWidth);
+  const shoulder = roadWidth + Math.max(11, roadWidth * .34);
+  const rutOffset = roadWidth * .23;
+  const leftRut = offsetRoadPolyline(points, -rutOffset), rightRut = offsetRoadPolyline(points, rutOffset);
+  const hash = roadHash(road);
+
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(72,66,52,.82)'; ctx.lineWidth = roadWidth + Math.max(2, 5 * frame.zoom);
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  ctx.strokeStyle = road.open === false ? 'rgba(91,82,64,.72)' : 'rgba(112,102,78,.92)'; ctx.lineWidth = roadWidth;
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  ctx.strokeStyle = 'rgba(178,166,126,.28)'; ctx.lineWidth = Math.max(1, frame.zoom * 1.2); ctx.setLineDash([Math.max(5, 18 * frame.zoom), Math.max(4, 14 * frame.zoom)]);
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.lineJoin = 'round';
+
+  // Wide broken shoulder/berm, then compacted earth body.
+  ctx.strokeStyle = 'rgba(65,59,47,.86)'; ctx.lineWidth = shoulder;
+  strokeRoadPolyline(ctx, points);
+  ctx.strokeStyle = road.open === false ? 'rgba(92,82,63,.82)' : 'rgba(130,116,86,.96)'; ctx.lineWidth = roadWidth;
+  strokeRoadPolyline(ctx, points);
+
+  // Uneven central wear keeps it from reading like a perfect vector stripe.
+  ctx.strokeStyle = road.open === false ? 'rgba(137,122,91,.14)' : 'rgba(180,160,113,.20)';
+  ctx.lineWidth = roadWidth * .56;
+  strokeRoadPolyline(ctx, points);
+
+  // Twin wheel ruts make the road feel used without turning it into an asphalt lane.
+  ctx.strokeStyle = 'rgba(73,66,50,.30)';
+  ctx.lineWidth = Math.max(1.4, roadWidth * .065);
+  strokeRoadPolyline(ctx, leftRut);
+  strokeRoadPolyline(ctx, rightRut);
+
+  // Deterministic eroded edge marks/potholes. Stable between frames, cheap enough for the local view.
+  for (let i = 2; i < points.length - 2; i += 3) {
+    const point = points[i], prev = points[i - 1], next = points[i + 1];
+    const dx = next.x - prev.x, dy = next.y - prev.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const side = seed(hash * .00011 + i * 4.17) > .5 ? 1 : -1;
+    const edge = roadWidth * (.38 + seed(hash * .00023 + i) * .08);
+    const x = point.x + nx * edge * side, y = point.y + ny * edge * side;
+    const rx = Math.max(2.5, roadWidth * (.055 + seed(hash * .00031 + i) * .045));
+    const ry = Math.max(1.4, rx * (.34 + seed(hash * .00047 + i) * .25));
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.atan2(dy, dx));
+    ctx.fillStyle = i % 2 ? 'rgba(69,62,48,.24)' : 'rgba(171,149,104,.10)';
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
   ctx.restore();
 }
 
