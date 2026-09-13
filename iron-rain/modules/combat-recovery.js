@@ -123,5 +123,11 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
     if (assaultWithdrawal) return 'retreat';
     return logisticsReady ? 'hold' : 'wait_support';
   }
+
+  // A formation that is only barely above the hard-break line may defend, but
+  // it cannot cycle from cover back into suppression/counter-attack just because
+  // morale and logistics are healthy. Reuse the existing recovery-strength band
+  // and wait for physical replacements instead of inventing another threshold.
+  if (OFFENSIVE_PHASES.has(phase) && strengthValue < COMBAT_RECOVERY_THRESHOLDS.strength) return 'hold';
   return null;
 }
