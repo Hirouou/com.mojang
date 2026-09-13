@@ -51,6 +51,19 @@ General direction: less abstract UI, more physical machine operation. `mobile-st
 - Captures move/bend the coherent ownership boundary and change which internal sectors/hexes belong to each faction; do not create disconnected arbitrary fronts.
 - The world map is a strategic planning surface where the player can inspect available fronts and choose where to support.
 
+## Physical capitals inside each large hex — owner update 2026-09-13
+
+- Every colored point shown inside a large hex represents a **physical capital / sector nucleus**, not an abstract marker.
+- Each capital must exist in the local/materialized world with buildings, streets/roads, defenses, faction NPCs/AI and logistics appropriate to that sector's real development, stock and safety state.
+- Capitals inside a large hex should be connected by a legible road/logistics network, plus external routes into neighboring territory where geography allows.
+- Capturing a capital is NOT a circle/timer flip. Required loop: attack -> neutralize/destroy defending capital/structures -> capital becomes destroyed/neutralized -> attacker physically delivers resources/materials -> attacker rebuilds/reactivates the capital -> only then does it become a functional capital of the new faction.
+- If the attacker has not delivered enough materials, the capital remains destroyed/contested/neutral and does not become magically owned.
+- A large hex is fully controlled only when all internal capitals/sectors have been captured and reactivated by the same faction.
+- The strategic map must show capital state clearly: active, under attack, destroyed, rebuilding, isolated, no-supply, plus valid ownership/intel.
+- The world around the player cannot be empty near a capital: there must be visible structures, roads, AI activity, defenses and war-state feedback when that capital is materialized.
+- Do not materialize the entire world at full fidelity at once. Remote capitals continue in the canonical strategic simulation and materialize locally when relevant, reflecting the same authoritative state instead of creating a parallel world.
+- Full implementation details and workstream gates are in `CAPITAL_CAPTURE_DIRECTIVE_20260913.md`; all map/AI/logistics/materialization work must consume that file in the same cycle.
+
 ## Faction symmetry — same war rules for both sides
 
 - Allied and enemy NPCs use the same underlying AI, construction, logistics, ammunition, range, fortification, reinforcement, vehicle and territorial-development rules.
