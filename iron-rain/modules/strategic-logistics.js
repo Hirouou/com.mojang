@@ -116,6 +116,20 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     );
   }
 
+  function routeTransitionEvent(type, convoy) {
+    const leg = convoy.path[convoy.leg] || null;
+    return {
+      type,
+      convoyId: convoy.id,
+      team: convoy.team,
+      to: convoy.to,
+      kind: convoy.kind,
+      routeId: leg?.routeId ?? null,
+      fromNode: leg?.from ?? null,
+      toNode: leg?.to ?? null,
+    };
+  }
+
   function step(dt, { damageByConvoy = {} } = {}) {
     const elapsed = clamp(dt, 0, 60), events = [];
     for (const convoy of convoys.values()) {
@@ -129,8 +143,14 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         });
         continue;
       }
-      if (!routeStillOpen(convoy)) { convoy.status = 'blocked'; continue; }
+      const previousStatus = convoy.status;
+      if (!routeStillOpen(convoy)) {
+        convoy.status = 'blocked';
+        if (previousStatus !== 'blocked') events.push(routeTransitionEvent('convoy-blocked', convoy));
+        continue;
+      }
       convoy.status = 'moving';
+      if (previousStatus === 'blocked') events.push(routeTransitionEvent('convoy-resumed', convoy));
       let travel = convoy.speed * elapsed;
       while (travel > 0 && convoy.leg < convoy.path.length) {
         const leg = convoy.path[convoy.leg], remaining = leg.distance - convoy.legProgress;
@@ -139,6 +159,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         if (convoy.legProgress >= leg.distance - 1e-6) { convoy.leg += 1; convoy.legProgress = 0; }
         if (convoy.leg < convoy.path.length && !routeStillOpen(convoy)) {
           convoy.status = 'blocked';
+          events.push(routeTransitionEvent('convoy-blocked', convoy));
           break;
         }
       }
@@ -152,7 +173,11 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
             type: 'convoy-arrived', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind,
             cargo: { ...convoy.cargo }, assets: { ...convoy.assets },
           });
-        } else convoy.status = 'blocked';
+        } else {
+          const wasBlocked = convoy.status === 'blocked';
+          convoy.status = 'blocked';
+          if (!wasBlocked) events.push(routeTransitionEvent('convoy-blocked', convoy));
+        }
       }
     }
     return Object.freeze(events.map(event => Object.freeze(event)));
