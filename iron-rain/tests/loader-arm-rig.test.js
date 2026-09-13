@@ -24,12 +24,12 @@ test('loader rig approaches empty, then keeps the visible transfer shell owned b
   }
 });
 
-test('loader rig hands the shell to the breech only during final lock', () => {
-  const seated = loaderRigState({ progress: .925, phase: 'lock' });
-  assert.equal(seated.shell.visible, true);
-  assert.equal(seated.shell.owner, 'breech');
-  assert.equal(seated.shell.clamped, false);
-  assert.equal(seated.shell.seated, true);
+test('loader rig releases the carried shell when final lock opens the claw', () => {
+  const released = loaderRigState({ progress: .925, phase: 'lock' });
+  assert.equal(released.shell.visible, false);
+  assert.equal(released.shell.owner, null);
+  assert.equal(released.shell.clamped, false);
+  assert.equal(released.shell.seated, false);
 
   const hidden = loaderRigState({ progress: .95, phase: 'lock' });
   assert.equal(hidden.shell.visible, false);
