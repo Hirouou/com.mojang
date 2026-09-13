@@ -1,4 +1,5 @@
 import { combatRecoveryPhase } from './combat-recovery.js';
+import { combatReservePlanCycle } from './combat-reserves.js';
 
 /** Persistent fronts, with tactical soldiers instantiated only where detail is needed. */
 export const WAR_LIMITS = Object.freeze({ detailRadius: 2400, maxDetailedFronts: 3, soldiersPerFront: 17, maxTracers: 180, strategicStep: 1, captureBound: 640, maxBasesPerFront: 6, maxSupport: 96, maxEvents: 40, enemyIntelLifetime: 12 });
@@ -282,17 +283,55 @@ function strategicStep(state) {
         force.phaseTime = 0;
         recordEvent(state, sec, team, 'withdrawal', `${team === 'ally' ? 'Nossa linha' : 'Defesa inimiga'} de ${sec.name} desfeita. Reservas recuam e reorganizam.`);
       }
-      force.reinforcementsIn--;
+      const resetIn = 40 + (war.index * 7 + force.cycles * 3) % 21;
+      const canonicalExpected = Boolean(sec.strategicSectorId);
+      let reservePlan = null;
+      if (canonicalExpected && typeof state.warSimulation?.combatReserveContext === 'function') {
+        try {
+          const context = state.warSimulation.combatReserveContext({ sectorId: sec.strategicSectorId, team });
+          if (context) reservePlan = combatReservePlanCycle({
+            ...context,
+            team,
+            timer: force.reinforcementsIn,
+            fallbackUntil: force.fallbackUntil,
+            tick: war.ticks,
+            strength: sec[key],
+            resetIn,
+          });
+        } catch {}
+      }
       let reinforced = false;
-      if (force.reinforcementsIn <= 0 && war.ticks >= force.fallbackUntil) {
-        const amount = Math.min(100 - sec[key], 3 + support.supply * 4);
-        sec[key] += amount;
-        force.reinforcements += amount;
-        force.ammo = clamp(force.ammo + .1 * support.supply, 0, 1);
-        force.morale = clamp(force.morale + .035 * support.supply, 0, 1);
-        force.reinforcementsIn = 40 + (war.index * 7 + force.cycles * 3) % 21;
-        reinforced = amount > 0;
-        if (reinforced) force.defeated = false;
+      if (reservePlan) {
+        force.reinforcementsIn = reservePlan.nextTimer;
+        const amount = reservePlan.ready ? reservePlan.amount : 0;
+        if (amount > 0) {
+          sec[key] = clamp(sec[key] + amount, 0, 100);
+          force.reinforcements += amount;
+          const supportLevel = clamp(Number(reservePlan.logistics?.reinforcementSupport) || 0, 0, 1);
+          force.ammo = clamp(force.ammo + .1 * supportLevel, 0, 1);
+          force.morale = clamp(force.morale + .035 * supportLevel, 0, 1);
+          reinforced = true;
+          force.defeated = false;
+        }
+      } else if (canonicalExpected) {
+        // Strategic-aligned fronts fail closed when the canonical world seam is
+        // unavailable. A due request stays due instead of silently falling back
+        // to the old local base-supply model.
+        force.reinforcementsIn = Math.max(0, force.reinforcementsIn - 1);
+      } else {
+        // Compatibility for isolated/non-strategic simulations only. The live
+        // strategic game path above never runs this legacy reserve model.
+        force.reinforcementsIn--;
+        if (force.reinforcementsIn <= 0 && war.ticks >= force.fallbackUntil) {
+          const amount = Math.min(100 - sec[key], 3 + support.supply * 4);
+          sec[key] += amount;
+          force.reinforcements += amount;
+          force.ammo = clamp(force.ammo + .1 * support.supply, 0, 1);
+          force.morale = clamp(force.morale + .035 * support.supply, 0, 1);
+          force.reinforcementsIn = resetIn;
+          reinforced = amount > 0;
+          if (reinforced) force.defeated = false;
+        }
       }
       synchronizeSlots(sec, team, reinforced);
       force.phaseTime--;
