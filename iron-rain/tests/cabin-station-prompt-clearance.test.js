@@ -27,6 +27,20 @@ test('map prompt can use a reachable near-edge focus when the aisle focus is blo
   assert.equal(movement.focus()?.id, 'map');
 });
 
+test('aim prompt can use a reachable side focus when the front focus is blocked by the crank console', () => {
+  const movement = createCabinMovement();
+  const from = { x: -1.3, z: -1.2 };
+  const frontFocus = { x: -.21, z: -.78 };
+  const sideFocus = { x: -.98, z: -1.2 };
+  const aimStation = { x: -.21, z: -1.05 };
+
+  assert.equal(canReachCabinPoint(from.x, from.z, frontFocus.x, frontFocus.z, .08), false, 'the crank console blocks the front interaction point from this side');
+  assert.equal(canReachCabinPoint(from.x, from.z, sideFocus.x, sideFocus.z, .08), true, 'the left console edge remains physically reachable');
+  assert.equal(canSeeCabinPoint(from.x, from.z, aimStation.x, aimStation.z), true, 'the physical aiming controls remain visible from the side');
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, aimStation) }), true);
+  assert.equal(movement.focus()?.id, 'aim');
+});
+
 test('driver prompt survives edge clearance beside the instrument panel', () => {
   const movement = createCabinMovement();
   const from = { x: -.85, z: -2.25 };
