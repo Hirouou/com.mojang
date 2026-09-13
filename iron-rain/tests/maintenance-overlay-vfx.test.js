@@ -35,6 +35,11 @@ test('maintenance overlay identifies replicated work without calling it local', 
   assert.match(source, /\.ir-maintenance\.remote\{border-left-color:#7fa7c8/);
 });
 
+test('replicated maintenance vfx stays perceptible without impersonating the local tool', () => {
+  assert.match(source, /detail\.remote === true \? ' remote' : ''/);
+  assert.match(source, /\.ir-maintenance-vfx\.remote\{opacity:\.58;filter:saturate\(\.72\)\}/);
+});
+
 test('maintenance overlay fails closed for unknown maintenance kinds', () => {
   assert.match(source, /const isRepair = detail\.kind === 'repair'/);
   assert.match(source, /if \(!isExtinguish && !isRepair\) \{\s*hideMaintenance\(element\);\s*return;/);
