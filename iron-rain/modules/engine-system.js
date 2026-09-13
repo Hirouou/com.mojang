@@ -43,7 +43,7 @@ function stop(engine) {
 }
 
 export function engineCanDrive(engine) {
-  return Boolean(engine && finite(engine.health) >= 20 && finite(engine.fire) <= 0);
+  return Boolean(engine && Number.isFinite(engine.health) && Number.isFinite(engine.fire) && engine.health >= 20 && engine.fire <= 0);
 }
 
 /** damage is the positive armor loss from a hit, not cumulative lost armor. */
