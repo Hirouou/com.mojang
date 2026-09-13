@@ -324,6 +324,7 @@ function publishStrategicTraffic(state) {
   const now = Number(state.time) || 0;
   if (now < (state.warSimulation.nextTrafficProjection || 0)) return;
   state.warSimulation.nextTrafficProjection = now + .35;
+  stripStrategicCapitalVisuals(state);
   const logistics = strategicLogistics(state);
   if (!logistics) { state.warSimulation.strategicTraffic = []; state.warSimulation.strategicRoads = []; state.warSimulation.strategicCapitals = []; return; }
   const snapshot = logistics.snapshot();
@@ -387,7 +388,6 @@ function dispatchHullState(state, armorBefore) {
 }
 
 export function updateWar(state, dt) {
-  stripStrategicCapitalVisuals(state);
   const live = isLiveGameState(state);
   if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); syncCombatSustainment(state); }
   const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);
