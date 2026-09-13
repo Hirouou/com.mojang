@@ -20,7 +20,7 @@ export const COMBAT_OFFENSIVE_THRESHOLDS = Object.freeze({
 });
 
 const finiteOr = (value, fallback) => Number.isFinite(value) ? value : fallback;
-const SUPPLY_GATED_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
+const SUPPLY_GATED_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault', 'consolidate']);
 const OFFENSIVE_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
 
 /**
