@@ -12,7 +12,7 @@ export const CABIN_OBSTACLES = Object.freeze([
   { minX: .92, maxX: 2.22, minZ: -.36, maxZ: .72 }, // revolving magazine and feed cradle
   { minX: -2.13, maxX: -1.4, minZ: -2.24, maxZ: -1.5 }, // driver's seat; narrow aisle remains beside cabinet
   { minX: 1.78, maxX: 2.5, minZ: .72, maxZ: 3.35 }, // ammunition racks
-  { minX: -2.48, maxX: -1.78, minZ: 2.01, maxZ: 3.28 }, // radio
+  { minX: -2.48, maxX: -.78, minZ: 2.01, maxZ: 3.28 }, // radio
   { minX: -1.66, maxX: -.75, minZ: 2.9, maxZ: 3.49 }, // folded crew seat
   { minX: .42, maxX: 1.55, minZ: 2.46, maxZ: 3.19 }, // reserve chest
   { minX: -2.48, maxX: -.78, minZ: 3.56, maxZ: 3.78 }, // rear bulkhead left
@@ -23,13 +23,13 @@ export const CABIN_OBSTACLES = Object.freeze([
   { minX: -2.48, maxX: -1.3, minZ: 6.19, maxZ: 7.78 }, // workshop bench and lockers
 ]);
 export const CABIN_STATIONS = Object.freeze([
-  { id: 'aim', label: 'POSTO DE PONTARIA', action: 'Operar manivelas', x: -.21, y: 1.23, z: -1.05, focusX: -.21, focusZ: -.78, radius: 1.48 },
-  { id: 'map', label: 'MESA DE NAVEGAÇÃO', action: 'Abrir mapa de mesa', x: -1.6, y: 1.03, z: .7, focusX: -.9, focusZ: .7, radius: 1.58 },
-  { id: 'load', label: 'PAIOL / CULATRA', action: 'Preparar munição', x: 2.03, y: 1.34, z: 1.7, focusX: 1.55, focusZ: 1.7, radius: 1.48 },
-  { id: 'drive', label: 'POSTO DO CONDUTOR', action: 'Assumir marcha', x: -1.57, y: 1.18, z: -2.68, focusX: -.7, focusZ: -2.4, radius: 1.5 },
-  { id: 'radio', label: 'RÁDIO DE CAMPANHA', action: 'Consultar chamados', x: -2.08, y: 1.4, z: 2.53, focusX: -1.55, focusZ: 2.53, radius: 1.48 },
-  { id: 'extinguisher', label: 'EXTINTOR DE BORDO', action: 'Pegar extintor', x: -2.25, y: 1.15, z: 1.88, focusX: -1.55, focusZ: 1.88, radius: 1.2 },
-  { id: 'engine', label: 'MOTOR / REFRIGERAÇÃO', action: 'Inspecionar motor', x: .82, y: 1.24, z: 6.6, focusX: .5, focusZ: 6.6, radius: 1.35 },
+  { id: 'aim', label: 'POSTO DE PONTARIA', action: 'Operar manivelas', x: -.21, y: 1.23, z: -1.05, focusX: -.21, focusZ: -.78, radius: 1.78 },
+  { id: 'map', label: 'MESA DE NAVEGAÇÃO', action: 'Abrir mapa de mesa', x: -1.6, y: 1.03, z: .7, focusX: -.9, focusZ: .7, radius: 1.9 },
+  { id: 'load', label: 'PAIOL / CULATRA', action: 'Preparar munição', x: 2.03, y: 1.34, z: 1.7, focusX: 1.55, focusZ: 1.7, radius: 1.75 },
+  { id: 'drive', label: 'POSTO DO CONDUTOR', action: 'Assumir marcha', x: -1.57, y: 1.18, z: -2.68, focusX: -.7, focusZ: -2.4, radius: 1.85 },
+  { id: 'radio', label: 'RÁDIO DE CAMPANHA', action: 'Consultar chamados', x: -2.08, y: 1.4, z: 2.53, focusX: -1.55, focusZ: 2.53, radius: 1.72 },
+  { id: 'extinguisher', label: 'EXTINTOR DE BORDO', action: 'Pegar extintor', x: -2.25, y: 1.15, z: 1.88, focusX: -1.55, focusZ: 1.88, radius: 1.42 },
+  { id: 'engine', label: 'MOTOR / REFRIGERAÇÃO', action: 'Inspecionar motor', x: .82, y: 1.24, z: 6.6, focusX: .5, focusZ: 6.6, radius: 1.62 },
 ]);
 export const CABIN_SECTIONS = Object.freeze({
   CABIN: 'cabin',
@@ -84,12 +84,7 @@ export function interpolateCabinCrewPose(from, to, alpha = 1) {
   });
 }
 
-/**
- * Touch operators use the physical 3D handwheels at the aiming station.
- * While that station is occupied, free-look would move the machinery away from
- * the finger and make direct wheel interaction frustrating. Desktop keeps its
- * normal mouse look; this policy only applies to coarse/touch input.
- */
+/** Touch operators use the physical 3D handwheels at the aiming station. */
 export function touchAimViewLocked(doc = globalThis.document, media = globalThis.matchMedia) {
   const app = doc?.getElementById?.('app'), deck = doc?.getElementById?.('fireDeck');
   if (!app?.classList || deck?.dataset?.station !== 'aim') return false;
@@ -131,24 +126,17 @@ export function createCabinMovement() {
     update(dt, move = {}) {
       const mx = Number.isFinite(move.x) ? move.x : 0, my = Number.isFinite(move.y) ? move.y : 0;
       const magnitude = Math.max(1, Math.hypot(mx, my)), distance = clamp(dt, 0, .1) * 1.65;
-      // The shared Pointer Events joystick reports up as negative y.
       const dx = (Math.cos(yaw) * mx + Math.sin(yaw) * my) / magnitude * distance;
       const dz = (-Math.sin(yaw) * mx + Math.cos(yaw) * my) / magnitude * distance;
       const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / .035));
       for (let i = 0; i < steps; i++) {
         const oldX = position.x, oldZ = position.z, sx = dx / steps, sz = dz / steps;
         const nextX = position.x + sx, nextZ = position.z + sz;
-        if (canOccupyCabin(nextX, nextZ)) {
-          position.x = nextX; position.z = nextZ;
-        } else {
-          // Slide only along an axis that is at least as intentional as the
-          // blocked one. A tiny diagonal correction must never steer the player
-          // sideways when the dominant forward/back input hits machinery.
+        if (canOccupyCabin(nextX, nextZ)) { position.x = nextX; position.z = nextZ; }
+        else {
           const canX = canOccupyCabin(nextX, position.z), canZ = canOccupyCabin(position.x, nextZ);
-          if (canX && canZ) {
-            if (Math.abs(sx) >= Math.abs(sz)) position.x = nextX;
-            else position.z = nextZ;
-          } else if (canX && Math.abs(sx) >= Math.abs(sz)) position.x = nextX;
+          if (canX && canZ) { if (Math.abs(sx) >= Math.abs(sz)) position.x = nextX; else position.z = nextZ; }
+          else if (canX && Math.abs(sx) >= Math.abs(sz)) position.x = nextX;
           else if (canZ && Math.abs(sz) >= Math.abs(sx)) position.z = nextZ;
         }
         travelled += Math.hypot(position.x - oldX, position.z - oldZ);
@@ -157,18 +145,15 @@ export function createCabinMovement() {
     focus() {
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
       return CABIN_STATIONS.map(s => {
-        // Station meshes are usually embedded in solid machinery.  Interaction
-        // therefore targets a collision-safe aisle point on the operator side,
-        // while the returned station still keeps its real 3D coordinates for
-        // camera framing and downstream station logic.
         const targetX = Number.isFinite(s.focusX) ? s.focusX : s.x;
         const targetZ = Number.isFinite(s.focusZ) ? s.focusZ : s.z;
         const dx = targetX - position.x, dz = targetZ - position.z, distance = Math.hypot(dx, dz);
-        // Standing exactly on the operator-side anchor must not make the prompt
-        // disappear just because a zero-length vector has no facing direction.
         const facing = distance <= .05 ? 1 : (dx * fx + dz * fz) / distance;
         return { ...s, distance, facing, reachable: canReachCabinPoint(position.x, position.z, targetX, targetZ) };
-      }).filter(s => s.reachable && s.distance <= s.radius && s.facing > .34).sort((a, b) => b.facing - a.facing || a.distance - b.distance)[0] || null;
+      // Mobile players should not have to pixel-hunt a station while standing
+      // beside its machinery. A shallow forward hemisphere is enough; direct
+      // collision reach still prevents interaction through walls/equipment.
+      }).filter(s => s.reachable && s.distance <= s.radius && s.facing > .08).sort((a, b) => b.facing - a.facing || a.distance - b.distance)[0] || null;
     },
     reset() { position.x = 0; position.z = 2.4; yaw = 0; pitch = -.08; travelled = 0; },
     crewPose() { return cabinCrewPose({ x: position.x, z: position.z, yaw, pitch }); },
