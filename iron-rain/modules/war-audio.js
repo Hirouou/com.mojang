@@ -1,10 +1,12 @@
+import { maintenanceEffectCadence } from './maintenance-effect-cadence.js';
+
 /** Procedural soundscape. Audio is created only after an operator gesture. */
 export function createWarAudio() {
   const levels = { master: .9, effects: 1, ambient: .75 };
   const voices = new Set();
   const MAX_VOICES = 40;
   let context, master, effectsBus, ambientBus, engine, engineFilter, engineGain, noiseBuffer;
-  let muted = false, paused = false, nextFoot = 0, nextCrank = 0, resumePending = null;
+  let muted = false, paused = false, nextFoot = 0, nextCrank = 0, resumePending = null, maintenanceState = null;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, Number.isFinite(n) ? n : a));
   // Device loss or denied playback must never escape into the game loop.
   const safely = fn => { try { return fn(); } catch { return undefined; } };
@@ -141,11 +143,32 @@ export function createWarAudio() {
     track(source, [source, gain], at + duration + .02);
   }
 
+  function maintenance(detail = {}) {
+    safely(() => {
+      const result = maintenanceEffectCadence(maintenanceState, detail, Number(context?.currentTime));
+      maintenanceState = result.state;
+      if (!result.emit || !canPlay()) return;
+      const progress = clamp(Number(result.emit.payload?.progress ?? 0), 0, 1);
+      if (result.emit.type === 'extinguisher') {
+        // Short filtered bursts follow the canonical maintenance cadence; no
+        // second clock, loop or gameplay state is introduced here.
+        noise(.16, .13 + progress * .04, 5200, { type: 'bandpass', endFrequency: 1500 });
+        noise(.2, .07 + progress * .03, 8200, { type: 'highpass', endFrequency: 3400 });
+      } else if (result.emit.type === 'repair') {
+        tone(.07, .07 + progress * .025, 245, 150, 0, 'triangle');
+        noise(.08, .08 + progress * .035, 3100, { type: 'bandpass', endFrequency: 900 });
+      }
+    });
+  }
+
+  const onMaintenanceFeedback = event => maintenance(event?.detail);
+  globalThis.addEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
+
   function clearContext() {
     for (const voice of [...voices]) voice.cleanup();
     if (context && 'onstatechange' in context) context.onstatechange = null;
     context = master = effectsBus = ambientBus = engine = engineFilter = engineGain = noiseBuffer = null;
-    resumePending = null; nextCrank = 0;
+    resumePending = null; nextCrank = 0; maintenanceState = null;
   }
 
   function getVolumes() { return { ...levels, muted }; }
@@ -159,7 +182,7 @@ export function createWarAudio() {
   }
 
   return {
-    wake, setVolumes, getVolumes, getStatus,
+    wake, setVolumes, getVolumes, getStatus, maintenance,
     toggle() {
       muted = !muted;
       if (!muted) wake();
@@ -232,6 +255,7 @@ export function createWarAudio() {
       tone(.055, .095, 1200, 1170, .02);
     }); },
     dispose() {
+      globalThis.removeEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
       safely(() => { for (const voice of [...voices]) safely(() => voice.source.stop()); });
       settle(safely(() => context?.close()));
       clearContext(); nextCrank = nextFoot = 0;
