@@ -6,6 +6,7 @@ import {
   getFrontGeometry,
 } from './war-simulation-core.js';
 import { combatSustainmentSupply } from './combat-sustainment.js';
+import { localConvoyMaterializationFeed } from './local-missions.js';
 import { createStrategicHexMap, strategicOwnerAt } from './strategic-hex-map.js';
 import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
 
@@ -239,6 +240,15 @@ function strategicLogistics(state) {
   return null;
 }
 
+function convoyObservedLocally(state, convoy) {
+  if (!finitePoint(state?.robot) || !finitePoint(convoy?.position)) return false;
+  if (Math.hypot(convoy.position.x - state.robot.x, convoy.position.y - state.robot.y) <= 950) return true;
+  const target = state.intel?.target;
+  if (!target) return false;
+  if (target.id && target.id === convoy.id) return true;
+  return finitePoint(target) && Math.hypot(convoy.position.x - target.x, convoy.position.y - target.y) <= 850;
+}
+
 function publishStrategicTraffic(state) {
   state.warSimulation ||= {};
   const now = Number(state.time) || 0;
@@ -247,39 +257,34 @@ function publishStrategicTraffic(state) {
   const logistics = strategicLogistics(state);
   if (!logistics) { state.warSimulation.strategicTraffic = []; return; }
   const snapshot = logistics.snapshot();
-  const nodes = new Map((snapshot.nodes || []).map(node => [node.id, node]));
-  const own = playerTeam(), traffic = [];
-  for (const convoy of snapshot.convoys || []) {
-    if (!['moving', 'blocked'].includes(convoy.status)) continue;
-    const leg = convoy.path?.[convoy.leg];
-    if (!leg) continue;
-    const from = nodes.get(leg.from), to = nodes.get(leg.to);
-    if (!from || !to) continue;
-    const q = Math.max(0, Math.min(1, (Number(convoy.legProgress) || 0) / Math.max(1, Number(leg.distance) || 1)));
-    const x = from.x + (to.x - from.x) * q, y = from.y + (to.y - from.y) * q;
-    const localDistance = Math.hypot(x - state.robot.x, y - state.robot.y);
-    const friendly = convoy.team === own;
-    if (friendly ? localDistance > 9_000 : localDistance > 1_200) continue;
-    traffic.push(Object.freeze({
-      id: convoy.id,
-      kind: convoy.kind || 'supply',
-      team: convoy.team,
-      x,
-      y,
-      angle: Math.atan2(to.y - from.y, to.x - from.x),
-      speed: convoy.status === 'moving' ? Number(convoy.speed) || 1 : 0,
-      moving: convoy.status === 'moving',
-      blocked: convoy.status === 'blocked',
-      known: friendly || localDistance <= 950,
-      cargo: Object.freeze({ ...(convoy.cargo || {}) }),
-      assets: Object.freeze({ ...(convoy.assets || {}) }),
-      hp: Number(convoy.hp) || 100,
-      maxHp: 100,
-      alive: true,
-    }));
-    if (traffic.length >= 40) break;
-  }
-  state.warSimulation.strategicTraffic = traffic;
+  const own = playerTeam();
+  const observedEnemyIds = (snapshot.convoys || [])
+    .filter(convoy => convoy?.team !== own && convoyObservedLocally(state, convoy))
+    .map(convoy => convoy.id);
+  const materialized = localConvoyMaterializationFeed({
+    playerPosition: state.robot,
+    playerTeam: own,
+    convoys: snapshot.convoys || [],
+    observedEnemyIds,
+    localRadius: 9_000,
+  });
+  state.warSimulation.strategicTraffic = materialized.slice(0, 40).map(convoy => Object.freeze({
+    id: convoy.id,
+    kind: convoy.kind || 'supply',
+    team: convoy.team,
+    x: convoy.position.x,
+    y: convoy.position.y,
+    angle: Number(convoy.position.heading) || 0,
+    speed: convoy.status === 'moving' ? Number(convoy.speed) || 1 : 0,
+    moving: convoy.status === 'moving',
+    blocked: convoy.status === 'blocked',
+    known: convoy.team === own || observedEnemyIds.includes(convoy.id),
+    cargo: Object.freeze({ ...(convoy.cargo || {}) }),
+    assets: Object.freeze({ ...(convoy.assets || {}) }),
+    hp: Number(convoy.hp) || 100,
+    maxHp: 100,
+    alive: true,
+  }));
 }
 
 function routeInsideFriendly(from, to, team) {
