@@ -24,6 +24,14 @@ test('driver prompt survives edge clearance beside the instrument panel', () => 
   assert.equal(movement.focus()?.id, 'drive');
 });
 
+test('driver prompt follows the visible controls as well as the aisle focus point', () => {
+  const movement = createCabinMovement();
+  const from = { x: -.85, z: -2.25 };
+  const visibleControls = { x: -1.57, z: -2.68 };
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, visibleControls) }), true);
+  assert.equal(movement.focus()?.id, 'drive');
+});
+
 test('narrow interaction ray still cannot cross cabin machinery', () => {
   const movement = createCabinMovement();
   const from = { x: -1.2, z: -.3 };
