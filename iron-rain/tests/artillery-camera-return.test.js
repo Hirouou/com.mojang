@@ -35,9 +35,11 @@ test('invalid or negative frame deltas cannot extend impact hold or corrupt retu
   assert.equal(state.cam.mode, 'impact');
 
   beginReturn(state);
-  const before = { x: state.cam.x, y: state.cam.y, elapsed: state.cam.elapsed };
   stepCamera(state, Number.POSITIVE_INFINITY, 1200);
-  assert.deepEqual({ x: state.cam.x, y: state.cam.y, elapsed: state.cam.elapsed }, before);
+  assert.equal(state.cam.mode, 'follow');
+  assert.equal(state.returning, false);
+  assert.equal(state.cam.elapsed, 0);
+  assert.deepEqual({ x: state.cam.x, y: state.cam.y }, cameraAnchor(state, 1200));
 });
 
 test('finishCamera always snaps to the current Mamute anchor', () => {
