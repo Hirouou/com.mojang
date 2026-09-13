@@ -89,7 +89,12 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     const heavy = heavyManifestState(manifest);
     if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return Object.freeze({ ok: false, reason: 'invalid-endpoint' });
     if (heavy.count > 1 || heavy.entries.length > 1) return Object.freeze({ ok: false, reason: 'heavy-kit-dedicated-transport-required' });
-    if (heavy.count === 1 && manifest.trucks !== 1) return Object.freeze({ ok: false, reason: 'heavy-kit-requires-one-truck' });
+    if (heavy.count === 1) {
+      if (manifest.trucks !== 1) return Object.freeze({ ok: false, reason: 'heavy-kit-requires-one-truck' });
+      const hasOtherAssets = (manifest.tanks || 0) > 0 || (manifest.troops || 0) > 0;
+      const hasCargo = stockKeys.some(key => (load[key] || 0) > 0);
+      if (hasOtherAssets || hasCargo) return Object.freeze({ ok: false, reason: 'heavy-kit-dedicated-transport-required' });
+    }
     if (!canPay(origin.stock, load)) return Object.freeze({ ok: false, reason: 'origin-stock-insufficient' });
     if (!canPayAssets(origin.assets, manifest)) return Object.freeze({ ok: false, reason: 'origin-assets-insufficient' });
     const path = route(team, origin.id, destination.id, { now: intelNow });
