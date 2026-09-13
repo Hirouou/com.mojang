@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../modules/cabin-view.js', import.meta.url), 'utf8');
 
-test('online cabin never treats a missing crew bridge as single-player station authority', () => {
+test('cabin never treats a missing crew bridge as single-player station authority', () => {
   assert.match(source, /if \(!bridge\?\.requestStation\) \{[\s\S]*reason: 'authority-unavailable'/);
   assert.doesNotMatch(source, /if \(!bridge\?\.requestStation\) return \{ ok: true, ready: true, reason: 'single-player'/);
+  assert.doesNotMatch(source, /ironRainEntry\?\.mode === ['"]offline['"]/);
 });
 
-test('active online station is revalidated and exited when canonical ownership is lost', () => {
+test('active station is revalidated and exited when canonical ownership is lost', () => {
   assert.match(source, /function reconcileCrewStation\(\)/);
   assert.match(source, /bridge\?\.stationState/);
   assert.match(source, /if \(state\?\.ready\) return true;/);
