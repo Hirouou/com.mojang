@@ -87,7 +87,7 @@ export function createMamuteCommandAuthority({
           const acceptedShell = acceptedFireShots.get(shotKey);
           const ammoRemaining = inventory ? remainingShells(inventory, acceptedShell) : undefined;
           rejected += 1;
-          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: owner || null, shotId, ...(inventory ? { shell: acceptedShell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
+          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: owner || null, shotId, ...(acceptedShell != null ? { shell: acceptedShell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
         }
       }
       rejected += 1; return Object.freeze({ ok: false, reason: 'stale-command' });
@@ -111,7 +111,7 @@ export function createMamuteCommandAuthority({
       rejected += 1;
       const acceptedShell = acceptedFireShots.get(shotKey);
       const ammoRemaining = inventory ? remainingShells(inventory, acceptedShell) : undefined;
-      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(inventory ? { shell: acceptedShell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(acceptedShell != null ? { shell: acceptedShell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
     }
 
     let shellReserved = false;
@@ -141,7 +141,7 @@ export function createMamuteCommandAuthority({
     if (shotKey) rememberFireShot(shotKey, shell);
     sequences.set(playerId, seq); accepted += 1;
     const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
-    return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
+    return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(type === 'fire' && shell != null ? { shell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
   }
 
   return Object.freeze({
