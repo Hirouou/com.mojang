@@ -72,7 +72,26 @@ export function createMamuteCommandAuthority({
       rejected += 1; return Object.freeze({ ok: false, reason: 'invalid-command' });
     }
     const last = sequences.get(playerId) ?? -1;
-    if (seq <= last) { rejected += 1; return Object.freeze({ ok: false, reason: 'stale-command' }); }
+    if (seq <= last) {
+      // A real network retry normally reuses the exact same sequence number.
+      // If that packet was an already accepted shot, return the canonical
+      // duplicate result instead of degrading it to a generic stale-command so
+      // the client can reconcile shell/ammo state without firing again.
+      if (type === 'fire') {
+        const shotId = cleanId(command.payload?.shotId);
+        const shotKey = fireShotKey(playerId, command.payload);
+        if (shotKey && acceptedFireShots.has(shotKey)) {
+          const station = MAMUTE_COMMAND_STATION[type];
+          const owner = stationOwner(station);
+          const inventory = currentFireInventory();
+          const acceptedShell = acceptedFireShots.get(shotKey);
+          const ammoRemaining = inventory ? remainingShells(inventory, acceptedShell) : undefined;
+          rejected += 1;
+          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: owner || null, shotId, ...(inventory ? { shell: acceptedShell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
+        }
+      }
+      rejected += 1; return Object.freeze({ ok: false, reason: 'stale-command' });
+    }
     // A fire packet is one-shot as soon as it reaches the authority with a valid
     // identity/sequence. If it arrives before AIM ownership is granted, replaying
     // that same packet later must not turn an earlier rejection into a live shot.
