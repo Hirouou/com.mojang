@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrewCabinBridge } from '../modules/crew-cabin-bridge.js';
 
-test('crew cabin bridge releases the active station when a runtime frame fails closed', () => {
+test('crew cabin bridge releases the active station through the cabin path when a runtime frame fails closed', () => {
   const calls = [];
   let station = 'aim';
   const runtime = {
@@ -20,13 +20,12 @@ test('crew cabin bridge releases the active station when a runtime frame fails c
 
   assert.deepEqual(result, { status: null, remoteCount: 0 });
   assert.deepEqual(calls, [
-    ['release', 'aim'],
     ['leave'],
     ['remotes', [], .02],
-  ]);
+  ], 'cabin leave owns the canonical release and the bridge must not submit it twice');
 });
 
-test('crew cabin bridge clear releases the currently occupied station before leaving it locally', () => {
+test('crew cabin bridge clear releases the occupied station through the cabin path before clearing remotes', () => {
   const calls = [];
   let station = 'drive';
   const runtime = {
@@ -41,8 +40,7 @@ test('crew cabin bridge clear releases the currently occupied station before lea
   createCrewCabinBridge({ runtime, cabin }).clear();
 
   assert.deepEqual(calls, [
-    ['release', 'drive'],
     ['leave'],
     ['remotes', [], 0],
-  ]);
+  ], 'clear uses the same single cabin-owned release path');
 });
