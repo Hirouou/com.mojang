@@ -55,6 +55,7 @@ test('plan cycle can derive its origin without a second routing system', () => {
   assert.equal(result.origin, 'ALLY-REAR-B');
   assert.equal(result.routeOpen, true);
   assert.equal(result.ready, true);
-  assert.ok(Math.abs(result.amount - 3.4) < 1e-9);
+  assert.equal(result.amount, 3, 'physical staging inventory admits whole delivered troop units');
+  assert.equal(result.remainingTroops, 1);
   assert.equal(result.nextTimer, 47);
 });
