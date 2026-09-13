@@ -37,7 +37,7 @@ test('earned route-threat intel is snapshotted without retaining live observatio
 
 test('fresh earned intel can divert logistics without consulting live route threat', () => {
   const logistics = makeLogistics();
-  assert.deepEqual(logistics.route('ally', 'A', 'B').map(leg => leg.id), ['direct']);
+  assert.deepEqual(logistics.route('ally', 'A', 'B').map(leg => leg.routeId), ['direct']);
 
   const report = snapshotIntelObservation({
     id: 'route-observation', type: 'ESTRADA', x: 10, y: 20,
@@ -45,7 +45,7 @@ test('fresh earned intel can divert logistics without consulting live route thre
   }, 100);
 
   assert.equal(applyRouteThreatIntel(logistics, [report], { team: 'ally', now: 110 }), 1);
-  assert.deepEqual(logistics.route('ally', 'A', 'B').map(leg => leg.id), ['detour-a', 'detour-b']);
+  assert.deepEqual(logistics.route('ally', 'A', 'B').map(leg => leg.routeId), ['detour-a', 'detour-b']);
 });
 
 test('stale or wrong-faction reports fail closed and do not divert a convoy', () => {
@@ -56,9 +56,9 @@ test('stale or wrong-faction reports fail closed and do not divert a convoy', ()
   }, 10);
 
   assert.equal(applyRouteThreatIntel(staleLogistics, [report], { team: 'ally', now: 400 }), 0);
-  assert.deepEqual(staleLogistics.route('ally', 'A', 'B').map(leg => leg.id), ['direct']);
+  assert.deepEqual(staleLogistics.route('ally', 'A', 'B').map(leg => leg.routeId), ['direct']);
 
   const enemyLogistics = makeLogistics();
   assert.equal(applyRouteThreatIntel(enemyLogistics, [report], { team: 'enemy', now: 20 }), 0);
-  assert.deepEqual(enemyLogistics.route('ally', 'A', 'B').map(leg => leg.id), ['direct']);
+  assert.deepEqual(enemyLogistics.route('ally', 'A', 'B').map(leg => leg.routeId), ['direct']);
 });
