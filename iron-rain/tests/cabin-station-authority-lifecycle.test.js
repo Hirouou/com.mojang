@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../modules/cabin-view.js', import.meta.url)
 test('cabin never treats a missing crew bridge as single-player station authority', () => {
   assert.match(source, /if \(!bridge\?\.requestStation\) \{[\s\S]*reason: 'authority-unavailable'/);
   assert.doesNotMatch(source, /if \(!bridge\?\.requestStation\) return \{ ok: true, ready: true, reason: 'single-player'/);
-  assert.doesNotMatch(source, /ironRainEntry\?\.mode === ['"]offline['"]/);
+  assert.match(source, /mode === ['"]offline['"] && options\.allowOfflineCabinQa === true/);
 });
 
 test('active station is revalidated and exited when canonical ownership is lost', () => {
