@@ -16,7 +16,8 @@ test('live war bridge exposes only canonical territory/logistics reserve context
 
 test('war simulation refreshes canonical reserve context before the core step', () => {
   assert.match(facade, /function refreshCombatReserveContext\(state\)/);
-  assert.match(facade, /state\.warSimulation\.combatReserveContext = typeof strategicMap\?\.combatReserveContext === 'function'/);
+  assert.match(facade, /typeof strategicMap\?\.combatReserveContext !== 'function'/);
+  assert.match(facade, /state\.warSimulation\.combatReserveContext = \(\{ sectorId, team \}\) =>/);
   const refresh = facade.indexOf('refreshCombatReserveContext(state);');
   const core = facade.indexOf('coreUpdateWar(state, dt);');
   assert.ok(refresh >= 0 && core > refresh, 'reserve context must be refreshed before coreUpdateWar');
