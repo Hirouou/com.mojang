@@ -2,32 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ballistics } from '../modules/ballistics.js';
-import { artilleryNotebookTableRows } from '../modules/artillery-notebook.js';
+import { artilleryChargeTableRows } from '../modules/artillery-charge-table-view.js';
 
 const tableMapSource = readFileSync(new URL('../modules/table-map.js', import.meta.url), 'utf8');
 
-test('table map charge page stays wired to the shared artillery notebook model', () => {
-  assert.match(tableMapSource, /import \{ artilleryNotebookTableRows \} from '\.\/artillery-notebook\.js';/);
-  assert.match(tableMapSource, /artilleryNotebookTableRows\(plot\.distance, snapshot\.charge\)/);
+test('table map charge page consumes the shared charge-table presentation model', () => {
+  assert.match(tableMapSource, /import \{ artilleryChargeTableRows \} from '\.\/artillery-charge-table-view\.js';/);
+  assert.match(tableMapSource, /artilleryChargeTableRows\(plot\.distance, snapshot\.charge, snapshot\.elev\)/);
+  assert.doesNotMatch(tableMapSource, /artilleryNotebookTableRows\(/);
   assert.doesNotMatch(tableMapSource, /notebookSolutions\(/);
   assert.doesNotMatch(tableMapSource, /elevationsForRange\(/);
 });
 
-test('charge-page arc labels preserve low, high and single branches from shared ballistics', () => {
-  assert.match(tableMapSource, /arc\.kind === 'low' \? 'BAIXO' : arc\.kind === 'high' \? 'ALTO' : 'ÚNICO'/);
-  assert.match(tableMapSource, /arc\.elevation\.toFixed\(1\)/);
-  assert.match(tableMapSource, /number\(arc\.apex\)/);
-  assert.match(tableMapSource, /arc\.tof\.toFixed\(1\)/);
+test('charge page renders canonical display labels including manual crank cues', () => {
+  assert.match(tableMapSource, /arc\.displayLabel/);
+  assert.doesNotMatch(tableMapSource, /arc\.kind === 'low' \? 'BAIXO'/);
 
   const range = ballistics(5, 30).range;
-  const row = artilleryNotebookTableRows(range, 5).find(entry => entry.charge === 5);
-  assert.ok(row);
-  assert.deepEqual(row.arcs.map(arc => arc.kind), ['low', 'high']);
+  const rows = artilleryChargeTableRows(range, 5, 30);
+  const current = rows.find(entry => entry.charge === 5);
+  assert.ok(current);
+  assert.ok(current.arcs.length > 0);
+  assert.ok(current.arcs.every(arc => arc.displayLabel.includes('MANIVELA')));
 
-  const maxRange = ballistics(5, 45).range;
-  const maxRow = artilleryNotebookTableRows(maxRange, 5).find(entry => entry.charge === 5);
-  assert.ok(maxRow);
-  assert.deepEqual(maxRow.arcs.map(arc => arc.kind), ['single']);
+  for (const row of rows.filter(entry => entry.charge !== 5)) {
+    assert.ok(row.arcs.every(arc => !arc.displayLabel.includes('MANIVELA')));
+  }
 });
 
 test('charge page remains informational and does not apply notebook solutions to the gun', () => {
