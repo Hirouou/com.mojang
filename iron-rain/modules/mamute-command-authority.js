@@ -40,9 +40,9 @@ export function createMamuteCommandAuthority({
     return shotId ? `${playerId}:${shotId}` : null;
   }
 
-  function rememberFireShot(key, shell) {
+  function rememberFireShot(key, shell, ammoRemaining) {
     if (!key) return;
-    acceptedFireShots.set(key, shell ?? null);
+    acceptedFireShots.set(key, Object.freeze({ shell: shell ?? null, ammoRemaining }));
     acceptedFireOrder.push(key);
     while (acceptedFireOrder.length > FIRE_REPLAY_WINDOW) acceptedFireShots.delete(acceptedFireOrder.shift());
   }
@@ -83,11 +83,9 @@ export function createMamuteCommandAuthority({
         if (shotKey && acceptedFireShots.has(shotKey)) {
           const station = MAMUTE_COMMAND_STATION[type];
           const owner = stationOwner(station);
-          const inventory = currentFireInventory();
-          const acceptedShell = acceptedFireShots.get(shotKey);
-          const ammoRemaining = inventory ? remainingShells(inventory, acceptedShell) : undefined;
+          const acceptedShot = acceptedFireShots.get(shotKey);
           rejected += 1;
-          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: owner || null, shotId, ...(acceptedShell != null ? { shell: acceptedShell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
+          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: owner || null, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
         }
       }
       rejected += 1; return Object.freeze({ ok: false, reason: 'stale-command' });
@@ -109,9 +107,8 @@ export function createMamuteCommandAuthority({
     if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
       rejected += 1;
-      const acceptedShell = acceptedFireShots.get(shotKey);
-      const ammoRemaining = inventory ? remainingShells(inventory, acceptedShell) : undefined;
-      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(acceptedShell != null ? { shell: acceptedShell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
+      const acceptedShot = acceptedFireShots.get(shotKey);
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
     }
 
     let shellReserved = false;
@@ -138,9 +135,9 @@ export function createMamuteCommandAuthority({
       return Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
     }
 
-    if (shotKey) rememberFireShot(shotKey, shell);
     sequences.set(playerId, seq); accepted += 1;
     const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
+    if (shotKey) rememberFireShot(shotKey, shell, ammoRemaining);
     return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(type === 'fire' && shell != null ? { shell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
   }
 
