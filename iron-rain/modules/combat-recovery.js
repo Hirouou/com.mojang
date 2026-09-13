@@ -82,8 +82,8 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * hard-break threshold is crossed. Offensive phases also require a modest
  * readiness band, preventing tired or pinned squads from launching or sustaining
  * attacks. Once an assault is in close contact, crossing any recovery threshold
- * for strength or composure is enough to withdraw rather than spending a depleted
- * formation simply because morale and local logistics still look healthy.
+ * for strength or composure, or losing offensive logistics readiness, is enough
+ * to withdraw rather than spending a depleted formation in place.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
@@ -118,7 +118,8 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
     const logisticsReady = ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo && supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
     const assaultWithdrawal = phase === 'assault' && (
       moraleValue < COMBAT_RECOVERY_THRESHOLDS.morale ||
-      suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression
+      suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression ||
+      !logisticsReady
     );
     if (assaultWithdrawal) return 'retreat';
     return logisticsReady ? 'hold' : 'wait_support';
