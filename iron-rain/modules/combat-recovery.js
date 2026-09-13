@@ -72,22 +72,25 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * tactical phase selector: `null` means ordinary phase selection may continue.
  *
  * Once a formation reaches regroup it stays there until the healthier recovery
- * band is satisfied. Outside retreat/regroup, a formation with exhausted or
- * unknown local supply waits for support while it still has enough composure to
- * hold. If that same supply failure is paired with empty magazines, weak morale
- * or heavy suppression, the formation withdraws before crossing the hard break
- * threshold. A formation that is both shaken and heavily suppressed, depleted
- * and heavily suppressed, or depleted and shaken also withdraws early even with
- * supply available instead of unrealistically sitting in the line until one
- * hard-break threshold is crossed. Offensive phases also require a modest
- * readiness band, preventing tired or pinned squads from launching or sustaining
- * attacks. Once an assault is in close contact, crossing any recovery threshold
- * for strength or composure, or losing offensive logistics readiness, is enough
- * to withdraw rather than spending a depleted formation in place.
+ * band is satisfied, then enters the existing consolidation phase before normal
+ * phase selection resumes. That one defensive cycle prevents a recovered force
+ * from turning a cleared-line shortcut into a same-tick regroup -> assault jump.
+ * Outside retreat/regroup, a formation with exhausted or unknown local supply
+ * waits for support while it still has enough composure to hold. If that same
+ * supply failure is paired with empty magazines, weak morale or heavy suppression,
+ * the formation withdraws before crossing the hard break threshold. A formation
+ * that is both shaken and heavily suppressed, depleted and heavily suppressed,
+ * or depleted and shaken also withdraws early even with supply available instead
+ * of unrealistically sitting in the line until one hard-break threshold is crossed.
+ * Offensive phases also require a modest readiness band, preventing tired or
+ * pinned squads from launching or sustaining attacks. Once an assault is in close
+ * contact, crossing any recovery threshold for strength or composure, or losing
+ * offensive logistics readiness, is enough to withdraw rather than spending a
+ * depleted formation in place.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
-  if (phase === 'regroup') return recovery.recovered ? 'hold' : 'regroup';
+  if (phase === 'regroup') return recovery.recovered ? 'consolidate' : 'regroup';
   if (phase === 'retreat') return 'regroup';
   if (recovery.broken) return 'retreat';
 
