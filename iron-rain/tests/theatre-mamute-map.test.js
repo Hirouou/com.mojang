@@ -47,3 +47,29 @@ test('invalid enemy intel fails closed', () => {
   assert.deepEqual(buildTheatreMamuteMapContacts(roster, 'ALIADOS', [{ id: 'axis-1', mode: 'exact', x: NaN, y: 2 }]), []);
   assert.deepEqual(buildTheatreMamuteMapContacts(roster, '', []), []);
 });
+
+test('late enemy reports cannot rewind a newer Mamute map contact', () => {
+  const roster = [{ id: 'axis-1', faction: 'EIXO', x: 9000, y: 8000 }];
+  const contacts = buildTheatreMamuteMapContacts(roster, 'ALIADOS', [
+    { id: 'axis-1', mode: 'exact', x: 420, y: 510, uncertainty: 20, label: 'NOVO', reportedAt: 200 },
+    { id: 'axis-1', mode: 'area', x: 120, y: 240, uncertainty: 600, label: 'ATRASADO', reportedAt: 150 },
+  ]);
+
+  assert.deepEqual(contacts, [{
+    id: 'axis-1', faction: 'EIXO', relation: 'enemy', mode: 'exact',
+    label: 'NOVO', uncertainty: 20, x: 420, y: 510,
+  }]);
+});
+
+test('timestamped Mamute intel cannot be overwritten by untimestamped fallback data', () => {
+  const roster = [{ id: 'axis-1', faction: 'EIXO', x: 9000, y: 8000 }];
+  const contacts = buildTheatreMamuteMapContacts(roster, 'ALIADOS', [
+    { id: 'axis-1', mode: 'area', x: 420, y: 510, uncertainty: 80, label: 'CONFIRMADO', reportedAt: 200 },
+    { id: 'axis-1', mode: 'exact', x: 1, y: 2, uncertainty: 0, label: 'SEM TEMPO' },
+  ]);
+
+  assert.deepEqual(contacts, [{
+    id: 'axis-1', faction: 'EIXO', relation: 'enemy', mode: 'area',
+    label: 'CONFIRMADO', uncertainty: 80, x: 420, y: 510,
+  }]);
+});
