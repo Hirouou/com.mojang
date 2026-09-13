@@ -12,8 +12,16 @@ export const COMBAT_RECOVERY_THRESHOLDS = Object.freeze({
   supply: 0.2
 });
 
+export const COMBAT_OFFENSIVE_THRESHOLDS = Object.freeze({
+  morale: 0.38,
+  suppression: 0.55,
+  ammo: 0.32,
+  supply: 0.3
+});
+
 const finiteOr = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const SUPPLY_GATED_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
+const OFFENSIVE_STAGING_PHASES = new Set(['hold', 'suppress', 'wait_support']);
 
 /**
  * Pure recovery policy for aggregate infantry forces.
@@ -50,15 +58,28 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * Once a formation reaches regroup it stays there until the healthier recovery
  * band is satisfied. Outside retreat/regroup, a formation with exhausted or
  * unknown local supply waits for support instead of starting/continuing an
- * offensive phase. This lets logistics constrain assaults without inventing a
- * second combat state machine.
+ * offensive phase. Staging phases also require a modest offensive-ready band;
+ * this prevents a tired or pinned squad from turning a nearly empty enemy line
+ * into an immediate counter-attack while preserving the existing phase machine.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
   if (phase === 'regroup') return recovery.recovered ? null : 'regroup';
   if (phase === 'retreat') return 'regroup';
   if (recovery.broken) return 'retreat';
-  const supplied = finiteOr(supply, 0) >= COMBAT_RECOVERY_THRESHOLDS.supply;
+
+  const supplyValue = finiteOr(supply, 0);
+  const ammoValue = finiteOr(ammo, 0);
+  const moraleValue = finiteOr(morale, 0);
+  const suppressionValue = finiteOr(suppression, 1);
+  const supplied = supplyValue >= COMBAT_RECOVERY_THRESHOLDS.supply;
   if (!supplied && SUPPLY_GATED_PHASES.has(phase)) return 'wait_support';
+
+  if (OFFENSIVE_STAGING_PHASES.has(phase)) {
+    const logisticsReady = ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo && supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
+    if (!logisticsReady) return 'wait_support';
+    const composureReady = moraleValue >= COMBAT_OFFENSIVE_THRESHOLDS.morale && suppressionValue <= COMBAT_OFFENSIVE_THRESHOLDS.suppression;
+    if (!composureReady) return 'hold';
+  }
   return null;
 }
