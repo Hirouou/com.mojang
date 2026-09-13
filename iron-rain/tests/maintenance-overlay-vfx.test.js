@@ -29,12 +29,12 @@ test('maintenance overlay exposes perceptible foam and repair vfx with safe fall
 });
 
 test('coarse pointers keep the compact maintenance readout but quiesce screen-space vfx', () => {
-  assert.match(source, /function coarseMaintenanceVfx\(\)/);
-  assert.match(source, /matchMedia\?\.\('\(hover: none\) and \(pointer: coarse\)'\)\?\.matches === true/);
-  assert.match(source, /const vfxActive = localVfx && !coarseMaintenanceVfx\(\) &&/);
-  assert.match(source, /@media\(max-width:900px\) and \(orientation:landscape\)/);
-  assert.match(source, /\.ir-maintenance-vfx\{display:none!important\}/);
-  assert.match(source, /\.ir-maintenance\{top:61%;min-width:154px/);
+  assert.ok(source.includes('function coarseMaintenanceVfx()'));
+  assert.ok(source.includes("globalThis.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches === true"));
+  assert.ok(source.includes('const vfxActive = localVfx && !coarseMaintenanceVfx() &&'));
+  assert.ok(source.includes('@media(max-width:900px) and (orientation:landscape)'));
+  assert.ok(source.includes('.ir-maintenance-vfx{display:none!important}'));
+  assert.ok(source.includes('.ir-maintenance{top:61%;min-width:154px'));
 });
 
 test('maintenance overlay identifies replicated work without calling it local', () => {
@@ -44,8 +44,8 @@ test('maintenance overlay identifies replicated work without calling it local', 
 });
 
 test('replicated maintenance keeps status feedback without impersonating the local tool', () => {
-  assert.match(source, /const localVfx = detail\.remote !== true/);
-  assert.match(source, /const vfxActive = localVfx && !coarseMaintenanceVfx\(\) && \(isExtinguish \? spray > \.02 : repairMotion > \.02 \|\| sparks > \.02\)/);
+  assert.ok(source.includes('const localVfx = detail.remote !== true'));
+  assert.ok(source.includes('const vfxActive = localVfx && !coarseMaintenanceVfx() && (isExtinguish ? spray > .02 : repairMotion > .02 || sparks > .02)'));
   assert.doesNotMatch(source, /\.ir-maintenance-vfx\.remote\{/);
   assert.doesNotMatch(source, /detail\.remote === true \? ' remote' : ''/);
 });
