@@ -3,8 +3,14 @@ import { assessIntelAge } from './intel-knowledge.js';
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const stockKeys = Object.freeze(['materials', 'ammo', 'fuel']);
 export const LOGISTICS_ASSET_KEYS = Object.freeze(['trucks', 'tanks', 'troops']);
+const MAX_CONVOY_SPEED = 120;
 const copyStock = value => Object.fromEntries(stockKeys.map(key => [key, Math.max(0, Number(value?.[key]) || 0)]));
 const copyAssets = value => Object.fromEntries(LOGISTICS_ASSET_KEYS.map(key => [key, Math.max(0, Math.floor(Number(value?.[key]) || 0))]));
+const safeConvoySpeed = value => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 14;
+  return Math.min(parsed, MAX_CONVOY_SPEED);
+};
 
 export function createLogisticsNode({ id, team, x = 0, y = 0, stock = {}, assets = {}, kind = 'outpost' } = {}) {
   return {
@@ -120,7 +126,9 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       path: [...path],
       leg: 0,
       legProgress: 0,
-      speed: Math.max(.1, Number(speed) || 14),
+      // Malformed or unbounded speeds must never collapse physical travel into
+      // an instant delivery. Keep gameplay speeds finite and bounded.
+      speed: safeConvoySpeed(speed),
       hp: 100,
       status: path.length ? 'moving' : 'arrived',
     };
