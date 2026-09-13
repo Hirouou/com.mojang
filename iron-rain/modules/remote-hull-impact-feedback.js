@@ -23,7 +23,27 @@ export function remoteHullImpactFeedback(effect = {}) {
       ? Math.max(canonical.intensity, clamp01(transmitted))
       : canonical.intensity;
 
-  if (type !== 'critical') return Object.freeze({ ...canonical, intensity });
+  if (type !== 'critical') {
+    if (intensity <= canonical.intensity) return Object.freeze({ ...canonical, intensity });
+    // A stronger replicated intensity must be felt through the same physical
+    // channels as a local hit, not only through a scalar consumed by one VFX.
+    // Reuse the canonical hull model as the ceiling/floor source rather than
+    // inventing a second set of shake/audio constants for remote impacts.
+    const transmittedFloor = hullImpactFeedback({ damage: intensity * 20, kind: 'tank', inside: true });
+    return Object.freeze({
+      ...canonical,
+      intensity,
+      duration: Math.max(canonical.duration, transmittedFloor.duration),
+      cameraShake: Math.max(canonical.cameraShake, transmittedFloor.cameraShake),
+      hullFlash: Math.max(canonical.hullFlash, transmittedFloor.hullFlash),
+      dustKick: Math.max(canonical.dustKick, transmittedFloor.dustKick),
+      lampFlicker: Math.max(canonical.lampFlicker, transmittedFloor.lampFlicker),
+      metalRattle: Math.max(canonical.metalRattle, transmittedFloor.metalRattle),
+      lowThump: Math.max(canonical.lowThump, transmittedFloor.lowThump),
+      sharpCrack: Math.max(canonical.sharpCrack, transmittedFloor.sharpCrack),
+      label: transmittedFloor.label,
+    });
+  }
 
   // A replicated critical already means the authority classified the hit as a
   // severe hull event. Keep that classification perceptible across every
