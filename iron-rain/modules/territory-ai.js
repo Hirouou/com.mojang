@@ -2,75 +2,102 @@ import { DEVELOPMENT_PROJECTS, VEHICLE_RECIPES, canStartProject, canStartVehicle
 
 const has = (node, type) => Array.isArray(node?.structures) && node.structures.includes(type);
 const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+const missing = (node, type) => !has(node, type) && node?.activeProject !== type;
 
-/**
- * Strategic construction preference shared by allied/enemy AI. This planner
- * does not create resources or buildings; it only chooses what the faction
- * would LIKE to build. Territory-development still enforces security, delivery
- * stock, prerequisites and route availability.
- */
-export function chooseTerritoryProject(node, context = {}) {
-  if (!node?.owner || node.contested || node.activeProject || context.routeOpen === false) return null;
+function projectPrerequisitesReady(node, type) {
+  const project = DEVELOPMENT_PROJECTS[type];
+  return Boolean(project && node?.securedFor >= project.secureFor && project.requires.every(required => has(node, required)));
+}
+
+function buildPreference(node, context = {}) {
   const pressure = clamp01(context.frontPressure);
   const routeThreat = clamp01(context.routeThreat);
   const armorThreat = clamp01(context.armorThreat);
   const infantryThreat = clamp01(context.infantryThreat);
+  const airThreat = clamp01(context.airThreat);
   const armorDemand = clamp01(context.armorDemand ?? context.friendlyArmorDeficit);
-  const criticalInfrastructure = ['depot', 'garage', 'factory', 'armorWorks'].some(type => has(node, type));
-  const protectCriticalInfrastructure = criticalInfrastructure && (pressure > .42 || routeThreat > .55) && !has(node, 'bunker');
+  const logisticsNeed = clamp01(context.logisticsNeed ?? context.logisticsDeficit);
+  const safe = pressure < .38 && routeThreat < .42;
+  const list = [];
+  const add = (type, reason) => { if (missing(node, type) && !list.some(item => item.type === type)) list.push({ type, reason }); };
 
-  const preference = [];
-  if (!has(node, 'outpost')) preference.push('outpost');
-  if (protectCriticalInfrastructure) preference.push('bunker');
-  if (!has(node, 'depot')) preference.push('depot');
-  if (pressure > .55 && !has(node, 'bunker') && !preference.includes('bunker')) preference.push('bunker');
-  if (infantryThreat > .45 && !has(node, 'mortar')) preference.push('mortar');
-  if ((armorThreat > .4 || node.securedFor > 520) && !has(node, 'garage')) preference.push('garage');
-  if (node.securedFor > DEVELOPMENT_PROJECTS.factory.secureFor && !has(node, 'factory')) preference.push('factory');
-  if ((armorDemand > .45 || armorThreat > .65) && has(node, 'garage') && has(node, 'factory') && !has(node, 'armorWorks')) preference.push('armorWorks');
-  if (!preference.includes('mortar') && !has(node, 'mortar')) preference.push('mortar');
-  if (!preference.includes('bunker') && !has(node, 'bunker')) preference.push('bunker');
-  if (!preference.includes('garage') && !has(node, 'garage')) preference.push('garage');
-  if (!preference.includes('factory') && !has(node, 'factory')) preference.push('factory');
-  if (!preference.includes('armorWorks') && !has(node, 'armorWorks')) preference.push('armorWorks');
+  add('outpost', 'capital-bootstrap');
+  if (pressure > .52 || routeThreat > .52) {
+    add('barbedWire', 'front-pressure');
+    add('wall', 'front-pressure');
+    add('pillbox', infantryThreat > .45 ? 'infantry-threat' : 'route-defense');
+    add('bunker', 'front-pressure');
+    if (infantryThreat > .42) add('mortar', 'infantry-threat');
+  }
+  if (armorThreat > .5) add('fixedCannon', 'armor-threat');
+  if (airThreat > .45) add('antiAir', 'air-threat');
 
-  for (const type of preference) {
-    const check = canStartProject(node, type);
-    if (check.ok) return Object.freeze({
-      type,
-      reason: type === 'bunker' && protectCriticalInfrastructure
-        ? routeThreat > .55 && pressure <= .42 ? 'route-defense' : 'logistics-defense'
-        : pressure > .55 && type === 'bunker'
-          ? 'front-pressure'
-          : infantryThreat > .45 && type === 'mortar'
-            ? 'infantry-threat'
-            : type === 'armorWorks'
-              ? 'armor-production-demand'
-              : 'development',
-    });
+  add('depot', logisticsNeed > .45 ? 'logistics-need' : 'development');
+  add('resourceWarehouse', safe ? 'resource-buffer' : 'development');
+  add('ammoDepot', pressure > .3 ? 'ammo-support' : 'development');
+  add('infirmary', pressure > .35 ? 'recovery-support' : 'development');
+  add('vehicleDepot', logisticsNeed > .35 || armorDemand > .35 ? 'vehicle-logistics' : 'development');
+  add('garage', armorThreat > .35 || logisticsNeed > .3 ? 'repair-logistics' : 'development');
+
+  if (infantryThreat > .58 || pressure > .65) add('heavyMortar', 'heavy-infantry-pressure');
+  if (pressure > .64 || routeThreat > .62) add('fieldArtillery', 'front-fire-support');
+  if (airThreat > .25 || node.securedFor > DEVELOPMENT_PROJECTS.antiAir.secureFor * 1.4) add('antiAir', airThreat > .25 ? 'air-threat' : 'mature-capital-air-defense');
+
+  if (safe) {
+    add('factory', 'secure-industrial-development');
+    if (armorDemand > .35 || armorThreat > .45) add('armorWorks', 'armor-production-demand');
+  }
+
+  for (const type of ['pillbox','bunker','mortar','barbedWire','wall','resourceWarehouse','infirmary','ammoDepot','vehicleDepot','garage','heavyMortar','fieldArtillery','fixedCannon','antiAir','factory','armorWorks']) add(type, 'development');
+  return list;
+}
+
+/**
+ * Shared allied/enemy planner. It may choose a project that still needs a
+ * physical delivery, but never bypasses security time or prerequisites.
+ */
+export function planTerritoryProject(node, context = {}) {
+  if (!node?.owner || node.contested || node.activeProject || context.routeOpen === false || node.core?.status === 'neutralized') return null;
+  for (const candidate of buildPreference(node, context)) {
+    if (!projectPrerequisitesReady(node, candidate.type)) continue;
+    return Object.freeze(candidate);
   }
   return null;
 }
 
-/** Cargo request is the deficit for the chosen project; planners never mint it. */
+/** Only returns a project that territory-development can start right now. */
+export function chooseTerritoryProject(node, context = {}) {
+  if (!node?.owner || node.contested || node.activeProject || context.routeOpen === false) return null;
+  for (const candidate of buildPreference(node, context)) {
+    if (!projectPrerequisitesReady(node, candidate.type)) continue;
+    if (canStartProject(node, candidate.type).ok) return Object.freeze(candidate);
+  }
+  return null;
+}
+
+/** Cargo/asset deficit for a project. Heavy emplacements request exactly one real kit. */
 export function projectSupplyRequest(node, type) {
   const project = DEVELOPMENT_PROJECTS[type];
   if (!project || !node) return null;
   const cargo = {};
-  let total = 0;
+  let totalCargo = 0;
   for (const key of ['materials', 'ammo', 'fuel']) {
     cargo[key] = Math.max(0, (project.cost[key] || 0) - (node.stock?.[key] || 0));
-    total += cargo[key];
+    totalCargo += cargo[key];
   }
-  return total > 0 ? Object.freeze({ team: node.owner, destination: node.id, project: type, cargo: Object.freeze(cargo) }) : null;
+  const assets = {};
+  if (project.kit && (node.assets?.[project.kit] || 0) < 1) assets[project.kit] = 1;
+  const totalAssets = Object.values(assets).reduce((sum, value) => sum + value, 0);
+  if (!totalCargo && !totalAssets) return null;
+  return Object.freeze({
+    team: node.owner,
+    destination: node.id,
+    project: type,
+    cargo: Object.freeze(cargo),
+    assets: Object.freeze(assets),
+  });
 }
 
-/**
- * Shared vehicle-production doctrine. It never creates the vehicle: it only
- * chooses which finite production order should be attempted at this capital.
- * The same thresholds are used by both factions and the territory module still
- * enforces facility, stock and build-time requirements.
- */
 export function chooseVehicleProduction(node, context = {}) {
   if (!node?.owner || node.contested || node.vehicleProduction || context.routeOpen === false) return null;
   const frontPressure = clamp01(context.frontPressure);
@@ -80,14 +107,11 @@ export function chooseVehicleProduction(node, context = {}) {
   const armorThreat = clamp01(context.armorThreat);
   const trucks = Math.max(0, Number(node.assets?.trucks) || 0);
   const tanks = Math.max(0, Number(node.assets?.tanks) || 0);
-
-  // Keep the logistics spine alive before spending the same scarce stock on armor.
   const wantsTruck = trucks < 2 || logisticsDeficit > .45 || reinforcementNeed > .55;
   if (wantsTruck) {
     const check = canStartVehicleProduction(node, 'truck');
     if (check.ok) return Object.freeze({ type: 'truck', reason: trucks < 2 ? 'minimum-logistics-fleet' : reinforcementNeed > .55 ? 'reinforcement-transport' : 'logistics-deficit' });
   }
-
   const wantsTank = tanks < 1 || armorDemand > .45 || armorThreat > .65 || frontPressure > .72;
   if (wantsTank) {
     const check = canStartVehicleProduction(node, 'tank');
@@ -96,7 +120,6 @@ export function chooseVehicleProduction(node, context = {}) {
   return null;
 }
 
-/** Stock deficit for a desired vehicle order; stock still has to travel here. */
 export function vehicleSupplyRequest(node, type) {
   const recipe = VEHICLE_RECIPES[type];
   if (!node || !recipe) return null;
@@ -109,16 +132,25 @@ export function vehicleSupplyRequest(node, type) {
   return total > 0 ? Object.freeze({ team: node.owner, destination: node.id, vehicle: type, cargo: Object.freeze(cargo) }) : null;
 }
 
-/** Effects exposed to combat AI after structures really exist. */
+/** Effects exposed only after structures really exist. */
 export function territoryOperationalEffects(node) {
   const structures = new Set(node?.structures || []);
+  const defensiveCover = (structures.has('outpost') ? .08 : 0)
+    + (structures.has('pillbox') ? .12 : 0)
+    + (structures.has('bunker') ? .24 : 0)
+    + (structures.has('wall') ? .10 : 0)
+    + (structures.has('barbedWire') ? .06 : 0);
   return Object.freeze({
-    supplyCapacity: 1 + (structures.has('depot') ? .45 : 0) + (structures.has('factory') ? .35 : 0),
-    defensiveCover: (structures.has('outpost') ? .08 : 0) + (structures.has('bunker') ? .24 : 0),
-    indirectFire: structures.has('mortar') ? .2 : 0,
-    repairSupport: structures.has('garage') ? .28 : 0,
-    armorStaging: structures.has('garage'),
+    supplyCapacity: 1 + (structures.has('depot') ? .45 : 0) + (structures.has('resourceWarehouse') ? .35 : 0) + (structures.has('vehicleDepot') ? .18 : 0) + (structures.has('factory') ? .35 : 0),
+    defensiveCover,
+    indirectFire: (structures.has('mortar') ? .18 : 0) + (structures.has('heavyMortar') ? .28 : 0) + (structures.has('fieldArtillery') ? .42 : 0),
+    repairSupport: (structures.has('garage') ? .28 : 0) + (structures.has('vehicleDepot') ? .08 : 0),
+    recoverySupport: structures.has('infirmary') ? .30 : 0,
+    ammoSupport: structures.has('ammoDepot') ? .36 : 0,
+    antiArmor: structures.has('fixedCannon') ? .36 : 0,
+    airDefense: structures.has('antiAir') ? .38 : 0,
+    armorStaging: structures.has('garage') || structures.has('vehicleDepot'),
     localProduction: structures.has('factory'),
-    reinforcementSupport: (structures.has('outpost') ? .05 : 0) + (structures.has('depot') ? .12 : 0) + (structures.has('garage') ? .08 : 0),
+    reinforcementSupport: (structures.has('outpost') ? .05 : 0) + (structures.has('depot') ? .12 : 0) + (structures.has('garage') ? .08 : 0) + (structures.has('infirmary') ? .12 : 0),
   });
 }
