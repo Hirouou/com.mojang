@@ -87,7 +87,7 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
-  if (phase === 'regroup') return recovery.recovered ? null : 'regroup';
+  if (phase === 'regroup') return recovery.recovered ? 'hold' : 'regroup';
   if (phase === 'retreat') return 'regroup';
   if (recovery.broken) return 'retreat';
 
