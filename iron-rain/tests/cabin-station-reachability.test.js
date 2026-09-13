@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CABIN_STATIONS, canOccupyCabin, canReachCabinPoint, createCabinMovement } from '../modules/cabin-controls.js';
 
 test('direct station reach rejects a path that crosses solid cabin machinery', () => {
-  const from = { x: -2.3, z: 1.8 };
+  const from = { x: -1.7, z: 1.8 };
   const blockedTarget = { x: -.9, z: .7 };
   assert.equal(canOccupyCabin(from.x, from.z), true);
   assert.equal(canOccupyCabin(blockedTarget.x, blockedTarget.z), true);
