@@ -9,8 +9,14 @@ test('loader rig approaches empty, then keeps the visible transfer shell owned b
   assert.equal(approach.shell.owner, null);
   assert.equal(approach.shell.clamped, false);
 
+  const closing = loaderRigState({ progress: .14, phase: 'extract' });
+  assert.equal(closing.active, true);
+  assert.equal(closing.shell.visible, false, 'round stays in the carousel while the claw is still closing');
+  assert.equal(closing.shell.owner, null);
+  assert.equal(closing.shell.clamped, false);
+
   for (const cycle of [
-    { progress: .16, phase: 'extract' },
+    { progress: .17, phase: 'extract' },
     { progress: .45, phase: 'rotate' },
     { progress: .8, phase: 'ram' },
     { progress: .91, phase: 'lock' },
