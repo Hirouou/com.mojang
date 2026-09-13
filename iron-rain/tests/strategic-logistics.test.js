@@ -37,6 +37,29 @@ test('cut route stops a convoy before resources reach the front', () => {
   assert.equal(logistics.getNode('FRONT').stock.materials, 0);
 });
 
+test('captured intermediate sector immediately invalidates stale friendly routing', () => {
+  const logistics = network();
+  logistics.getNode('MID').team = 'enemy';
+
+  assert.equal(logistics.route('ally', 'HQ', 'FRONT'), null);
+  const result = logistics.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', cargo: { materials: 40 } });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'route-cut');
+  assert.equal(logistics.getNode('HQ').stock.materials, 300);
+});
+
+test('convoy already in transit blocks when a path endpoint changes faction', () => {
+  const logistics = network();
+  const { convoyId } = logistics.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', cargo: { materials: 100 }, speed: 10 });
+  logistics.step(5);
+  logistics.getNode('MID').team = 'enemy';
+  logistics.step(30);
+
+  const convoy = logistics.snapshot().convoys.find(item => item.id === convoyId);
+  assert.equal(convoy.status, 'blocked');
+  assert.equal(logistics.getNode('FRONT').stock.materials, 0);
+});
+
 test('destroyed convoy loses its cargo instead of teleporting stock to destination', () => {
   const logistics = network();
   const { convoyId } = logistics.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', cargo: { ammo: 100 }, speed: 10 });
