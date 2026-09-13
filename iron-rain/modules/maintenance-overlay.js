@@ -1,4 +1,4 @@
-const EVENT_NAME = 'iron-rain:maintenance-feedback';
+const EVENT_NAME = 'ironrain:maintenance-feedback';
 
 let root = null;
 let source = null;
