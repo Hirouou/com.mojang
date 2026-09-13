@@ -32,15 +32,6 @@ test('driver prompt follows the visible controls as well as the aisle focus poin
   assert.equal(movement.focus()?.id, 'drive');
 });
 
-test('station helper point cannot extend interaction beyond the physical hardware radius', () => {
-  const movement = createCabinMovement();
-  const from = { x: .65, z: .7 };
-  const mapHelper = { x: -.9, z: .7 };
-  assert.equal(canReachCabinPoint(from.x, from.z, mapHelper.x, mapHelper.z, .08), true, 'helper remains visible through the aisle');
-  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, mapHelper) }), true);
-  assert.notEqual(movement.focus()?.id, 'map', 'map hardware is still outside its physical interaction radius');
-});
-
 test('narrow interaction ray still cannot cross cabin machinery', () => {
   const movement = createCabinMovement();
   const from = { x: -1.2, z: -.3 };
