@@ -6,13 +6,27 @@ const war = await readFile(new URL('../modules/war-simulation.js', import.meta.u
 const view = await readFile(new URL('../modules/battlefield-view.js', import.meta.url), 'utf8');
 
 test('live war projects canonical logistics convoys into bounded local traffic without moving them', () => {
-  assert.match(war, /function publishStrategicTraffic\(state\)/);
+  assert.match(war, /import \{ localConvoyMaterializationFeed \} from '\.\/local-missions\.js'/);
   assert.match(war, /const snapshot = logistics\.snapshot\(\)/);
-  assert.match(war, /convoy\.path\?\.\[convoy\.leg\]/);
-  assert.match(war, /convoy\.legProgress/);
-  assert.match(war, /friendly \? localDistance > 9_000 : localDistance > 1_200/);
-  assert.match(war, /state\.warSimulation\.strategicTraffic = traffic/);
+  assert.match(war, /localConvoyMaterializationFeed\(\{/);
+  assert.match(war, /convoys: snapshot\.convoys \|\| \[\]/);
+  assert.match(war, /observedEnemyIds/);
+  assert.match(war, /localRadius: 9_000/);
+  assert.match(war, /x: convoy\.position\.x/);
+  assert.match(war, /y: convoy\.position\.y/);
+  assert.match(war, /angle: Number\(convoy\.position\.heading\) \|\| 0/);
+  assert.doesNotMatch(war, /convoy\.legProgress/);
+  assert.match(war, /state\.warSimulation\.strategicTraffic = materialized\.slice\(0, 40\)/);
   assert.match(war, /publishStrategicTraffic\(state\)/);
+});
+
+test('hostile convoy materialization is earned locally or by active intel target', () => {
+  assert.match(war, /function convoyObservedLocally\(state, convoy\)/);
+  assert.match(war, /<= 950/);
+  assert.match(war, /const target = state\.intel\?\.target/);
+  assert.match(war, /target\.id && target\.id === convoy\.id/);
+  assert.match(war, /<= 850/);
+  assert.match(war, /convoy\?\.team !== own && convoyObservedLocally\(state, convoy\)/);
 });
 
 test('local battlefield renders strategic armor as tanks and supply or troop traffic as trucks', () => {
