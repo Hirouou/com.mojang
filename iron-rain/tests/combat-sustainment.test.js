@@ -1,17 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { combatRecoveryPhase, COMBAT_RECOVERY_THRESHOLDS } from '../modules/combat-recovery.js';
 import { combatSustainmentSupply } from '../modules/combat-sustainment.js';
 
-function graph({ ammo = 80, connected = true } = {}) {
+function graph({ ammo = 80, connected = true, knownThreat = 0 } = {}) {
   const nodes = new Map([
     ['rear', { id: 'rear', alive: true, team: 'ally', kind: 'depot', stock: { ammo: 220 } }],
     ['field', { id: 'field', alive: true, team: 'ally', kind: 'outpost', stock: { ammo } }],
   ]);
+  const routeId = 'rear-field';
   return {
     getNode(id) { return nodes.get(id) || null; },
-    snapshot() { return { nodes: [...nodes.values()] }; },
-    route(team, from, to) { return connected && team === 'ally' && from === 'rear' && to === 'field' ? [{ from, to, distance: 9_000 }] : null; },
+    snapshot() { return { nodes: [...nodes.values()], routes: [{ id: routeId, knownThreat }] }; },
+    route(team, from, to) { return connected && team === 'ally' && from === 'rear' && to === 'field' ? [{ routeId, from, to, distance: 9_000 }] : null; },
   };
 }
 
@@ -37,6 +39,19 @@ test('combat sustainment requires a physical field logistics node before stock s
 
   assert.equal(roadOnly, .08, 'ammo parked on a generic road/sector node must not become tactical supply without field infrastructure');
   assert.ok(outpost > .6, 'the same delivered stock should support combat once a canonical field node exists');
+});
+
+test('threatened critical logistics nodes can regroup for defense without regaining offensive supply', () => {
+  const threatened = graph({ ammo: 80, knownThreat: .9 });
+  const criticalTerritory = Object.freeze({ owner: 'ally', contested: false, structures: ['depot'] });
+  const criticalSupply = combatSustainmentSupply({ strategicLogistics: threatened, territory: criticalTerritory, team: 'ally', to: 'field' });
+  const outpostSupply = combatSustainmentSupply({ strategicLogistics: threatened, territory, team: 'ally', to: 'field' });
+
+  assert.equal(criticalSupply, COMBAT_RECOVERY_THRESHOLDS.supply, 'stocked depot keeps only the existing defensive recovery floor under severe known route threat');
+  assert.ok(outpostSupply < COMBAT_RECOVERY_THRESHOLDS.supply, 'a basic field node does not receive the critical-infrastructure defensive floor');
+  assert.equal(combatRecoveryPhase({ phase: 'regroup', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: criticalSupply }), 'consolidate', 'critical-node defenders can reorganize locally instead of remaining permanently broken by route threat');
+  assert.equal(combatRecoveryPhase({ phase: 'regroup', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: outpostSupply }), 'regroup', 'ordinary outposts still wait for the threatened supply route to recover');
+  assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 60, morale: .7, suppression: .1, ammo: .8, supply: criticalSupply }), 'retreat', 'the defensive floor never authorizes continuing an assault');
 });
 
 test('live war wrapper caps tactical base supply from the canonical sustainment seam', async () => {

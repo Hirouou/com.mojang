@@ -1,4 +1,5 @@
 import { combatLogisticsState, combatReserveOrigin, combatRouteOpen } from './combat-reserves.js';
+import { COMBAT_OFFENSIVE_THRESHOLDS, COMBAT_RECOVERY_THRESHOLDS } from './combat-recovery.js';
 
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const validTeam = team => team === 'ally' || team === 'enemy';
@@ -49,5 +50,16 @@ export function combatSustainmentSupply({ strategicLogistics, territory, team, f
   // stocked line less willing to sustain assaults, while stale/unknown intel
   // naturally falls back to zero disruption in the canonical snapshot.
   const routeThreat = knownPathThreat(strategicLogistics, team, origin, destination);
-  return clamp(stockedSupply * (1 - routeThreat), .08, 1);
+  const threatenedSupply = clamp(stockedSupply * (1 - routeThreat), .08, 1);
+  // A stocked depot/garage is itself a strategic objective. When earned intel
+  // makes its route too dangerous for offensive readiness, preserve exactly the
+  // existing recovery-supply floor so defenders can reorganize locally instead
+  // of abandoning the node solely because the road is threatened. This does not
+  // authorize an attack: the value remains below the existing offensive supply
+  // threshold. A cut route or empty local stock still fails closed above.
+  const criticalFieldNode = logistics.hasDepot || logistics.hasGarage;
+  if (criticalFieldNode && routeThreat > 0 && stockedSupply >= COMBAT_RECOVERY_THRESHOLDS.supply && threatenedSupply < COMBAT_OFFENSIVE_THRESHOLDS.supply) {
+    return Math.max(threatenedSupply, COMBAT_RECOVERY_THRESHOLDS.supply);
+  }
+  return threatenedSupply;
 }
