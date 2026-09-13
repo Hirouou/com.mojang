@@ -28,7 +28,7 @@ test('low pressure preserves normal development order at logistics nodes', () =>
   const node = territory(['outpost', 'depot']);
   const plan = chooseTerritoryProject(node, { frontPressure: .3 });
 
-  assert.equal(plan?.type, 'mortar');
+  assert.equal(plan?.type, 'garage');
   assert.equal(plan?.reason, 'development');
 });
 
