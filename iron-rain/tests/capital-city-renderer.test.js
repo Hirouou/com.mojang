@@ -23,8 +23,8 @@ const frame = Object.freeze({
 
 const developed = () => buildCapitalLayout({
   id: 'CAP-VISUAL-TEST', x: 5200, y: 4100, roadBearings: [.1, 1.06],
-  structures: ['depot','resourceWarehouse','vehicleDepot','garage','infirmary','ammoDepot','factory','armorWorks','bunker','pillbox','mortar','heavyMortar','fieldArtillery','fixedCannon','antiAir'],
-  density: 28,
+  structures: ['depot','resourceWarehouse','garage','infirmary','factory','armorWorks','bunker','antiAir'],
+  density: 30,
 });
 
 test('capital renderer accepts an empty/uninitialized layout', () => {
