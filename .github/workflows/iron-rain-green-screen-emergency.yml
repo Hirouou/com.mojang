@@ -1,0 +1,175 @@
+name: Iron Rain Green Screen Emergency
+
+on:
+  push:
+    branches:
+      - iron-rain-v6-1-continuation
+    paths:
+      - .github/workflows/iron-rain-green-screen-emergency.yml
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active branch
+        uses: actions/checkout@v4
+        with:
+          ref: iron-rain-v6-1-continuation
+          fetch-depth: 0
+
+      - name: Patch cabin recovery and cache
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          game_path = Path('iron-rain/game-v6.js')
+          game = game_path.read_text()
+
+          def replace_once(text, old, new, label):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected 1 anchor, found {n}')
+              return text.replace(old, new, 1)
+
+          old_inside = "  const inside=()=>state?.view==='cabin'&&!cinematicActive(state)&&!cabinFailed;"
+          new_inside = """  const inside=()=>!!cabin&&state?.view==='cabin'&&!cinematicActive(state)&&!cabinFailed;
+
+  let cabinRuntimeFault=null;
+  function recoverCabinRuntime(error,phase='runtime'){
+    if(cabinFailed)return false;
+    cabinRuntimeFault=error instanceof Error?error:new Error(String(error||'Falha desconhecida do interior 3D'));
+    console.error(`Interior 3D interrompido (${phase}):`,cabinRuntimeFault);
+    cabinFailed=true;
+    try{cabin?.setActive?.(false);}catch{}
+    try{cabin?.releasePointer?.();}catch{}
+    if(state){state.station=null;state.view='field';}
+    app.classList.remove('inside','station-engaged');
+    $('cabinUi')?.classList.add('hidden');
+    $('bootStatus')?.classList.add('hidden');
+    try{syncControls();}catch{}
+    try{toast('Interior 3D reiniciado em vista externa. A partida continua jogável.','SISTEMAS',12);}catch{}
+    globalThis.ironRainCabinFault={phase,message:cabinRuntimeFault.message,at:performance.now()};
+    return false;
+  }"""
+          if old_inside in game:
+              game = replace_once(game, old_inside, new_inside, 'inside guard')
+          elif 'function recoverCabinRuntime' not in game:
+              raise SystemExit('inside guard anchor missing')
+
+          old_update = "    updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);updateWar(state,dt);updatePlayerHits();updateEffects(dt);updateWarMessages();updateRelocation();"
+          new_update = """    updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);
+    try{updateWar(state,dt);}catch(error){console.error('Simulação estratégica isolada após falha:',error);state.warSimulation||={};state.warSimulation.runtimeFault={message:error?.message||String(error),at:state.time};}
+    updatePlayerHits();updateEffects(dt);updateWarMessages();updateRelocation();"""
+          if old_update in game:
+              game = replace_once(game, old_update, new_update, 'war isolation')
+
+          old_cabin_update = "    cabin?.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});\n    const cabinPosition=cabin?.snapshot?.().position;"
+          new_cabin_update = """    if(cabin&&!cabinFailed){
+      try{cabin.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});}
+      catch(error){recoverCabinRuntime(error,'update');}
+    }
+    let cabinPosition=null;
+    if(cabin&&!cabinFailed){try{cabinPosition=cabin.snapshot?.().position||null;}catch(error){recoverCabinRuntime(error,'snapshot');}}"""
+          if old_cabin_update in game:
+              game = replace_once(game, old_cabin_update, new_cabin_update, 'cabin update guard')
+
+          old_draw = "    if(inside()&&cabin){cabin.render();return;}"
+          new_draw = """    if(inside()&&cabin){
+      try{cabin.render();return;}
+      catch(error){recoverCabinRuntime(error,'render');}
+    }"""
+          if old_draw in game:
+              game = replace_once(game, old_draw, new_draw, 'cabin draw guard')
+
+          old_loop = "  function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop);}"
+          new_loop = """  function loop(now){
+    requestAnimationFrame(loop);
+    const dt=Math.min(.035,(now-last)/1000||0);last=now;
+    try{update(dt);}catch(error){console.error('Iron Rain update frame:',error);if(inside())recoverCabinRuntime(error,'frame-update');}
+    try{draw();}catch(error){console.error('Iron Rain draw frame:',error);if(inside())recoverCabinRuntime(error,'frame-draw');}
+  }"""
+          if old_loop in game:
+              game = replace_once(game, old_loop, new_loop, 'frame survival')
+          elif 'requestAnimationFrame(loop);\n    const dt=' not in game:
+              raise SystemExit('frame loop anchor missing')
+
+          old_catch = "    console.error('Interior 3D indisponível:',error);cabinFailed=true;state.view='field';syncControls();$('bootStatus').classList.add('hidden');toast('Interior 3D indisponível neste navegador. Controles externos disponíveis.','SISTEMAS',20);"
+          if old_catch in game:
+              game = replace_once(game, old_catch, "    recoverCabinRuntime(error,'initialization');", 'init recovery')
+
+          old_boot = "  loadSettings();resize();resetGame();requestAnimationFrame(loop);"
+          new_boot = """  loadSettings();resize();resetGame();
+  $('cabinCanvas')?.addEventListener('webglcontextlost',event=>{event.preventDefault();recoverCabinRuntime(new Error('WebGL context lost'),'webgl-context-lost');});
+  requestAnimationFrame(loop);"""
+          if old_boot in game:
+              game = replace_once(game, old_boot, new_boot, 'webgl context recovery')
+
+          game_path.write_text(game)
+
+          bootstrap_path = Path('iron-rain/bootstrap.js')
+          bootstrap = bootstrap_path.read_text()
+          bootstrap = bootstrap.replace("const CLIENT_BUILD = '20260913-hidden-aim-panel';", "const CLIENT_BUILD = '20260913-green-screen-recovery';")
+          bootstrap = bootstrap.replace("const EXPECTED_CACHE_SUFFIX = 'v7.29';", "const EXPECTED_CACHE_SUFFIX = 'v7.30';")
+          bootstrap_path.write_text(bootstrap)
+
+          sw_path = Path('iron-rain/sw.js')
+          sw = sw_path.read_text().replace("const CACHE_NAME = `${CACHE_PREFIX}v7.29`;", "const CACHE_NAME = `${CACHE_PREFIX}v7.30`;")
+          sw_path.write_text(sw)
+
+          test_path = Path('iron-rain/tests/cabin-green-screen-recovery.test.js')
+          test_path.write_text("""import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const game = fs.readFileSync(new URL('../game-v6.js', import.meta.url), 'utf8');
+const bootstrap = fs.readFileSync(new URL('../bootstrap.js', import.meta.url), 'utf8');
+const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+
+test('cabin visibility waits for a real cabin renderer', () => {
+  assert.match(game, /const inside=\(\)=>!!cabin&&state\?\.view==='cabin'/);
+});
+
+test('WebGL and cabin render failures fall back instead of leaving a dead green screen', () => {
+  assert.match(game, /function recoverCabinRuntime/);
+  assert.match(game, /recoverCabinRuntime\(error,'render'\)/);
+  assert.match(game, /recoverCabinRuntime\(error,'update'\)/);
+  assert.match(game, /webglcontextlost/);
+  assert.match(game, /state\.view='field'/);
+});
+
+test('animation loop schedules the next frame before risky update and draw work', () => {
+  assert.match(game, /function loop\(now\)\{\s*requestAnimationFrame\(loop\);/);
+  assert.match(game, /try\{update\(dt\);\}catch\(error\)/);
+  assert.match(game, /try\{draw\(\);\}catch\(error\)/);
+});
+
+test('PWA cache is bumped consistently for the recovery build', () => {
+  const expected = bootstrap.match(/EXPECTED_CACHE_SUFFIX = '([^']+)'/)?.[1];
+  const actual = sw.match(/CACHE_NAME = `\$\{CACHE_PREFIX\}([^`]+)`/)?.[1];
+  assert.equal(expected, actual);
+  assert.equal(expected, 'v7.30');
+});
+""")
+          PY
+
+      - name: Test Iron Rain
+        working-directory: iron-rain
+        run: npm test
+
+      - name: Commit and publish hotfix branch head
+        shell: bash
+        run: |
+          git config user.name "iron-rain-emergency-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add iron-rain/game-v6.js iron-rain/bootstrap.js iron-rain/sw.js iron-rain/tests/cabin-green-screen-recovery.test.js
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Hotfix already present."
+            exit 0
+          fi
+          git commit -m "fix: recover from cabin green screen runtime failure"
+          git push origin HEAD:iron-rain-v6-1-continuation
