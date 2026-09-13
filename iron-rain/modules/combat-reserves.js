@@ -21,8 +21,8 @@ function validRoutePath(path, originId, destinationId) {
 function routeIntelSafe(logistics, path) {
   if (typeof logistics?.snapshot !== 'function') return true;
   let routes;
-  try { routes = logistics.snapshot()?.routes; } catch { return false; }
-  if (!Array.isArray(routes)) return false;
+  try { routes = logistics.snapshot()?.routes; } catch { return true; }
+  if (!Array.isArray(routes)) return true;
   const byId = new Map(routes.map(route => [String(route?.id ?? ''), route]));
   for (const leg of path) {
     const route = byId.get(String(leg?.routeId ?? ''));
