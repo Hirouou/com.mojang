@@ -20,7 +20,7 @@ export function remoteHullImpactFeedback(effect = {}) {
   const intensity = type === 'critical'
     ? 1
     : Number.isFinite(transmitted)
-      ? clamp01(transmitted)
+      ? Math.max(canonical.intensity, clamp01(transmitted))
       : canonical.intensity;
 
   if (type !== 'critical') return Object.freeze({ ...canonical, intensity });
