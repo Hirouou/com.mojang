@@ -1,3 +1,5 @@
+import { drawCapitalMaterialization } from './capital-city-view.js';
+
 /**
  * Low-poly battlefield dressing for the persistent war simulation.
  * Rendering only: it never reveals a target, changes a force, or creates damage.
@@ -463,10 +465,11 @@ export function drawWarInfrastructure(ctx, state, options) {
   ctx.save();
   ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
   for (const road of (state.warSimulation?.strategicRoads || []).slice(0, 48)) drawStrategicRoad(ctx, road, frame);
+  drawCapitalMaterialization(ctx, state, frame);
   for (const sector of (state.sectors || [])) {
     const war = sector.war;
     if (!war) continue;
-    for (const base of (war.bases || []).slice(0, 8)) if (observable(state, base, sector)) drawBase(ctx, base, frame);
+    for (const base of (war.bases || []).slice(0, 8)) if (base?.__strategicCapitalVisual !== true && observable(state, base, sector)) drawBase(ctx, base, frame);
     for (const mortar of (war.mortars || []).slice(0, 8)) if (observable(state, mortar, sector)) drawMortar(ctx, mortar, frame);
     for (const tank of (war.vehicles || []).slice(0, 12)) if (tank.type === 'tank' && observable(state, tank, sector)) drawTank(ctx, tank, frame);
   }
