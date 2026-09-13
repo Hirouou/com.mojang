@@ -7,7 +7,7 @@ function logisticsGraph() {
   return createStrategicLogistics({
     nodes: [
       createLogisticsNode({ id: 'ALLY-REAR', team: 'ally', kind: 'depot' }),
-      createLogisticsNode({ id: 'ALLY-FRONT', team: 'ally', kind: 'front' }),
+      createLogisticsNode({ id: 'ALLY-FRONT', team: 'ally', kind: 'front', assets: { troops: 4 } }),
     ],
     routes: [createSupplyRoute({ id: 'REAR-FRONT', team: 'ally', from: 'ALLY-REAR', to: 'ALLY-FRONT', distance: 900 })],
   });
