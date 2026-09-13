@@ -32,6 +32,12 @@ export function stepCamera(state, dt, viewportWidth) {
     return;
   }
   const anchor = cameraAnchor(state, viewportWidth);
+  // Cinematic camera coordinates come from transient projectile/impact state.
+  // If either axis is corrupted, arithmetic interpolation would keep NaN/Infinity
+  // forever and prevent a reliable return to the Mamute. Recover each axis from
+  // the canonical local anchor before applying the normal smoothing step.
+  if (!Number.isFinite(cam.x)) cam.x = anchor.x;
+  if (!Number.isFinite(cam.y)) cam.y = anchor.y;
   if (cam.mode === 'return') {
     cam.elapsed = (cam.elapsed || 0) + frameDt;
     const a = smooth(5.5, frameDt);
