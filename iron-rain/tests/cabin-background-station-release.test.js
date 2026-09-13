@@ -8,7 +8,7 @@ test('backgrounding the app releases pending and occupied crew stations', () => 
   const release = source.match(/function releaseCrewStationsForBackground\(\) \{([\s\S]*?)\n  \}/);
   assert.ok(release, 'shared background release boundary must remain explicit');
   assert.match(release[1], /cancelPendingCrewStation\(\)/);
-  assert.match(release[1], /if \(activeCrewStation\) leaveCrewStation\(\);/);
+  assert.match(release[1], /if \(activeCrewStation && leaveCrewStation\(\) !== false\) runPointerUnlockCleanup\(\);/);
 
   const visibility = source.match(/function onVisibilityChange\(\) \{([\s\S]*?)\n  \}/);
   assert.ok(visibility, 'visibilitychange boundary must remain explicit');
