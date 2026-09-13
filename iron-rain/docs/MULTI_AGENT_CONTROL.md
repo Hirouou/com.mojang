@@ -1,5 +1,9 @@
 # IRON RAIN — MULTI-AGENT CONTROL CENTER
 
+## Checkpoint publicado — 2026-09-13 (prevalece sobre os holds históricos abaixo)
+Servidor/entrada/mobile integrados e publicados em `96e3ba2`; request P0 persistent-war-authority DONE. A reserva dessa missão foi liberada. Ler CONTINUE_FROM_HERE_20260913.md e reivindicar a próxima READY antes de editar. Não reativar workflows de reescrita, não remover primeira pessoa, não voltar a host de jogador, não apagar banco real. Próximo request delimitado: IR-CODEX-20260913-LEAD-shared-war-followup.md.
+
+
 ## OWNER HOLD — 2026-09-13 15:57 BRT
 
 **Atualização após recuperação:** owner retomou SERVER P0 com CODEX. Pedido ativo `codex-requests/IR-CODEX-20260912-1620-LEAD-persistent-war-authority.md`; preservar reserva de backend/entrada/runtime/publicação. Incluídos caminhões sem teleporte e estradas/construções. A cabine/mobile de `99b8651` são baseline obrigatório. Não reiniciar automações de reescrita nem publicar stacks concorrentes.

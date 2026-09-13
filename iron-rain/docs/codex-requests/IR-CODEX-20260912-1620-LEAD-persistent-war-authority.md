@@ -1,6 +1,6 @@
 # IR-CODEX-20260912-1620-LEAD-persistent-war-authority
 
-STATUS: IN_PROGRESS
+STATUS: DONE
 RESUMED_HEAD: 99b865133ec54fb7640e179741947bc2bad5ca22
 RESUMED_AT: 2026-09-13
 OWNER_SCOPE: implementar servidor compartilhado, vários Mamutes com até 3 tripulantes cada, presença e dano entre Mamutes, corrigir caminhões teleportando e melhorar estradas/construções; reforçar coordenação dos próximos agentes. Cabine restaurada e mobile devem permanecer funcionais.
@@ -107,5 +107,15 @@ The immediate player-test target is concrete: player A joins an ALIADOS Mamute, 
 - Testes: 711 testes unitários passaram. Teste integrado em três contextos Chromium e validação Pages registrados no fechamento seguinte; não confundir emulação com dispositivos físicos.
 - Arquivos: server/, server-config.js, server-ui.css, bootstrap.js, game-v6.js, index.html, sw.js, módulos server-*, cabine/crew/câmera, strategic-war-live-v3, strategic-logistics, war-simulation/core/audio, mobile-ux-review, operator-enhancements, testes e workflow Pages.
 - Evidências locais: test-results/full-server.log, test-results/server-browser.log e screenshots server-*.png. Roteiro reproduzível versionado em tests/server-game-browser.mjs.
-- Prova integrada PASSOU (três contextos Chromium, mobile emulado): veículos distintos 6a60c9e7/6d7925cf, passageiro no primeiro; munição HE 18→17; blindagem alvo 46.7122; eventos fire/impact, porta/avatares, canvas 844×248 sem resize ao zoom e reconexão da mesma identidade; zero erros de console. O harness limita RAF a ~20fps para três renderizadores simultâneos na mesma máquina. P0 restante: confirmar publicação Pages. P1: intel estratégico, banda e dispositivos físicos, hospedagem permanente. P2: arte das cidades/estradas e cabine completa. Detalhes/ordem em CONTINUE_FROM_HERE_20260913.md.
+- Prova integrada PASSOU (três contextos Chromium, mobile emulado): veículos distintos 6a60c9e7/6d7925cf, passageiro no primeiro; munição HE 18→17; blindagem alvo 46.7122; eventos fire/impact, porta/avatares, canvas 844×248 sem resize ao zoom e reconexão da mesma identidade; zero erros de console. O harness limita RAF a ~20fps para três renderizadores simultâneos na mesma máquina. Pages confirmado: workflow 34779554092 SUCCESS, commit 96e3ba2fa1cf2a7038aaeb541cdf01457c68c7ba. P1: intel estratégico, banda e dispositivos físicos, hospedagem permanente. P2: arte das cidades/estradas e cabine completa. Detalhes/ordem em CONTINUE_FROM_HERE_20260913.md.
 - Recomendação: preservar esta autoridade, validar a versão publicada antes de qualquer incremento. Não aplicar stashes históricos inteiros. Commits deste checkpoint identificados pelo histórico deste arquivo.
+
+
+## Fechamento — publicação verificada
+- COMPLETED_AT: 2026-09-13
+- COMMIT: 96e3ba2fa1cf2a7038aaeb541cdf01457c68c7ba
+- DEPLOY: https://github.com/Hirouou/com.mojang/actions/runs/34779554092 (success).
+- BUILD: 20260913-shared-war-server / cache v7.33.
+- Verificação no URL público em Chromium mobile 844×390: criar Mamute, renderizar/entrar na cabine, abrir menu, ler código dentro do viewport, abrir mapa; API authority=server, connected=true, IRON-RAIN-01, zero erros. Evidências locais: test-results/public-server-{lobby,cabin,menu,map}.png e public-server-smoke.log. /server/http.mjs no Pages retorna 404 conforme isolamento do backend.
+- A entrega é o primeiro checkpoint jogável do servidor, não conclusão de toda a guerra histórica. P1/P2 permanecem descritos no handoff e na próxima solicitação READY. Teste em aparelhos físicos e operação de longo prazo ainda pendentes; não alegar isso como validado.
+- Reserva exclusiva desta missão encerrada. Próximos agentes devem reivindicar uma solicitação READY delimitada, preservando a versão pública e a autoridade única.
