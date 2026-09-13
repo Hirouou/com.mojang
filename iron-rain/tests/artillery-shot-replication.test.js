@@ -23,8 +23,10 @@ test('replication reads the live ballistic readouts instead of adding another ba
   assert.match(source, /if \(firing && fireArmed\) \{ fireArmed = false; emitLocalShot\(\); \}/);
 });
 
-test('authoritative echo does not replay fire or reload feedback on the original shooter', () => {
+test('authoritative echo commits guest fire locally but keeps reload echo suppressed', () => {
   assert.match(source, /function effectFromLocalShooter\(effect\)/);
   assert.match(source, /effect\?\.payload\?\.shooterId/);
-  assert.match(source, /\(effect\.type === 'fire' \|\| effect\.type === 'reload'\) && effectFromLocalShooter\(effect\)/);
+  assert.match(source, /effect\.type === 'fire' && effectFromLocalShooter\(effect\)\) \{ replayAuthoritativeLocalFire\(effect\); return; \}/);
+  assert.match(source, /effect\.type === 'reload' && effectFromLocalShooter\(effect\)\) return;/);
+  assert.match(source, /suppressObservedFire = true;/);
 });
