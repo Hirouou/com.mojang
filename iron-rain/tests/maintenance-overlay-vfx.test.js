@@ -55,3 +55,10 @@ test('maintenance overlay avoids redundant per-frame DOM and style writes', () =
   assert.match(source, /Math\.round\(spray \* 100\) \/ 100/);
   assert.match(source, /if \(vfx\.className !== nextClass\) vfx\.className = nextClass/);
 });
+
+test('maintenance overlay quiesces active css vfx when the page backgrounds', () => {
+  assert.match(source, /function hideForPageLifecycle\(\) \{\s*hideMaintenance\(root\);\s*\}/);
+  assert.match(source, /globalThis\.addEventListener\('pagehide', hideForPageLifecycle\)/);
+  assert.match(source, /visibilityState === 'hidden'\) hideForPageLifecycle\(\)/);
+  assert.match(source, /document\?\.addEventListener\?\.\('visibilitychange', onVisibilityChange\)/);
+});
