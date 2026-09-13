@@ -14,6 +14,19 @@ test('normal field missions are delivered near the player instead of across the 
   assert.deepEqual(feed.map(m => m.id), ['near']);
 });
 
+test('sharing the current hex does not reveal a distant mission without radio delivery', () => {
+  const feed = localMissionFeed({
+    playerPosition: { x: 0, y: 0 },
+    currentHexId: 'HX-9',
+    missions: [
+      { id: 'same-hex-local', x: 4_000, y: 0, priority: 1, hexId: 'HX-9' },
+      { id: 'same-hex-remote', x: 30_000, y: 0, priority: 5, hexId: 'HX-9' },
+    ],
+    localRadius: 11_000,
+  });
+  assert.deepEqual(feed.map(m => m.id), ['same-hex-local']);
+});
+
 test('remote high-command mission can arrive through a radio-covered front', () => {
   const feed = localMissionFeed({
     playerPosition: { x: 0, y: 0 },
@@ -21,6 +34,15 @@ test('remote high-command mission can arrive through a radio-covered front', () 
     missions: [{ id: 'radio', x: 30_000, y: 0, priority: 4, scope: 'command', hexId: 'HX-9' }],
   });
   assert.equal(feed[0]?.id, 'radio');
+});
+
+test('radio coverage does not reveal distant field missions without command scope', () => {
+  const feed = localMissionFeed({
+    playerPosition: { x: 0, y: 0 },
+    radioHexIds: ['HX-9'],
+    missions: [{ id: 'field-radio', x: 30_000, y: 0, priority: 4, scope: 'field', hexId: 'HX-9' }],
+  });
+  assert.deepEqual(feed, []);
 });
 
 test('nearby convoy materialization uses canonical position without leaking unobserved enemy traffic', () => {
