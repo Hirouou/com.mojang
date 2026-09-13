@@ -57,8 +57,8 @@ test('road multiplier changes translation speed only and preserves exact off-roa
   assert.equal(capitalRoadSpeedMultiplier(layout, offRoad), 1);
   assert.ok(capitalRoadSpeedMultiplier(layout, onRoad) > 1);
   assert.equal(roadTravelSpeed(38, 1), 38);
-  assert.equal(roadTravelSpeed(38 * .2, 1), 7.6);
-  assert.equal(roadTravelSpeed(38, CAPITAL_ROAD_RULES.roadSpeedMultiplier), 55.1);
+  assert.ok(Math.abs(roadTravelSpeed(38 * .2, 1) - 7.6) < 1e-9);
+  assert.ok(Math.abs(roadTravelSpeed(38, CAPITAL_ROAD_RULES.roadSpeedMultiplier) - 55.1) < 1e-9);
 });
 
 test('strategic route geometry is deterministic, curved and sampleable', () => {
