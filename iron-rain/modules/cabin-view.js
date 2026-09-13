@@ -3,8 +3,102 @@ import { createCabinView as createCabinViewCore } from './cabin-view-core.js';
 import { createCabinCrewVisualLayer } from './crew-visual-layer.js';
 import { maintenanceFeedback } from './maintenance-feedback.js';
 import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
+import { loaderRigState } from './loader-arm.js';
 import { beginLoading, stepLoading } from './loading-cycle.js';
 import './maintenance-overlay.js';
+
+function createLoaderArmVisual(scene) {
+  const geometries = [];
+  const materials = [];
+  const mat = (color, emissive = 0x000000) => {
+    const material = new THREE.MeshLambertMaterial({ color, emissive, flatShading: true });
+    materials.push(material);
+    return material;
+  };
+  const steel = mat('#4b5650');
+  const dark = mat('#202826');
+  const brass = mat('#a7935b');
+  const warning = mat('#8e6b3d', '#2d1b0d');
+  const shellBand = mat('#71362d');
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+  geometries.push(boxGeo, cylGeo);
+  const mesh = (geo, material, parent, x, y, z, sx, sy, sz) => {
+    const object = new THREE.Mesh(geo, material);
+    object.position.set(x, y, z);
+    object.scale.set(sx, sy, sz);
+    parent.add(object);
+    return object;
+  };
+
+  const root = new THREE.Group();
+  root.position.set(1.76, .48, .72);
+  scene.add(root);
+  mesh(cylGeo, dark, root, 0, .08, 0, .19, .16, .19);
+  mesh(cylGeo, steel, root, 0, .22, 0, .13, .16, .13);
+  const shoulder = new THREE.Group();
+  shoulder.position.set(0, .34, 0);
+  root.add(shoulder);
+  mesh(boxGeo, steel, shoulder, 0, 0, .29, .18, .18, .58);
+  const elbow = new THREE.Group();
+  elbow.position.set(0, 0, .58);
+  shoulder.add(elbow);
+  mesh(cylGeo, warning, elbow, 0, 0, 0, .12, .2, .12).rotation.z = Math.PI / 2;
+  const fore = mesh(boxGeo, steel, elbow, 0, 0, .28, .15, .15, .56);
+  const wrist = new THREE.Group();
+  elbow.add(wrist);
+  const rammer = mesh(boxGeo, dark, wrist, 0, 0, -.13, .1, .1, .3);
+  const clawLeft = mesh(boxGeo, warning, wrist, -.12, 0, .06, .055, .12, .28);
+  const clawRight = mesh(boxGeo, warning, wrist, .12, 0, .06, .055, .12, .28);
+  const shell = new THREE.Group();
+  wrist.add(shell);
+  const shellBody = mesh(cylGeo, brass, shell, 0, 0, .25, .082, .48, .082);
+  shellBody.rotation.x = Math.PI / 2;
+  const band = mesh(cylGeo, shellBand, shell, 0, 0, .11, .086, .075, .086);
+  band.rotation.x = Math.PI / 2;
+  const tip = mesh(cylGeo, steel, shell, 0, 0, .51, .058, .12, .058);
+  tip.rotation.x = Math.PI / 2;
+
+  let current = loaderRigState(null);
+  function update(cycle) {
+    current = loaderRigState(cycle);
+    const joints = current.joints;
+    root.rotation.y = joints.baseYaw;
+    shoulder.rotation.x = joints.shoulder;
+    elbow.rotation.x = -joints.elbow * .72;
+    const reach = .56 + joints.extension * .72;
+    fore.scale.z = reach;
+    fore.position.z = reach * .5;
+    wrist.position.set(0, 0, reach);
+    const jaw = .1 + joints.claw * .28;
+    clawLeft.position.x = -jaw;
+    clawRight.position.x = jaw;
+    clawLeft.rotation.y = -.2 - joints.claw * .5;
+    clawRight.rotation.y = .2 + joints.claw * .5;
+    rammer.position.z = -.13 + joints.rammer * .28;
+    shell.visible = current.shell.visible;
+    shell.position.z = joints.rammer * .24;
+    warning.emissiveIntensity = current.active ? .32 : .05;
+  }
+  update(null);
+
+  return {
+    update,
+    snapshot() {
+      return {
+        active: current.active,
+        phase: current.phase,
+        shellVisible: current.shell.visible,
+        shellOwner: current.shell.owner,
+      };
+    },
+    dispose() {
+      scene.remove(root);
+      geometries.forEach(geometry => geometry.dispose());
+      materials.forEach(material => material.dispose());
+    },
+  };
+}
 
 export function createCabinView(canvas, options = {}) {
   // Diagnostic escape hatch only. Product solo play stays on the crew-aware
@@ -60,6 +154,7 @@ export function createCabinView(canvas, options = {}) {
   try { core = createCabinViewCore(canvas, gatedOptions); } finally { THREE.Scene.prototype.add = originalSceneAdd; }
   if (!scene) throw new Error('Cabin scene was not created');
   const crewVisuals = createCabinCrewVisualLayer(scene, { capacity: 2 });
+  const loaderVisual = createLoaderArmVisual(scene);
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   const safeDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
 
@@ -122,7 +217,14 @@ export function createCabinView(canvas, options = {}) {
       const merged = { ...data };
       if (!merged.loading && remoteLoading) merged.loading = remoteLoading;
       merged.recoil = Math.max(Number(merged.recoil) || 0, remoteRecoil);
+      loaderVisual.update(merged.loading);
+      // The live crew-aware renderer owns loading presentation now. Suppress the
+      // legacy free-floating transfer round in cabin-view-core while preserving
+      // shell selection/readouts and the single canonical loading clock.
+      const liveLoading = merged.loading;
+      if (liveLoading) merged.loading = null;
       core.update(dt, merged);
+      if (liveLoading) merged.loading = liveLoading;
       const shake = Math.max(remoteRecoil * 2.4, remoteImpact * 4.2);
       if (shake > .05) {
         const t = performance.now() * .055;
@@ -138,15 +240,15 @@ export function createCabinView(canvas, options = {}) {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null; remoteLoading = null; remoteRecoil = remoteImpact = 0;
       canvas.style.transform = ''; canvas.style.filter = '';
-      clearMaintenance(); core.reset(); crewVisuals.clear();
+      loaderVisual.update(null); clearMaintenance(); core.reset(); crewVisuals.clear();
     },
-    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
+    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot(), loader: loaderVisual.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
     dispose() {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null;
       globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
       canvas.style.transform = ''; canvas.style.filter = '';
-      clearMaintenance(); crewVisuals.dispose(); core.dispose();
+      clearMaintenance(); loaderVisual.dispose(); crewVisuals.dispose(); core.dispose();
     },
   };
 
