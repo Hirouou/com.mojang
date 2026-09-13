@@ -262,6 +262,12 @@ export function createCabinView(canvas, options = {}) {
     return core.leaveStation?.();
   }
 
+  function onVisibilityChange() {
+    if (globalThis.document?.visibilityState !== 'hidden' || !activeCrewStation) return;
+    leaveCrewStation();
+  }
+  globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
+
   function reconcileCrewStation() {
     if (!activeCrewStation || enteringCrewStation === activeCrewStation) return true;
     const station = activeCrewStation;
@@ -324,6 +330,7 @@ export function createCabinView(canvas, options = {}) {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = enteringCrewStation = null;
       globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
+      globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
       canvas.style.transform = ''; canvas.style.filter = '';
       clearMaintenance(); hullImpactVisual.dispose(); loaderVisual.dispose(); crewVisuals.dispose(); core.dispose();
     },
