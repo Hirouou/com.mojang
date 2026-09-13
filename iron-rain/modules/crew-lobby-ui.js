@@ -172,12 +172,17 @@ export function createCrewLobbyUI({
 
   return Object.freeze({
     show() {
+      shell.style.removeProperty('display');
       shell.classList.remove('hidden');
       if (crewLobbySessionLocked(latest)) enter.focus({ preventScroll: true });
       else if (!selectedFaction) factionButtons[0]?.focus({ preventScroll: true });
       else input.focus({ preventScroll: true });
     },
-    hide() { shell.classList.add('hidden'); input.blur(); },
+    hide() {
+      shell.classList.add('hidden');
+      shell.style.setProperty('display', 'none', 'important');
+      input.blur();
+    },
     setStatus,
     setFaction,
     room,
