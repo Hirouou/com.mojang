@@ -14,6 +14,6 @@ test('maintenance vfx consumes canonical engine danger without adding another cl
   assert.match(source, /const danger = Math\.max\(0, Math\.min\(1, Number\(detail\.dangerPulse\) \|\| 0\)\)/);
   assert.match(source, /--danger:0/);
   assert.match(source, /var\(--danger\)/);
-  assert.match(source, /setProperty\('--danger', String\(danger\)\)/);
+  assert.match(source, /setStyleProperty\(vfx, '--danger', \(Math\.round\(danger \* 100\) \/ 100\)\.toFixed\(2\)\)/);
   assert.doesNotMatch(source, /setInterval|setTimeout/);
 });
