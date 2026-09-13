@@ -6,12 +6,12 @@ export function createWarAudio() {
   const voices = new Set();
   const MAX_VOICES = 40;
   let context, master, effectsBus, ambientBus, engine, engineFilter, engineGain, noiseBuffer;
-  let muted = false, paused = false, nextFoot = 0, nextCrank = 0, resumePending = null, maintenanceState = null;
+  let muted = false, paused = false, lifecycleHidden = false, nextFoot = 0, nextCrank = 0, resumePending = null, maintenanceState = null;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, Number.isFinite(n) ? n : a));
   // Device loss or denied playback must never escape into the game loop.
   const safely = fn => { try { return fn(); } catch { return undefined; } };
   const settle = result => result?.catch?.(() => {});
-  const documentHidden = () => globalThis.document?.visibilityState === 'hidden';
+  const documentHidden = () => lifecycleHidden || globalThis.document?.visibilityState === 'hidden';
 
   function applyVolumes() {
     if (!context || !master) return;
@@ -162,9 +162,27 @@ export function createWarAudio() {
     });
   }
 
+  const stopTransientVoices = () => {
+    for (const voice of [...voices]) {
+      safely(() => voice.source.stop());
+      voice.cleanup();
+    }
+  };
   const onMaintenanceFeedback = event => maintenance(event?.detail);
   const onVisibilityChange = () => safely(applyVolumes);
+  const onPageHide = () => safely(() => {
+    lifecycleHidden = true;
+    stopTransientVoices();
+    maintenanceState = null;
+    applyVolumes();
+  });
+  const onPageShow = () => safely(() => {
+    lifecycleHidden = false;
+    applyVolumes();
+  });
   globalThis.addEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
+  globalThis.addEventListener?.('pagehide', onPageHide);
+  globalThis.addEventListener?.('pageshow', onPageShow);
   globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
 
   function clearContext() {
@@ -270,8 +288,10 @@ export function createWarAudio() {
     }); },
     dispose() {
       globalThis.removeEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
+      globalThis.removeEventListener?.('pagehide', onPageHide);
+      globalThis.removeEventListener?.('pageshow', onPageShow);
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
-      safely(() => { for (const voice of [...voices]) safely(() => voice.source.stop()); });
+      safely(stopTransientVoices);
       settle(safely(() => context?.close()));
       clearContext(); nextCrank = nextFoot = 0;
     },
