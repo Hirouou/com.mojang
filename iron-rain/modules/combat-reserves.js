@@ -17,77 +17,39 @@ function validRoutePath(path, originId, destinationId) {
   return expectedFrom === String(destinationId ?? '');
 }
 
-/**
- * Ask the canonical strategic-logistics graph whether a friendly route really
- * exists. This intentionally delegates pathfinding to `strategic-logistics.js`
- * instead of duplicating adjacency/routing rules inside combat AI.
- */
+/** Ask the canonical strategic-logistics graph whether a friendly route really exists. */
 export function combatRouteOpen({ logistics, team, from, to } = {}) {
   if (!validTeam(team) || !logistics || typeof logistics.route !== 'function' || typeof logistics.getNode !== 'function') return false;
   const origin = logistics.getNode(String(from ?? ''));
   const destination = logistics.getNode(String(to ?? ''));
   if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return false;
   if (origin.id === destination.id) return true;
-  try {
-    const path = logistics.route(team, origin.id, destination.id);
-    return validRoutePath(path, origin.id, destination.id);
-  } catch {
-    return false;
-  }
+  try { return validRoutePath(logistics.route(team, origin.id, destination.id), origin.id, destination.id); }
+  catch { return false; }
 }
 
-/**
- * Resolve the nearest reachable rear depot from the canonical logistics graph.
- * Combat AI does not create an adjacency graph or guess a straight-line path:
- * every candidate is measured using `strategicLogistics.route()` itself. This
- * lets orchestration provide only the destination sector when the rear origin
- * is already represented by the shared world logistics state. A stocked depot
- * that is itself the staging destination is already physically reachable, so
- * it is accepted as the canonical zero-hop origin instead of requiring another
- * rear depot and road leg.
- */
 export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
   if (!validTeam(team) || !strategicLogistics || typeof strategicLogistics.route !== 'function' || typeof strategicLogistics.getNode !== 'function' || typeof strategicLogistics.snapshot !== 'function') return null;
   const destination = strategicLogistics.getNode(String(to ?? ''));
   if (!destination?.alive || destination.team !== team) return null;
   if (destination.kind === 'depot' && (!destination.assets || !hasOwn(destination.assets, 'troops') || positiveFinite(Number(destination.assets.troops)))) return destination.id;
   let nodes;
-  try {
-    nodes = strategicLogistics.snapshot()?.nodes;
-  } catch {
-    return null;
-  }
+  try { nodes = strategicLogistics.snapshot()?.nodes; } catch { return null; }
   if (!Array.isArray(nodes)) return null;
-
   let best = null;
   for (const node of nodes) {
     if (!node?.alive || node.team !== team || node.kind !== 'depot' || node.id === destination.id) continue;
     let path;
-    try {
-      path = strategicLogistics.route(team, node.id, destination.id);
-    } catch {
-      continue;
-    }
+    try { path = strategicLogistics.route(team, node.id, destination.id); } catch { continue; }
     if (!validRoutePath(path, node.id, destination.id)) continue;
     const distance = path.reduce((sum, leg) => sum + Number(leg.distance), 0);
     if (!positiveFinite(distance)) continue;
     const stocked = positiveFinite(Number(node.assets?.troops));
-    // Prefer a rear depot that actually holds physical troop inventory whenever
-    // the canonical graph exposes it. If none is stocked, keep the nearest
-    // reachable depot as route lineage; destination staging inventory still
-    // gates actual admission, so this fallback cannot materialize troops.
-    if (!best || (stocked && !best.stocked) || (stocked === best.stocked && (distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))))) {
-      best = { id: node.id, distance, stocked };
-    }
+    if (!best || (stocked && !best.stocked) || (stocked === best.stocked && (distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))))) best = { id: node.id, distance, stocked };
   }
   return best?.id || null;
 }
 
-/**
- * Read-only bridge from canonical territory/route state to the reserve gate.
- * It never creates supply, opens routes or builds structures; callers provide
- * route reachability already earned from the strategic logistics simulation.
- */
 export function combatLogisticsState({ territory, team, routeOpen = false } = {}) {
   const friendly = validTeam(team) && territory?.owner === team && territory?.contested === false;
   const connected = friendly && bool(routeOpen);
@@ -98,21 +60,7 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
   const effects = territoryOperationalEffects(friendly ? territory : null);
   const reinforcementSupport = friendly && positiveFinite(effects.reinforcementSupport) ? effects.reinforcementSupport : 0;
   const canReceiveReinforcements = connected && (hasOutpost || hasDepot || hasGarage) && reinforcementSupport > 0;
-  // Physical staging nodes must retain a minimal local guard instead of sending
-  // every delivered soldier to the trench. This is one fictional aggregate
-  // unit, not a real-world manpower table, and only applies where combat already
-  // recognizes a valid field node from canonical territory state.
-  const garrisonReserve = friendly && (hasOutpost || hasDepot || hasGarage) ? 1 : 0;
-
-  return Object.freeze({
-    connected,
-    hasOutpost,
-    hasDepot,
-    hasGarage,
-    canReceiveReinforcements,
-    reinforcementSupport,
-    garrisonReserve,
-  });
+  return Object.freeze({ connected, hasOutpost, hasDepot, hasGarage, canReceiveReinforcements, reinforcementSupport });
 }
 
 function combatDeliveredTroops(strategicLogistics, to) {
@@ -120,14 +68,9 @@ function combatDeliveredTroops(strategicLogistics, to) {
   try {
     const destination = strategicLogistics.getNode(String(to ?? ''));
     if (!destination?.alive) return 0;
-    // Lightweight route mocks predate physical asset inventories. Treat an
-    // absent inventory as "not modelled" rather than silently inventing zero;
-    // canonical strategic-logistics nodes always expose `assets.troops`.
     if (!destination.assets || !hasOwn(destination.assets, 'troops')) return null;
     return Math.max(0, Math.floor(Number(destination.assets.troops) || 0));
-  } catch {
-    return 0;
-  }
+  } catch { return 0; }
 }
 
 function consumeDeliveredTroops(strategicLogistics, to, amount) {
@@ -141,16 +84,17 @@ function consumeDeliveredTroops(strategicLogistics, to, amount) {
     if (available < requested) return false;
     destination.assets.troops = available - requested;
     return destination.assets.troops;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function withDeliveredTroops(logistics, strategicLogistics, to) {
   const availableTroops = combatDeliveredTroops(strategicLogistics, to);
   if (availableTroops == null) return logistics;
-  const garrisonReserve = Math.max(0, Math.floor(Number(logistics?.garrisonReserve) || 0));
-  const deployableTroops = Math.max(0, availableTroops - garrisonReserve);
+  // A canonical field node keeps one fictional aggregate defender instead of
+  // stripping itself empty to feed the front. This uses the existing territory
+  // structure flags and physical troop stock; it is not a second garrison model.
+  const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
+  const deployableTroops = Math.max(0, availableTroops - (fieldNode ? 1 : 0));
   return Object.freeze({ ...logistics, availableTroops, deployableTroops });
 }
 
@@ -160,17 +104,6 @@ function deployableTroops(logistics) {
   return null;
 }
 
-/**
- * Pure admission gate for aggregate infantry reserves.
- *
- * Strategic timers still decide *when* a formation is due for replacements;
- * this gate only decides whether those replacements are physically able to
- * arrive. It intentionally does not create personnel or pick reinforcement
- * amounts. Callers must pass the local `combatLogisticsState()` snapshot earned
- * by the world/logistics simulation. When physical troop inventory is present,
- * only troops above the staging node's minimal defensive garrison are deployable;
- * an open road by itself never materializes soldiers at the front.
- */
 export function combatReserveGate({ logistics, timerExpired = false, fallbackComplete = false } = {}) {
   const connected = bool(logistics?.connected);
   const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
@@ -178,39 +111,12 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
   const deployable = deployableTroops(logistics);
   const delivered = deployable == null || deployable > 0;
   const logisticsReady = connected && fieldNode && support && delivered && bool(logistics?.canReceiveReinforcements);
-  const due = bool(timerExpired);
-  const fallbackReady = bool(fallbackComplete);
-  const ready = due && fallbackReady && logisticsReady;
-
+  const due = bool(timerExpired), fallbackReady = bool(fallbackComplete), ready = due && fallbackReady && logisticsReady;
   let reason = 'ready';
-  if (!due) reason = 'timer';
-  else if (!fallbackReady) reason = 'fallback';
-  else if (!connected) reason = 'route';
-  else if (!fieldNode) reason = 'field-node';
-  else if (!support) reason = 'support';
-  else if (!delivered) reason = 'troops';
-  else if (!bool(logistics?.canReceiveReinforcements)) reason = 'logistics';
-
-  return Object.freeze({
-    ready,
-    reason,
-    timerExpired: due,
-    fallbackComplete: fallbackReady,
-    logisticsReady,
-  });
+  if (!due) reason = 'timer'; else if (!fallbackReady) reason = 'fallback'; else if (!connected) reason = 'route'; else if (!fieldNode) reason = 'field-node'; else if (!support) reason = 'support'; else if (!delivered) reason = 'troops'; else if (!bool(logistics?.canReceiveReinforcements)) reason = 'logistics';
+  return Object.freeze({ ready, reason, timerExpired: due, fallbackComplete: fallbackReady, logisticsReady });
 }
 
-/**
- * Gameplay-scale reserve batch derived from the canonical territory support.
- * There is deliberately no unconditional minimum: light infrastructure yields
- * a small batch, while cut or malformed logistics yields zero replacements.
- * When a physical staging inventory is supplied, the batch is capped by troops
- * that can leave after preserving the node's defensive garrison and resolved to
- * whole delivered troop units so combat can debit exactly what it admits.
- *
- * The multiplier stays on the existing aggregate 0..100 front-strength scale;
- * it is a fictional gameplay value, not a real-world personnel table.
- */
 export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
   const shortage = Number.isFinite(deficit) ? Math.max(0, deficit) : 0;
   const support = positiveFinite(logistics?.reinforcementSupport) ? logistics.reinforcementSupport : 0;
@@ -224,112 +130,37 @@ export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
   return Math.min(Math.floor(supported), deployable);
 }
 
-/**
- * Single read-only decision for the strategic reinforcement timer. Keeping the
- * gate and batch together prevents callers from admitting a reserve through
- * one logistics snapshot and sizing it from another one.
- */
 export function combatReserveDecision({ logistics, timerExpired = false, fallbackComplete = false, deficit = 0 } = {}) {
   const gate = combatReserveGate({ logistics, timerExpired, fallbackComplete });
   const amount = gate.ready ? combatReserveBatch({ logistics, deficit }) : 0;
-  return Object.freeze({
-    ready: gate.ready && amount > 0,
-    reason: gate.ready && amount <= 0 ? 'deficit' : gate.reason,
-    amount,
-    timerExpired: gate.timerExpired,
-    fallbackComplete: gate.fallbackComplete,
-    logisticsReady: gate.logisticsReady,
-  });
+  return Object.freeze({ ready: gate.ready && amount > 0, reason: gate.ready && amount <= 0 ? 'deficit' : gate.reason, amount, timerExpired: gate.timerExpired, fallbackComplete: gate.fallbackComplete, logisticsReady: gate.logisticsReady });
 }
 
-/**
- * Compose the full read-only reserve path from canonical strategic logistics
- * and territory state. Callers hand over the graph/endpoints already owned by
- * the world simulation; combat AI only asks whether the route exists, derives
- * the local territory effects, and makes one admission+batch decision from
- * that same snapshot. No pathfinding, stock or infrastructure is duplicated.
- */
-export function combatReservePlan({
-  strategicLogistics,
-  territory,
-  team,
-  from,
-  to,
-  timerExpired = false,
-  fallbackComplete = false,
-  deficit = 0,
-} = {}) {
+export function combatReservePlan({ strategicLogistics, territory, team, from, to, timerExpired = false, fallbackComplete = false, deficit = 0 } = {}) {
   const origin = from == null ? combatReserveOrigin({ strategicLogistics, team, to }) : from;
   const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to });
   const logistics = withDeliveredTroops(combatLogisticsState({ territory, team, routeOpen }), strategicLogistics, to);
-  const decision = combatReserveDecision({ logistics, timerExpired, fallbackComplete, deficit });
-  return Object.freeze({ origin, routeOpen, logistics, ...decision });
+  return Object.freeze({ origin, routeOpen, logistics, ...combatReserveDecision({ logistics, timerExpired, fallbackComplete, deficit }) });
 }
 
-/**
- * Advance one reserve countdown without consuming an already-due request when
- * route/fallback conditions are temporarily blocked. The timer stays at zero
- * until a positive batch is actually admitted, then resets for the next cycle.
- */
 export function combatReserveCycle({ logistics, timer = 0, fallbackUntil = 0, tick = 0, strength = 0, resetIn = 40 } = {}) {
   const remaining = Number.isFinite(timer) ? Math.max(0, timer - 1) : 0;
   const currentTick = Number.isFinite(tick) ? tick : 0;
   const fallbackTick = Number.isFinite(fallbackUntil) ? fallbackUntil : Infinity;
   const currentStrength = Number.isFinite(strength) ? Math.max(0, Math.min(100, strength)) : 100;
-  const decision = combatReserveDecision({
-    logistics,
-    timerExpired: remaining <= 0,
-    fallbackComplete: currentTick >= fallbackTick,
-    deficit: 100 - currentStrength,
-  });
+  const decision = combatReserveDecision({ logistics, timerExpired: remaining <= 0, fallbackComplete: currentTick >= fallbackTick, deficit: 100 - currentStrength });
   const interval = Number.isFinite(resetIn) && resetIn > 0 ? Math.max(1, Math.floor(resetIn)) : 40;
   return Object.freeze({ ...decision, nextTimer: decision.ready ? interval : remaining });
 }
 
-/**
- * Canonical one-shot reserve tick for the strategic simulator. Route reachability,
- * territory effects, fallback readiness, deficit sizing and timer consumption all
- * come from the same inputs. Standalone consumers debit the destination staging
- * inventory here. The live world wrapper already owns an atomic `claimAsset`
- * reconciliation step, so contexts exposing that seam defer the mutation to it
- * and avoid charging the same delivered troops twice.
- */
-export function combatReservePlanCycle({
-  strategicLogistics,
-  territory,
-  team,
-  from,
-  to,
-  claimAsset,
-  timer = 0,
-  fallbackUntil = 0,
-  tick = 0,
-  strength = 0,
-  resetIn = 40,
-} = {}) {
+export function combatReservePlanCycle({ strategicLogistics, territory, team, from, to, claimAsset, timer = 0, fallbackUntil = 0, tick = 0, strength = 0, resetIn = 40 } = {}) {
   const origin = from == null ? combatReserveOrigin({ strategicLogistics, team, to }) : from;
   const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to });
   const logistics = withDeliveredTroops(combatLogisticsState({ territory, team, routeOpen }), strategicLogistics, to);
   const cycle = combatReserveCycle({ logistics, timer, fallbackUntil, tick, strength, resetIn });
   if (!cycle.ready || !hasOwn(logistics, 'availableTroops')) return Object.freeze({ origin, routeOpen, logistics, ...cycle });
-
-  if (typeof claimAsset === 'function') {
-    return Object.freeze({ origin, routeOpen, logistics, ...cycle, debitDelegated: true });
-  }
-
+  if (typeof claimAsset === 'function') return Object.freeze({ origin, routeOpen, logistics, ...cycle, debitDelegated: true });
   const remainingTroops = consumeDeliveredTroops(strategicLogistics, to, cycle.amount);
-  if (remainingTroops === false) {
-    return Object.freeze({
-      origin,
-      routeOpen,
-      logistics,
-      ...cycle,
-      ready: false,
-      reason: 'troops',
-      amount: 0,
-      nextTimer: 0,
-      remainingTroops: combatDeliveredTroops(strategicLogistics, to),
-    });
-  }
+  if (remainingTroops === false) return Object.freeze({ origin, routeOpen, logistics, ...cycle, ready: false, reason: 'troops', amount: 0, nextTimer: 0, remainingTroops: combatDeliveredTroops(strategicLogistics, to) });
   return Object.freeze({ origin, routeOpen, logistics, ...cycle, remainingTroops });
 }
