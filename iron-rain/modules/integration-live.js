@@ -58,8 +58,8 @@ function applyRemoteEffect(effect) {
     audio.impact(feedback || effect.payload || effect);
     toast(effect.type === 'critical' ? 'ESTADO CRÍTICO · toda a tripulação recebeu o alerta.' : 'IMPACTO NO CASCO · sentido por toda a tripulação.', 'CASCO');
   }
-  else if (effect.type === 'repair') audio.load({ intensity: .45 });
-  else if (effect.type === 'extinguisher') audio.load({ intensity: .35 });
+  else if (effect.type === 'repair') audio.maintenance({ active: true, kind: 'repair', progress: effect.payload?.progress });
+  else if (effect.type === 'extinguisher') audio.maintenance({ active: true, kind: 'extinguish', progress: effect.payload?.progress });
 }
 
 function bindRuntime() {
