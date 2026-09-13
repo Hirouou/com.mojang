@@ -289,9 +289,13 @@ export function createCabinView(canvas, options = {}) {
     return core.leaveStation?.();
   }
 
+  function runPointerUnlockCleanup() {
+    try { originalOnPointerUnlock?.(); } catch {}
+  }
+
   function releaseCrewStationsForBackground() {
     cancelPendingCrewStation();
-    if (activeCrewStation) leaveCrewStation();
+    if (activeCrewStation && leaveCrewStation() !== false) runPointerUnlockCleanup();
   }
   function onVisibilityChange() {
     if (globalThis.document?.visibilityState !== 'hidden') return;
@@ -316,7 +320,7 @@ export function createCabinView(canvas, options = {}) {
     core.leaveStation?.();
     // Reuse the existing parent cleanup seam so gameplay/UI state cannot remain
     // seated after the crew authority has already ejected the rendered cabin.
-    try { originalOnPointerUnlock?.(); } catch {}
+    runPointerUnlockCleanup();
     return false;
   }
 
