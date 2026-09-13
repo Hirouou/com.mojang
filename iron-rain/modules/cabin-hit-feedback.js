@@ -26,15 +26,34 @@ export function hullImpactFeedback({ damage = 0, kind = 'hit', inside = true } =
   });
 }
 
-export function createHullImpactQueue({ max = 8 } = {}) {
+export function createHullImpactQueue({ max = 8, mergeWindow = .08 } = {}) {
   const limit = Math.max(1, Math.min(24, Math.floor(Number(max) || 8)));
+  const mergeSeconds = clamp(Number(mergeWindow), 0, .25);
   const impacts = [];
   let serial = 0;
 
   function push(hit, now = 0) {
     const feedback = hullImpactFeedback(hit);
     if (!feedback.active) return null;
-    const entry = { id: ++serial, at: Number(now) || 0, age: 0, ...feedback };
+    const at = Number(now) || 0;
+    const previous = impacts.at(-1);
+    if (previous && mergeSeconds > 0 && at >= previous.at && at - previous.at <= mergeSeconds) {
+      const stronger = feedback.intensity >= previous.intensity ? feedback : previous;
+      previous.at = at;
+      previous.age = 0;
+      previous.intensity = Math.max(previous.intensity, feedback.intensity);
+      previous.duration = Math.max(previous.duration, feedback.duration);
+      previous.cameraShake = Math.max(previous.cameraShake, feedback.cameraShake);
+      previous.hullFlash = Math.max(previous.hullFlash, feedback.hullFlash);
+      previous.dustKick = Math.max(previous.dustKick, feedback.dustKick);
+      previous.lampFlicker = Math.max(previous.lampFlicker, feedback.lampFlicker);
+      previous.metalRattle = Math.max(previous.metalRattle, feedback.metalRattle);
+      previous.lowThump = Math.max(previous.lowThump, feedback.lowThump);
+      previous.sharpCrack = Math.max(previous.sharpCrack, feedback.sharpCrack);
+      previous.label = stronger.label;
+      return Object.freeze({ ...previous });
+    }
+    const entry = { id: ++serial, at, age: 0, ...feedback };
     impacts.push(entry);
     if (impacts.length > limit) impacts.splice(0, impacts.length - limit);
     return Object.freeze({ ...entry });
