@@ -131,3 +131,30 @@ test('rejected fire leaves canonical ammo available for retry', () => {
   assert.equal(authority.receive({ playerId: 'gunner', seq: 41, type: 'fire', payload }).ok, true);
   assert.equal(inventory.shells.HE, 0);
 });
+
+test('fire reserves canonical ammo before apply and restores it when apply rejects', () => {
+  const inventory = createMamuteInventory({
+    capacity: { HE: 2, SMOKE: 1, FRAG: 1 },
+    shells: { HE: 1, SMOKE: 1, FRAG: 1 },
+  });
+  const observedAmmo = [];
+  let allow = false;
+  const authority = createMamuteCommandAuthority({
+    stationOwner: () => 'gunner',
+    fireInventory: inventory,
+    apply: () => { observedAmmo.push(inventory.shells.HE); return allow; },
+  });
+  const payload = { shotId: 'mamute-a:gunner:atomic-ammo', shell: 'HE' };
+
+  const rejected = authority.receive({ playerId: 'gunner', seq: 50, type: 'fire', payload });
+  assert.equal(rejected.reason, 'command-rejected');
+  assert.deepEqual(observedAmmo, [0]);
+  assert.equal(inventory.shells.HE, 1);
+
+  allow = true;
+  const accepted = authority.receive({ playerId: 'gunner', seq: 51, type: 'fire', payload });
+  assert.equal(accepted.ok, true);
+  assert.deepEqual(observedAmmo, [0, 0]);
+  assert.equal(accepted.ammoRemaining, 0);
+  assert.equal(inventory.shells.HE, 0);
+});
