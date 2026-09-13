@@ -36,6 +36,26 @@ test('authoritative fire results preserve shotId across acceptance and rejection
   assert.equal(empty.shotId, 'mamute-a:gunner:shot-2');
 });
 
+test('station ownership rejection keeps the denied fire shotId authoritative', () => {
+  let owner = null;
+  const authority = createMamuteCommandAuthority({ stationOwner: () => owner });
+
+  const unclaimed = authority.receive({
+    playerId: 'gunner', seq: 1, type: 'fire',
+    payload: { shotId: 'mamute-a:gunner:preclaim', shell: 'HE' },
+  });
+  assert.equal(unclaimed.reason, 'station-not-claimed');
+  assert.equal(unclaimed.shotId, 'mamute-a:gunner:preclaim');
+
+  owner = 'other-gunner';
+  const occupied = authority.receive({
+    playerId: 'gunner', seq: 2, type: 'fire',
+    payload: { shotId: 'mamute-a:gunner:occupied', shell: 'HE' },
+  });
+  assert.equal(occupied.reason, 'station-owned-by-other');
+  assert.equal(occupied.shotId, 'mamute-a:gunner:occupied');
+});
+
 test('legacy fire without shotId does not invent a correlation id', () => {
   const authority = createMamuteCommandAuthority({ stationOwner: () => 'gunner' });
   const result = authority.receive({ playerId: 'gunner', seq: 1, type: 'fire', payload: { shell: 'HE' } });
