@@ -56,6 +56,15 @@ test('depleted formations withdraw before hard break when local supply is gone',
   assert.equal(combatRecoveryPhase(base), 'wait_support', 'composed and armed troops may still hold for support');
 });
 
+test('shaken and heavily suppressed formations withdraw before a hard break even with supply', () => {
+  const base = { strength: 48, morale: .31, suppression: .66, ammo: .8, supply: .8 };
+  for (const phase of ['hold', 'suppress', 'wait_support', 'assault']) {
+    assert.equal(combatRecoveryPhase({ phase, ...base }), 'retreat', `${phase} withdraws under combined cohesion pressure`);
+  }
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', morale: .32 }), 'hold', 'restored morale alone removes the combined withdrawal trigger');
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', suppression: .65 }), 'hold', 'reduced suppression alone removes the combined withdrawal trigger');
+});
+
 test('staging formations do not counter-attack until morale, suppression, ammo and supply are all ready', () => {
   const base = { phase: 'hold', strength: 55, morale: .7, suppression: .2, ammo: .8, supply: .8 };
   assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'shaken formation stays in cover');
