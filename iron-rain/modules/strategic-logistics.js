@@ -100,7 +100,9 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return Object.freeze({ ok: false, reason: 'invalid-endpoint' });
     if (!canPay(origin.stock, load)) return Object.freeze({ ok: false, reason: 'origin-stock-insufficient' });
     if (!canPayAssets(origin.assets, manifest)) return Object.freeze({ ok: false, reason: 'origin-assets-insufficient' });
-    const path = route(team, origin.id, destination.id, { now: Number.isFinite(dispatchNow) ? dispatchNow : intelNow });
+    // Dispatch time is monotonic. A delayed caller must not rewind threat intel
+    // and make an already-stale observation influence routing again.
+    const path = route(team, origin.id, destination.id, { now: intelNow });
     if (!path) return Object.freeze({ ok: false, reason: 'route-cut' });
     debit(origin.stock, load);
     debitAssets(origin.assets, manifest);
