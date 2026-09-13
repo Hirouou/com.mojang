@@ -63,3 +63,20 @@ test('invalid zoom or viewport cannot corrupt the Mamute return anchor', () => {
     assert.deepEqual({ x: state.cam.x, y: state.cam.y }, cameraAnchor(state, Number.NaN));
   }
 });
+
+test('invalid Mamute coordinates cannot poison the artillery camera return', () => {
+  const state = makeState();
+  state.robot.x = Number.NaN;
+  state.robot.y = Number.POSITIVE_INFINITY;
+  state.cam.mode = 'return';
+  state.returning = true;
+  const anchor = cameraAnchor(state, 1200);
+  assert.equal(Number.isFinite(anchor.x), true);
+  assert.equal(Number.isFinite(anchor.y), true);
+  assert.equal(anchor.y, 4200);
+
+  for (let i = 0; i < 40 && state.cam.mode !== 'follow'; i += 1) stepCamera(state, 0.1, 1200);
+  assert.equal(state.cam.mode, 'follow');
+  assert.equal(Number.isFinite(state.cam.x), true);
+  assert.equal(Number.isFinite(state.cam.y), true);
+});
