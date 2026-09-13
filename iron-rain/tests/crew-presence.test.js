@@ -43,6 +43,21 @@ test('blocked interpolation holds the last drawable pose instead of clipping thr
   assert.ok(resumed[0].pose.x > initial.x);
 });
 
+test('remote interpolation never cuts through solid cabin geometry between valid samples', () => {
+  const presence = createCabinCrewPresence();
+  const from = { x: 1.2330580986681197, z: 2.2216249679768842, yaw: 0, pitch: 0 };
+  const to = { x: -1.2381760006677534, z: -0.3154565100262894, yaw: .8, pitch: .1 };
+  const initial = presence.update([{ id: 'driver', pose: from }])[0].pose;
+
+  const halfway = presence.update([{ id: 'driver', from, to, alpha: .5 }])[0].pose;
+  assert.strictEqual(halfway, initial, 'valid midpoint must not bypass equipment crossed earlier in the segment');
+
+  const completed = presence.update([{ id: 'driver', from, to, alpha: 1 }])[0].pose;
+  assert.notStrictEqual(completed, initial, 'completed authoritative sample may snap to its validated endpoint');
+  assert.ok(Math.abs(completed.x - to.x) < 1e-9);
+  assert.ok(Math.abs(completed.z - to.z) < 1e-9);
+});
+
 test('per-peer interpolation alpha from crew replication overrides the fallback blend', () => {
   const presence = createCabinCrewPresence();
   const visible = presence.update([

@@ -1,4 +1,4 @@
-import { cabinCrewPose, interpolateCabinCrewPose } from './cabin-controls.js';
+import { cabinCrewPose, canReachCabinPoint, interpolateCabinCrewPose } from './cabin-controls.js';
 
 /**
  * Renderer-facing state for at most two remote crew members.
@@ -28,11 +28,23 @@ export function createCabinCrewPresence({ capacity = 2 } = {}) {
 
       let pose = null;
       if (remote.pose) pose = cabinCrewPose(remote.pose);
-      else if (remote.from || remote.to) pose = interpolateCabinCrewPose(remote.from, remote.to, blendAlpha(remote, alpha));
+      else if (remote.from || remote.to) {
+        const blend = blendAlpha(remote, alpha);
+        const from = cabinCrewPose(remote.from);
+        const to = cabinCrewPose(remote.to);
+        if (from && to && canReachCabinPoint(from.x, from.z, to.x, to.z)) {
+          pose = interpolateCabinCrewPose(from, to, blend);
+        } else if (blend >= 1 && to) {
+          // A finished network sample may legitimately arrive after the peer
+          // walked around equipment between snapshots. Snap only at completion;
+          // never synthesize a straight-line path through solid cabin geometry.
+          pose = to;
+        }
+      }
 
-      // A rejected midpoint can happen when two valid network samples straddle
-      // solid equipment. Keep the last drawable pose instead of clipping or
-      // teleporting the avatar through the cabin.
+      // A rejected interpolation can happen when two valid network samples
+      // straddle solid equipment. Keep the last drawable pose instead of
+      // clipping or teleporting the avatar through the cabin.
       if (!pose) pose = lastValid.get(remote.id) || null;
       if (!pose) continue;
 
