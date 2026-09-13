@@ -5,6 +5,7 @@ import { createTableMap } from './modules/table-map.js';
 import { cinematicActive, smooth, cameraAnchor, beginReturn, finishCamera, stepCamera } from './modules/camera-director.js';
 import { drawWarInfrastructure, drawWarAtmosphere } from './modules/battlefield-view.js';
 import { createWarAudio } from './modules/war-audio.js';
+import { loaderAudioCue } from './modules/loader-audio-cue.js';
 import { beginLoading, stepLoading, loadingLabel } from './modules/loading-cycle.js';
 import { DEFAULT_BINDINGS, eventCode, keyLabel, actionForKey, rebindKey, restoreBindings } from './modules/key-bindings.js';
 import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine as stepEngine, engineStatus } from './modules/engine-system.js';
@@ -369,7 +370,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   }
 
   function createMission(sec,target,source){
-    state.mission={sector:sec,target,source,created:state.time,report:state.reports.find(r=>r.id===target.id)};UI.missionPill.classList.remove('hidden');UI.missionTitle.textContent=`${source==='plane'?'RECON':'FO'} • ${target.type}`;UI.missionText.textContent=`X${fmt(target.x)} Y${fmt(target.y)} • ${Math.round(distance(state.robot,target)/100)/10} km`;
+    state.mission={sector:sec,target,source,created:state.time,report:state.reports.find(r=>r.id===target.id)};UI.missionPill.classList.remove('hidden');UI.missionTitle.textContent=`${source==='plane'?'RECON':'FO'} • ${target.type}`;UI.missionText.textContent=`X${fmt(target.x)} Y${fmt(target.y)} • ${Math.round(distance(state.robot,target))} m`;
     updateNotebook();
   }
   function clearMission(){
@@ -484,7 +485,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   function update(dt){
     if(!state||state.paused)return;state.time+=dt;state.robot.recoil=Math.max(0,(state.robot.recoil||0)-dt*3);
     state.shotElapsed+=dt;
-    if(state.loading){const oldPhase=state.loading.phase;stepLoading(state.loading,dt);if(oldPhase!==state.loading.phase)audio.load?.();if(state.loading.complete){state.loadedShell=state.loading.to;state.loading=null;}}
+    if(state.loading){const oldPhase=state.loading.phase;stepLoading(state.loading,dt);const loaderCue=loaderAudioCue(oldPhase,state.loading);if(loaderCue)audio.load(loaderCue);if(state.loading.complete){state.loadedShell=state.loading.to;state.loading=null;}}
     if(state.mission&&!state.mission.target.alive)clearMission();
     if(!state.mission&&state.time>=state.nextCommander){state.nextCommander=queueIntel('mission')?Infinity:state.time+30;}
     if(state.time>=state.nextDiscovery){queueIntel('discovery');state.nextDiscovery=state.time+rand(65,100);}
@@ -599,7 +600,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
 
   function changeCharge(delta){if(!enabled()||(!cabinFailed&&state.station!=='aim'))return;state.charge=clamp(state.charge+delta,1,7);audio.load();touchUI();updateUI();updateNotebook();}
   $('chargeUp').addEventListener('click',()=>changeCharge(1));$('chargeDown').addEventListener('click',()=>changeCharge(-1));
-  document.querySelectorAll('.ammo').forEach(b=>b.addEventListener('click',()=>{if(!enabled()||state.loading||(!cabinFailed&&state.station!=='load'))return;const next=b.dataset.shell;if(next!==selectedShell){state.loading=beginLoading(state.loadedShell,next);selectedShell=next;audio.load();}document.querySelectorAll('.ammo').forEach(x=>x.classList.toggle('active',x===b));touchUI();syncControls();}));
+  document.querySelectorAll('.ammo').forEach(b=>b.addEventListener('click',()=>{if(!enabled()||state.loading||(!cabinFailed&&state.station!=='load'))return;const next=b.dataset.shell;if(next!==selectedShell){state.loading=beginLoading(state.loadedShell,next);selectedShell=next;const loaderCue=loaderAudioCue(null,state.loading);if(loaderCue)audio.load(loaderCue);}document.querySelectorAll('.ammo').forEach(x=>x.classList.toggle('active',x===b));touchUI();syncControls();}));
   $('deployBtn').addEventListener('click',()=>setMode('artillery'));$('marchBtn').addEventListener('click',()=>cabinFailed?setMode('march'):leaveStation());$('fireBtn').addEventListener('click',fireShell);$('notebookBtn').addEventListener('click',requestMap);
   $('menuBtn').addEventListener('click',()=>openSheet('menu'));$('resumeBtn').addEventListener('click',resume);$('helpBtn').addEventListener('click',()=>openSheet('help'));$('restartBtn').addEventListener('click',()=>{resetGame();});$('centerBtn').addEventListener('click',()=>{state.cam.manualX=0;state.cam.manualY=0;skipCinematic();resume();});
   $('radioBtn').addEventListener('click',openRadio);$('closeRadio').addEventListener('click',closeRadio);
