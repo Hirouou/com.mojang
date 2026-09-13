@@ -133,10 +133,6 @@ function refreshCombatReserveContext(state) {
     if (!front) return null;
     const center = front.war ? getFrontGeometry(front).center : front;
     const direction = team === 'ally' ? -1 : 1;
-    // Front sectors are deliberately contested/neutral on the strategic map.
-    // Walk only toward that faction's rear and let the canonical map choose the
-    // actual sector; combat-reserves still delegates route reachability to the
-    // shared strategic-logistics graph before admitting a single replacement.
     for (const metres of COMBAT_RESERVE_REAR_STEPS) {
       const located = strategicMap.locate({ x: center.x + direction * metres, y: center.y });
       const staging = located?.sector;
@@ -146,6 +142,12 @@ function refreshCombatReserveContext(state) {
     }
     return null;
   };
+}
+
+function stagingContext(state, sectorId, team) {
+  const contextFor = state?.warSimulation?.combatReserveContext;
+  if (typeof contextFor !== 'function') return null;
+  try { return contextFor({ sectorId, team }) || null; } catch { return null; }
 }
 
 function syncCombatSustainment(state) {
@@ -165,6 +167,127 @@ function syncCombatSustainment(state) {
   }
 }
 
+function strategicAssetSnapshot(state) {
+  const snapshot = new Map();
+  for (const sector of state?.sectors || []) {
+    if (!sector?.war || !sector.strategicSectorId) continue;
+    for (const team of ['ally', 'enemy']) {
+      const force = sector.war[team];
+      snapshot.set(`${sector.id}:${team}`, {
+        strength: Number(sector[team === 'ally' ? 'allyStrength' : 'enemyStrength']) || 0,
+        reinforcements: Number(force?.reinforcements) || 0,
+      });
+    }
+    for (const tank of sector.war.vehicles || []) snapshot.set(`tank:${tank.id}`, { alive: tank.alive !== false, claimed: tank.__strategicAssetClaimed === true });
+  }
+  return snapshot;
+}
+
+function reconcileStrategicAssets(state, before) {
+  if (!before) return;
+  for (const sector of state?.sectors || []) {
+    if (!sector?.war || !sector.strategicSectorId) continue;
+    for (const team of ['ally', 'enemy']) {
+      const key = team === 'ally' ? 'allyStrength' : 'enemyStrength';
+      const force = sector.war[team];
+      const previous = before.get(`${sector.id}:${team}`);
+      if (!previous || !force) continue;
+      const reinforcementDelta = Math.max(0, (Number(force.reinforcements) || 0) - previous.reinforcements);
+      if (reinforcementDelta <= 0) continue;
+      const context = stagingContext(state, sector.strategicSectorId, team);
+      const requested = Math.max(1, Math.ceil(reinforcementDelta));
+      const available = Math.max(0, Math.floor(Number(context?.assetCount?.('troops')) || 0));
+      const accepted = Math.min(requested, available);
+      if (accepted > 0) context?.claimAsset?.('troops', accepted);
+      if (accepted < requested) {
+        const allowedDelta = reinforcementDelta * (accepted / requested);
+        const rollback = Math.max(0, reinforcementDelta - allowedDelta);
+        sector[key] = Math.max(previous.strength, (Number(sector[key]) || 0) - rollback);
+        force.reinforcements = Math.max(previous.reinforcements, (Number(force.reinforcements) || 0) - rollback);
+      }
+    }
+
+    for (const tank of sector.war.vehicles || []) {
+      if (tank?.type !== 'tank') continue;
+      const previous = before.get(`tank:${tank.id}`) || { alive: false, claimed: false };
+      if (tank.alive === false) {
+        if (previous.claimed) tank.__strategicAssetClaimed = false;
+        continue;
+      }
+      if (previous.alive && previous.claimed && tank.__strategicAssetClaimed === true) continue;
+      const context = stagingContext(state, sector.strategicSectorId, tank.team);
+      if (context?.claimAsset?.('tanks', 1)) {
+        tank.__strategicAssetClaimed = true;
+        tank.__strategicAssetOrigin = context.to || null;
+        continue;
+      }
+      tank.alive = false;
+      tank.hp = 0;
+      tank.flash = 0;
+      tank.__strategicAssetClaimed = false;
+      tank.replacementIn = Math.min(15, Math.max(1, Number(tank.replacementIn) || 15));
+    }
+  }
+}
+
+function strategicLogistics(state) {
+  for (const sector of state?.sectors || []) {
+    if (!sector?.strategicSectorId) continue;
+    for (const team of ['ally', 'enemy']) {
+      const context = stagingContext(state, sector.strategicSectorId, team);
+      if (context?.strategicLogistics?.snapshot) return context.strategicLogistics;
+    }
+  }
+  return null;
+}
+
+/**
+ * Render-only projection of canonical strategic convoys into the local world.
+ * It never moves or creates a unit: positions come from strategic-logistics.
+ */
+function publishStrategicTraffic(state) {
+  state.warSimulation ||= {};
+  const now = Number(state.time) || 0;
+  if (now < (state.warSimulation.nextTrafficProjection || 0)) return;
+  state.warSimulation.nextTrafficProjection = now + .35;
+  const logistics = strategicLogistics(state);
+  if (!logistics) { state.warSimulation.strategicTraffic = []; return; }
+  const snapshot = logistics.snapshot();
+  const nodes = new Map((snapshot.nodes || []).map(node => [node.id, node]));
+  const own = playerTeam(), traffic = [];
+  for (const convoy of snapshot.convoys || []) {
+    if (!['moving', 'blocked'].includes(convoy.status)) continue;
+    const leg = convoy.path?.[convoy.leg];
+    if (!leg) continue;
+    const from = nodes.get(leg.from), to = nodes.get(leg.to);
+    if (!from || !to) continue;
+    const q = Math.max(0, Math.min(1, (Number(convoy.legProgress) || 0) / Math.max(1, Number(leg.distance) || 1)));
+    const x = from.x + (to.x - from.x) * q, y = from.y + (to.y - from.y) * q;
+    const localDistance = Math.hypot(x - state.robot.x, y - state.robot.y);
+    const friendly = convoy.team === own;
+    if (friendly ? localDistance > 9_000 : localDistance > 1_200) continue;
+    traffic.push(Object.freeze({
+      id: convoy.id,
+      kind: convoy.kind || 'supply',
+      team: convoy.team,
+      x,
+      y,
+      angle: Math.atan2(to.y - from.y, to.x - from.x),
+      speed: convoy.status === 'moving' ? Number(convoy.speed) || 1 : 0,
+      moving: convoy.status === 'moving',
+      blocked: convoy.status === 'blocked',
+      known: friendly || localDistance <= 950,
+      cargo: Object.freeze({ ...(convoy.cargo || {}) }),
+      assets: Object.freeze({ ...(convoy.assets || {}) }),
+      hp: Number(convoy.hp) || 100,
+      maxHp: 100,
+      alive: true,
+    }));
+    if (traffic.length >= 40) break;
+  }
+  state.warSimulation.strategicTraffic = traffic;
+}
+
 function routeInsideFriendly(from, to, team) {
   if (!finitePoint(from) || !finitePoint(to)) return false;
   for (let index = 0; index <= 8; index++) { const t = index / 8, point = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }; if (strategicOwnerAt(point) !== team) return false; }
@@ -182,7 +305,7 @@ function dispatchHullState(state, armorBefore) {
   const armorAfter = Number(state?.robot?.armor);
   if (!Number.isFinite(armorBefore) || !Number.isFinite(armorAfter)) return;
   const damage = Math.max(0, armorBefore - armorAfter);
-  if (damage > 0) { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {} }
+  if (damage > 0) { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {}
   state.warSimulation ||= {};
   if (armorAfter <= 0 && !state.warSimulation.destroyedNotified) {
     state.warSimulation.destroyedNotified = true;
@@ -194,9 +317,18 @@ export function updateWar(state, dt) {
   const live = isLiveGameState(state);
   if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); syncCombatSustainment(state); }
   const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);
+  const strategicBefore = live ? strategicAssetSnapshot(state) : null;
   if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
   try { coreUpdateWar(state, dt); }
-  finally { if (rearSafe && state) state.mode = originalMode; if (live) { dispatchHullState(state, armorBefore); publishWorldBridge(state); } }
+  finally {
+    if (rearSafe && state) state.mode = originalMode;
+    if (live) {
+      reconcileStrategicAssets(state, strategicBefore);
+      publishStrategicTraffic(state);
+      dispatchHullState(state, armorBefore);
+      publishWorldBridge(state);
+    }
+  }
 }
 
 export function assessRoute(state, from, to) {
