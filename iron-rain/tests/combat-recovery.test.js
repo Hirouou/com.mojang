@@ -44,8 +44,17 @@ test('healthy formations wait for support instead of launching low-supply assaul
   for (const phase of ['hold', 'suppress', 'wait_support', 'assault']) {
     assert.equal(combatRecoveryPhase({ phase, ...healthy, supply: .19 }), 'wait_support', `${phase} is supply-gated`);
   }
-  assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy, supply: .2 }), null, 'the readiness threshold releases normal phase selection');
+  assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy, supply: .3 }), null, 'the offensive supply band releases normal phase selection');
   assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy }), 'wait_support', 'missing supply fails closed for offensive readiness');
+});
+
+test('staging formations do not counter-attack until morale, suppression, ammo and supply are all ready', () => {
+  const base = { phase: 'hold', strength: 55, morale: .7, suppression: .2, ammo: .8, supply: .8 };
+  assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'shaken formation stays in cover');
+  assert.equal(combatRecoveryPhase({ ...base, suppression: .56 }), 'hold', 'pinned formation stays in cover');
+  assert.equal(combatRecoveryPhase({ ...base, ammo: .31 }), 'wait_support', 'low ammunition blocks opportunistic advance');
+  assert.equal(combatRecoveryPhase({ ...base, supply: .29 }), 'wait_support', 'weak logistics block opportunistic advance');
+  assert.equal(combatRecoveryPhase(base), null, 'ready formation can return to the existing tactical selector');
 });
 
 test('combat break precedence still forces retreat when supply is also exhausted', () => {
