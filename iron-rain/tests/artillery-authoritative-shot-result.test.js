@@ -5,7 +5,7 @@ import { createMamuteInventory } from '../modules/mamute-logistics.js';
 
 test('authoritative fire results preserve shotId across acceptance and rejection', () => {
   const inventory = createMamuteInventory({
-    capacity: { HE: 2, SMOKE: 1, FRAG: 1 },
+    capacity: { HE: 2, SMOKE: 1, FRAG: 2 },
     shells: { HE: 1, SMOKE: 0, FRAG: 1 },
   });
   const authority = createMamuteCommandAuthority({
@@ -23,12 +23,13 @@ test('authoritative fire results preserve shotId across acceptance and rejection
 
   const duplicate = authority.receive({
     playerId: 'gunner', seq: 2, type: 'fire',
-    payload: { shotId: 'mamute-a:gunner:shot-1', shell: 'HE' },
+    payload: { shotId: 'mamute-a:gunner:shot-1', shell: 'FRAG' },
   });
   assert.equal(duplicate.reason, 'duplicate-shot');
   assert.equal(duplicate.shotId, 'mamute-a:gunner:shot-1');
   assert.equal(duplicate.shell, 'HE');
   assert.equal(duplicate.ammoRemaining, 0);
+  assert.equal(inventory.shells.FRAG, 1);
 
   const empty = authority.receive({
     playerId: 'gunner', seq: 3, type: 'fire',
