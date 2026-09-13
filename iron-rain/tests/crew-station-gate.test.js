@@ -19,13 +19,15 @@ function fakeRuntime({ mode = 'host', connected = true, localId = 'local', owner
   };
 }
 
-test('single-player stays immediately usable without a multiplayer runtime', () => {
+test('missing crew runtime cannot grant implicit single-player station authority', () => {
   const state = stationGateState(null, 'aim');
-  assert.equal(state.ok, true);
-  assert.equal(state.ready, true);
-  assert.equal(state.reason, 'single-player');
-  assert.equal(requestStationGate(null, 'aim').ready, true);
-  assert.equal(releaseStationGate(null, 'aim'), true);
+  assert.equal(state.ok, false);
+  assert.equal(state.ready, false);
+  assert.equal(state.reason, 'authority-unavailable');
+  assert.equal(requestStationGate(null, 'aim').ready, false);
+  assert.equal(requestStationGate(null, 'aim').reason, 'authority-unavailable');
+  assert.equal(releaseStationGate(null, 'aim'), false);
+  assert.equal(stationGateMessage(state), 'POSTO INDISPONÍVEL');
 });
 
 test('available station is claimed before cabin interaction becomes ready', () => {
