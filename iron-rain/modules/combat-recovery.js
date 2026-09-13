@@ -57,10 +57,11 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  *
  * Once a formation reaches regroup it stays there until the healthier recovery
  * band is satisfied. Outside retreat/regroup, a formation with exhausted or
- * unknown local supply waits for support instead of starting/continuing an
- * offensive phase. Offensive phases also require a modest readiness band;
- * this prevents a tired or pinned squad from launching or sustaining an attack
- * while preserving the existing phase machine.
+ * unknown local supply waits for support while it still has enough composure to
+ * hold. If that same supply failure is paired with empty magazines, weak morale
+ * or heavy suppression, the formation withdraws before crossing the hard break
+ * threshold. Offensive phases also require a modest readiness band, preventing
+ * tired or pinned squads from launching or sustaining attacks.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
@@ -73,7 +74,12 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
   const moraleValue = finiteOr(morale, 0);
   const suppressionValue = finiteOr(suppression, 1);
   const supplied = supplyValue >= COMBAT_RECOVERY_THRESHOLDS.supply;
-  if (!supplied && SUPPLY_GATED_PHASES.has(phase)) return 'wait_support';
+  if (!supplied && SUPPLY_GATED_PHASES.has(phase)) {
+    const withdrawalPressure = ammoValue < COMBAT_RECOVERY_THRESHOLDS.ammo ||
+      moraleValue < COMBAT_RECOVERY_THRESHOLDS.morale ||
+      suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression;
+    return withdrawalPressure ? 'retreat' : 'wait_support';
+  }
 
   if (OFFENSIVE_PHASES.has(phase)) {
     const logisticsReady = ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo && supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
