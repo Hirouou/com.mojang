@@ -18,7 +18,7 @@ const runtimeLocalId = runtime => {
 export function stationGateState(runtime, station) {
   const id = cleanStation(station);
   if (!id) return Object.freeze({ ok: false, ready: false, pending: false, reason: 'invalid-station', station: null, owner: null });
-  if (!runtime) return Object.freeze({ ok: true, ready: true, pending: false, reason: 'single-player', station: id, owner: null });
+  if (!runtime) return Object.freeze({ ok: false, ready: false, pending: false, reason: 'authority-unavailable', station: id, owner: null });
 
   let status = null;
   let owner = null;
@@ -41,7 +41,7 @@ export function stationGateState(runtime, station) {
 export function requestStationGate(runtime, station) {
   const before = stationGateState(runtime, station);
   if (!before.ok && before.reason !== 'available') return before;
-  if (before.ready || before.reason === 'single-player') return before;
+  if (before.ready) return before;
   if (!runtime?.claimStation) return Object.freeze({ ...before, ok: false, reason: 'authority-unavailable' });
 
   let result;
@@ -60,7 +60,7 @@ export function requestStationGate(runtime, station) {
 export function releaseStationGate(runtime, station) {
   const id = cleanStation(station);
   if (!id) return false;
-  if (!runtime) return true;
+  if (!runtime) return false;
   if (typeof runtime.releaseStation !== 'function') return false;
   try { return Boolean(runtime.releaseStation(id)); }
   catch { return false; }
