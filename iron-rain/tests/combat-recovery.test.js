@@ -97,3 +97,13 @@ test('active assaults stop when logistics or composure fall below offensive read
 test('combat break precedence still forces retreat when supply is also exhausted', () => {
   assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 55, morale: .2, suppression: .2, ammo: .8, supply: .1 }), 'retreat');
 });
+
+test('near-shattered formations defend instead of cycling back into a counter-attack', () => {
+  const base = { strength: 27.9, morale: .7, suppression: .2, ammo: .8, supply: .8 };
+  for (const phase of ['hold', 'suppress', 'wait_support']) {
+    assert.equal(combatRecoveryPhase({ ...base, phase }), 'hold', `${phase} stays defensive below recovery strength`);
+  }
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'assault' }), 'retreat', 'an active assault still withdraws when depleted');
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', strength: 28 }), null, 'physical replacements reaching the recovery band release normal phase selection');
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', ammo: .31 }), 'wait_support', 'logistics pressure still takes precedence over the defensive strength gate');
+});
