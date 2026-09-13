@@ -6,6 +6,11 @@ const freezeStock = stock => Object.freeze({
   ammo: Math.max(0, Number(stock?.ammo) || 0),
   fuel: Math.max(0, Number(stock?.fuel) || 0),
 });
+const freezeAssets = assets => Object.freeze({
+  trucks: Math.max(0, Math.floor(Number(assets?.trucks) || 0)),
+  tanks: Math.max(0, Math.floor(Number(assets?.tanks) || 0)),
+  troops: Math.max(0, Math.floor(Number(assets?.troops) || 0)),
+});
 const validRevision = revision => Number.isSafeInteger(revision) && revision >= 0;
 
 /**
@@ -18,6 +23,12 @@ const validRevision = revision => Number.isSafeInteger(revision) && revision >= 
  * world/backend may reopen/rebuild routes after it publishes the new topology,
  * but the client must not keep an old faction route alive through a captured
  * endpoint in the meantime.
+ *
+ * Mobile assets are detached from a node when its territorial owner changes or
+ * is neutralized. They are reported as `displacedAssets` instead of silently
+ * becoming property of the next faction that activates the endpoint. Retreat,
+ * surrender or salvage remains an authority decision; this projection only
+ * fails closed against magical faction conversion.
  *
  * A claimed capital can remain contested while reconstruction is in progress.
  * In that state the territorial claimant is remembered, but the visual sector
@@ -42,6 +53,7 @@ export function applyAuthoritativeSectorControl({
   const sector = record?.sector;
   const id = String(sector?.id ?? '');
   const team = validOwner(owner);
+  const previousOwner = validOwner(territoryNode?.owner);
   const nextContested = Boolean(contested || !team);
   const endpoint = id && logistics?.getNode?.(id);
 
@@ -89,10 +101,19 @@ export function applyAuthoritativeSectorControl({
     });
   }
 
+  const ownerChanged = Boolean(previousOwner && previousOwner !== team);
+  const displacedAssets = ownerChanged ? freezeAssets(endpoint.assets) : freezeAssets();
+
   sector.owner = visualOwner;
   sector.controlProgress = expectedProgress;
   setTerritoryControl(territoryNode, team, { contested: nextContested, dt: 0 });
   endpoint.team = endpointTeam;
+  if (ownerChanged) {
+    for (const key of ['trucks', 'tanks', 'troops']) {
+      if (endpoint.assets) endpoint.assets[key] = 0;
+      if (territoryNode.assets) territoryNode.assets[key] = 0;
+    }
+  }
   if (hasRevision) territoryNode.controlRevision = revision;
 
   const cutRoutes = [];
@@ -110,6 +131,7 @@ export function applyAuthoritativeSectorControl({
     contested: nextContested,
     ...(hasRevision ? { revision } : {}),
     cutRoutes: Object.freeze(cutRoutes),
+    displacedAssets,
     sector: Object.freeze({ id, owner: sector.owner, controlProgress: sector.controlProgress }),
     territory: territorySnapshot(territoryNode),
     logistics: Object.freeze({
