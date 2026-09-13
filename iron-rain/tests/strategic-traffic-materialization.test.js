@@ -25,24 +25,40 @@ test('nearby local roads reuse canonical logistics nodes and routes without leak
   assert.match(war, /snapshot\?\.nodes \|\| \[\]/);
   assert.match(war, /snapshot\?\.routes \|\| \[\]/);
   assert.match(war, /distanceToSegment\(playerPosition, from, to\) > LOCAL_ROAD_RADIUS/);
-  assert.match(war, /state\.warSimulation\.strategicRoads = localStrategicRoads\(snapshot, state\.robot\)/);
+  assert.match(war, /\.\.\.localStrategicRoads\(snapshot, state\.robot\)/);
   assert.match(war, /from: Object\.freeze\(\{ x: from\.x, y: from\.y \}\)/);
   assert.match(war, /to: Object\.freeze\(\{ x: to\.x, y: to\.y \}\)/);
   assert.doesNotMatch(war, /strategicRoads[^\n]*team/);
 });
 
-test('nearby canonical capitals reuse logistics node positions and live territory structures for the existing base renderer', () => {
+test('nearby canonical capitals reuse live territory structures and the existing deterministic city layout', () => {
+  assert.match(war, /import \{ buildCapitalLayout \} from '\.\/capital-city-layout\.js'/);
   assert.match(war, /const LOCAL_CAPITAL_RADIUS = 6_500/);
+  assert.match(war, /function capitalLayoutForNode\(snapshot, node, structures\)/);
+  assert.match(war, /roadBearings\.push\(Math\.atan2\(other\.y - node\.y, other\.x - node\.x\)\)/);
+  assert.match(war, /buildCapitalLayout\(\{ id: node\.id, x: node\.x, y: node\.y, roadBearings, structures/);
   assert.match(war, /function publishStrategicCapitals\(state, snapshot\)/);
-  assert.match(war, /for \(const node of snapshot\?\.nodes \|\| \[\]\)/);
   assert.match(war, /strategicMap\.locate\(node\)/);
   assert.match(war, /Array\.isArray\(sector\.structures\) \? \[\.\.\.sector\.structures\] : \[\]/);
-  assert.match(war, /id: `strategic-capital:\$\{node\.id\}`/);
-  assert.match(war, /level: capitalVisualLevel\(structures\)/);
+  assert.match(war, /for \(const placement of layout\.structures \|\| \[\]\)/);
+  assert.match(war, /id: root \? `strategic-capital:\$\{node\.id\}` : `strategic-capital:\$\{node\.id\}:\$\{placement\.id\}`/);
+  assert.match(war, /structureType: placement\.type/);
+  assert.match(war, /x: placement\.x/);
+  assert.match(war, /y: placement\.y/);
   assert.match(war, /__strategicCapitalVisual: true/);
   assert.match(war, /host\.war\.bases\.push\(\.\.\.capitals\)/);
   assert.match(war, /stripStrategicCapitalVisuals\(state\);/);
   assert.ok(war.indexOf('stripStrategicCapitalVisuals(state);') < war.indexOf('coreUpdateWar(state, dt)'));
+});
+
+test('capital street projection follows the same layout bearings without exposing faction ownership', () => {
+  assert.match(war, /function localCapitalRoads\(layouts\)/);
+  assert.match(war, /id: `capital-street:\$\{node\.id\}:\$\{road\.id\}:\$\{index\}`/);
+  assert.match(war, /from: Object\.freeze\(\{ x: road\.points\[index\]\.x, y: road\.points\[index\]\.y \}\)/);
+  assert.match(war, /to: Object\.freeze\(\{ x: point\.x, y: point\.y \}\)/);
+  assert.match(war, /localCapitalRoad: true/);
+  assert.match(war, /\.\.\.capitalProjection\.roads/);
+  assert.doesNotMatch(war, /capital-street:[^\n]*team/);
 });
 
 test('hostile convoy materialization is earned locally or by active intel target', () => {
