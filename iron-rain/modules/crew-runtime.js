@@ -43,6 +43,26 @@ export function createCrewRuntime({
     for (const listener of [...effectListeners]) try { listener(event, packet); } catch {}
   };
 
+  function emitMamuteCommandResult(result, packet) {
+    const status = session.status(), target = cleanId(packet?.sender);
+    if (status.mode !== 'host' || !status.room || !target || target === id || !transport?.send) return false;
+    try {
+      transport.send({
+        kind: 'mamute-command-result',
+        protocol: CREW_PROTOCOL,
+        room: status.room,
+        faction: status.faction,
+        sender: id,
+        target,
+        sentAt: Number(now()) || 0,
+        seq: Number(packet?.seq) || 0,
+        type: String(packet?.type || ''),
+        result,
+      });
+      return true;
+    } catch { return false; }
+  }
+
   function emitMamuteState(reason = 'command') {
     const status = session.status();
     if (status.mode !== 'host' || !status.room || !transport?.send) return false;
@@ -98,10 +118,18 @@ export function createCrewRuntime({
     if (!sender || !status.peers.some(peer => peer.id === sender)) return false;
     const result = commandAuthority.receive({ playerId: sender, seq: packet.seq, type: packet.type, payload: packet.payload });
     notifyCommandResult(result, packet);
+    emitMamuteCommandResult(result, packet);
     if (result.ok) {
       emitMamuteState(packet.type || 'command');
       if (packet.type === 'fire') replicateAcceptedFire(packet.payload, sender, { notifyLocal: true, packet });
     }
+    return true;
+  }
+  function acceptMamuteCommandResult(packet) {
+    const status = session.status();
+    if (status.mode !== 'guest' || !roomMatches(packet) || cleanId(packet.sender) !== status.hostId || cleanId(packet.target) !== id || !packet.result || typeof packet.result !== 'object') return false;
+    const result = Object.freeze({ ...packet.result, authoritative: true, seq: Number(packet.seq) || 0, type: String(packet.type || '') });
+    notifyCommandResult(result, packet);
     return true;
   }
   function acceptMamuteState(packet) {
@@ -112,6 +140,7 @@ export function createCrewRuntime({
   }
   function acceptTransportPacket(packet) {
     if (packet?.kind === 'mamute-command') return acceptMamuteCommand(packet);
+    if (packet?.kind === 'mamute-command-result') return acceptMamuteCommandResult(packet);
     if (packet?.kind === 'mamute-state') return acceptMamuteState(packet);
     if (packet?.kind === 'crew-effect') return acceptCrewEffect(packet);
     const before = new Set(session.status().peers.map(peer => peer.id));
