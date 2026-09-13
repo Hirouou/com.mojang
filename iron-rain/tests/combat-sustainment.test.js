@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { combatRecoveryPhase, COMBAT_RECOVERY_THRESHOLDS } from '../modules/combat-recovery.js';
 import { combatSustainmentSupply } from '../modules/combat-sustainment.js';
 
-function graph({ ammo = 80, connected = true, knownThreat = 0 } = {}) {
+function graph({ ammo = 80, connected = true, knownThreat = 0, includeRouteIntel = true } = {}) {
   const nodes = new Map([
     ['rear', { id: 'rear', alive: true, team: 'ally', kind: 'depot', stock: { ammo: 220 } }],
     ['field', { id: 'field', alive: true, team: 'ally', kind: 'outpost', stock: { ammo } }],
@@ -12,7 +12,7 @@ function graph({ ammo = 80, connected = true, knownThreat = 0 } = {}) {
   const routeId = 'rear-field';
   return {
     getNode(id) { return nodes.get(id) || null; },
-    snapshot() { return { nodes: [...nodes.values()], routes: [{ id: routeId, knownThreat }] }; },
+    snapshot() { return { nodes: [...nodes.values()], routes: includeRouteIntel ? [{ id: routeId, knownThreat }] : [] }; },
     route(team, from, to) { return connected && team === 'ally' && from === 'rear' && to === 'field' ? [{ routeId, from, to, distance: 9_000 }] : null; },
   };
 }
@@ -32,6 +32,11 @@ test('combat sustainment follows canonical route and field stock without creatin
   assert.equal(combatSustainmentSupply({ strategicLogistics: graph(), territory, team: 'enemy', to: 'field' }), .08);
 });
 
+test('canonical sustainment fails closed when the routed leg is missing from the route snapshot', () => {
+  const supply = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80, includeRouteIntel: false }), territory, team: 'ally', from: 'rear', to: 'field' });
+  assert.equal(supply, .08, 'an internally inconsistent canonical route snapshot must not authorize offensive sustainment');
+});
+
 test('combat sustainment requires a physical field logistics node before stock supports an offensive', () => {
   const roadOnlyTerritory = Object.freeze({ owner: 'ally', contested: false, structures: [] });
   const roadOnly = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80 }), territory: roadOnlyTerritory, team: 'ally', to: 'field' });
@@ -42,9 +47,6 @@ test('combat sustainment requires a physical field logistics node before stock s
 });
 
 test('threatened critical logistics nodes can regroup for defense without regaining offensive supply', () => {
-  // Keep the threat below combat-reserves' canonical route-cut threshold: this
-  // case is a dangerous-but-still-open road, not a route the shared graph has
-  // already rejected outright.
   const threatened = graph({ ammo: 80, knownThreat: .74 });
   const routeCut = graph({ ammo: 80, knownThreat: .75 });
   const criticalTerritory = Object.freeze({ owner: 'ally', contested: false, structures: ['depot'] });
