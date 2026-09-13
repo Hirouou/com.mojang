@@ -23,6 +23,23 @@ const playerTeam = () => window.ironRainEntry?.faction === 'axis' ? 'enemy' : 'a
 const ownerLabel = owner => owner === 'ally' ? 'ALIADOS' : owner === 'enemy' ? 'EIXO' : owner === 'contested' ? 'DISPUTADO' : 'NEUTRO';
 const frontDistance = sector => Math.abs(sector.x - THEATRE_SIZE.w * .5);
 
+export function knownSupplyRouteThreat({ team, destination, sources = [], logistics, snapshot } = {}) {
+  if (!['ally', 'enemy'].includes(team) || !destination || !logistics || !snapshot) return 0;
+  const routeIntel = new Map((snapshot.routes || []).filter(route => route.team === team).map(route => [route.id, route]));
+  let best = null;
+  for (const id of sources) {
+    const source = logistics.getNode(id);
+    if (!source || source.team !== team) continue;
+    if (source.id === destination) return 0;
+    const path = logistics.route(team, source.id, destination);
+    if (!path) continue;
+    const length = path.reduce((sum, leg) => sum + leg.distance, 0);
+    const threat = path.reduce((highest, leg) => Math.max(highest, Number(routeIntel.get(leg.routeId)?.knownThreat) || 0), 0);
+    if (!best || length < best.length) best = { length, threat };
+  }
+  return clamp(best?.threat || 0, 0, 1);
+}
+
 function makeTheatre() {
   const hexes = createStrategicHexMap().map(hex => ({ ...hex, sectors: hex.sectors.map(sector => ({ ...sector, structures: [] })) }));
   const records = new Map();
@@ -166,8 +183,10 @@ function makeTheatre() {
 
       const effects = territoryOperationalEffects(node);
       const pressure = clamp((1 - frontDistance(record.sector) / 15_000) * (.75 - effects.defensiveCover), 0, 1);
+      const routeThreat = knownSupplyRouteThreat({ team: node.owner, destination: id, sources, logistics, snapshot: logisticsSnapshot });
       const projectPlan = chooseTerritoryProject(node, {
         routeOpen,
+        routeThreat,
         frontPressure: pressure,
         infantryThreat: pressure,
         armorThreat: pressure * .82,
@@ -223,9 +242,6 @@ function makeTheatre() {
         if (depot) rememberFlight(returnKey, logistics.dispatch({ team: node.owner, from: id, to: depot, assets: { trucks: 1 }, kind: 'return', speed: 62 }));
       }
     }
-
-    // Keep snapshots warm so concurrent readers never need to mutate the live graph.
-    void logisticsSnapshot;
   }
 
   return { hexes, records, territory, logistics, step };
@@ -279,8 +295,6 @@ export function installNotebookBridge(locate) {
     const position = parseMamutePosition();
     const current = position && locate(position);
     const label = current ? `TEATRO: ${current.hex.name} / ${current.sector.name}` : 'TEATRO: LOCALIZAÇÃO INDISPONÍVEL';
-    // This chip is inside the observed subtree. Replacing identical text still
-    // emits childList mutations and would starve rendering/input indefinitely.
     if (chip.textContent !== label) chip.textContent = label;
   };
   const observer = new MutationObserver(update);
