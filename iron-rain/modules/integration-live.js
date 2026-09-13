@@ -122,7 +122,9 @@ function bindFireState() {
   fireObserver?.disconnect(); observedFireButton = fire; fireArmed = true;
   const check = () => {
     const text = String(fire.textContent || '').trim().toUpperCase();
-    const firing = text === 'FOGO!' || text === 'EM VOO' || text === 'CARREGANDO';
+    // Reload/round-selection also uses CARREGANDO. Only the launch states prove
+    // that fireShell actually committed a shot locally.
+    const firing = text === 'FOGO!' || text === 'EM VOO';
     if (firing && fireArmed) { fireArmed = false; emitLocalShot(); }
     else if (text === 'DISPARAR' && !fire.disabled) fireArmed = true;
   };
