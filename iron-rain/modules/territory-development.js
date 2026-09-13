@@ -4,6 +4,7 @@ const copyStock = stock => ({
   ammo: Math.max(0, Number(stock?.ammo) || 0),
   fuel: Math.max(0, Number(stock?.fuel) || 0),
 });
+const controlRevision = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
 
 export const DEVELOPMENT_PROJECTS = Object.freeze({
   outpost: Object.freeze({ secureFor: 45, buildTime: 35, cost: Object.freeze({ materials: 35, ammo: 0, fuel: 0 }), requires: Object.freeze([]) }),
@@ -14,7 +15,7 @@ export const DEVELOPMENT_PROJECTS = Object.freeze({
   factory: Object.freeze({ secureFor: 900, buildTime: 260, cost: Object.freeze({ materials: 440, ammo: 30, fuel: 125 }), requires: Object.freeze(['depot', 'garage']) }),
 });
 
-export function createTerritoryNode({ id, owner = null } = {}) {
+export function createTerritoryNode({ id, owner = null, revision = null } = {}) {
   return {
     id: String(id ?? ''),
     owner: owner === 'ally' || owner === 'enemy' ? owner : null,
@@ -27,6 +28,7 @@ export function createTerritoryNode({ id, owner = null } = {}) {
     productionRemainder: 0,
     deliveriesReceived: 0,
     lastEvent: 'unsecured',
+    controlRevision: controlRevision(revision),
   };
 }
 
@@ -132,6 +134,7 @@ export function territorySnapshot(node) {
     projectProgress: node.projectProgress,
     deliveriesReceived: node.deliveriesReceived,
     lastEvent: node.lastEvent,
+    controlRevision: controlRevision(node.controlRevision),
   });
 }
 
