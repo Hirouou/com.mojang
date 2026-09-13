@@ -50,11 +50,31 @@ function bindRuntime() {
   unsubscribeEffects = runtime.subscribeEffects?.(applyRemoteEffect) || null;
 }
 
+function numericReadout(id) {
+  const text = String(document.getElementById(id)?.textContent || '');
+  const match = text.replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function liveShotPayload() {
+  const shell = document.querySelector('.ammo.active')?.dataset.shell || 'HE';
+  const ammoId = shell === 'SMOKE' ? 'smokeCount' : shell === 'FRAG' ? 'fragCount' : 'heCount';
+  return Object.freeze({
+    at: performance.now() / 1000,
+    shell,
+    charge: numericReadout('chargeValue'),
+    bearing: numericReadout('azValue'),
+    elevation: numericReadout('elValue'),
+    ammoRemaining: numericReadout(ammoId),
+  });
+}
+
 function emitLocalShot() {
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.emitEffect) return;
-  runtime.emitEffect('fire', { at: performance.now() / 1000 });
-  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: document.querySelector('.ammo.active')?.dataset.shell || 'HE' });
+  const shot = liveShotPayload();
+  runtime.emitEffect('fire', shot);
+  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell });
 }
 
 function bindFireState() {
