@@ -34,10 +34,7 @@ function toast(message, source = 'TRIPULAÇÃO') {
 }
 
 function remoteFireReplayKey(effect) {
-  const shotId = String(effect?.payload?.shotId || '').trim();
-  if (!shotId) return '';
-  const at = Number(effect?.payload?.at);
-  return Number.isFinite(at) ? `${shotId}@${at}` : shotId;
+  return String(effect?.payload?.shotId || '').trim();
 }
 
 function effectFromLocalShooter(effect) {
