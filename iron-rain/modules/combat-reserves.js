@@ -100,10 +100,7 @@ function combatDeliveredTroops(strategicLogistics, to) {
 
 function consumeDeliveredTroops(strategicLogistics, to, amount) {
   if (!strategicLogistics || typeof strategicLogistics.getNode !== 'function') return null;
-  // Front strength is an aggregate gameplay scale and may be fractional, while
-  // canonical staging assets are discrete. A fractional admitted batch consumes
-  // the whole delivered unit needed to cover it rather than creating personnel.
-  const requested = Math.max(0, Math.ceil(Number(amount) || 0));
+  const requested = Math.max(0, Math.floor(Number(amount) || 0));
   if (requested <= 0) return null;
   try {
     const destination = strategicLogistics.getNode(String(to ?? ''));
@@ -168,7 +165,8 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
  * There is deliberately no unconditional minimum: light infrastructure yields
  * a small batch, while cut or malformed logistics yields zero replacements.
  * When a physical staging inventory is supplied, the batch is capped by troops
- * already present there so combat cannot spend personnel still in transit.
+ * already present there and resolved to whole delivered troop units so combat
+ * can debit exactly what it admits.
  *
  * The multiplier stays on the existing aggregate 0..100 front-strength scale;
  * it is a fictional gameplay value, not a real-world personnel table.
@@ -181,7 +179,8 @@ export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
   const ready = bool(logistics?.connected) && fieldNode && bool(logistics?.canReceiveReinforcements) && support > 0 && delivered;
   if (!ready || shortage <= 0) return 0;
   const supported = Math.min(shortage, support * 20);
-  return hasOwn(logistics, 'availableTroops') ? Math.min(supported, logistics.availableTroops) : supported;
+  if (!hasOwn(logistics, 'availableTroops')) return supported;
+  return Math.min(Math.floor(supported), Math.floor(logistics.availableTroops));
 }
 
 /**
