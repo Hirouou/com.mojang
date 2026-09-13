@@ -1,0 +1,24 @@
+name: Roads Mobility CI
+
+on:
+  push:
+    branches:
+      - agent/roads-mobility-20260913
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check Mamute entrypoint
+        working-directory: iron-rain
+        run: node --check game-v6.js
+      - name: Run Iron Rain tests
+        working-directory: iron-rain
+        run: npm test
