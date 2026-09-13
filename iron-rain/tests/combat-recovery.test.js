@@ -29,7 +29,7 @@ test('phase gate keeps regroup until the healthier recovery band is fully satisf
   assert.equal(combatRecoveryPhase({ ...base, suppression: .66 }), 'regroup', 'suppression above recovery band holds regroup');
   assert.equal(combatRecoveryPhase({ ...base, ammo: .19 }), 'regroup', 'low ammo holds regroup');
   assert.equal(combatRecoveryPhase({ ...base, supply: .19 }), 'regroup', 'low local supply holds regroup');
-  assert.equal(combatRecoveryPhase(base), null, 'fully recovered formation returns control to the normal phase selector');
+  assert.equal(combatRecoveryPhase(base), 'hold', 'fully recovered formation stabilizes in cover before normal phase selection');
 });
 
 test('phase gate preserves deterministic retreat to regroup while new breaks retreat immediately', () => {
