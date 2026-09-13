@@ -37,6 +37,15 @@ test('canonical sustainment fails closed when the routed leg is missing from the
   assert.equal(supply, .08, 'an internally inconsistent canonical route snapshot must not authorize offensive sustainment');
 });
 
+test('canonical sustainment fails closed when route intel cannot be read', () => {
+  const broken = graph({ ammo: 80 });
+  broken.snapshot = () => { throw new Error('intel unavailable'); };
+  const supply = combatSustainmentSupply({ strategicLogistics: broken, territory, team: 'ally', from: 'rear', to: 'field' });
+
+  assert.equal(supply, .08, 'a broken canonical intel seam must never be interpreted as a safe road');
+  assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 60, morale: .7, suppression: .1, ammo: .8, supply }), 'retreat', 'an active assault withdraws rather than assuming logistics are healthy when route intel is unavailable');
+});
+
 test('combat sustainment requires a physical field logistics node before stock supports an offensive', () => {
   const roadOnlyTerritory = Object.freeze({ owner: 'ally', contested: false, structures: [] });
   const roadOnly = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80 }), territory: roadOnlyTerritory, team: 'ally', to: 'field' });
