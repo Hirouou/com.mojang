@@ -13,6 +13,7 @@ let fireObserver = null;
 let observedFireButton = null;
 let fireArmed = true;
 let shotSerial = 0;
+const shotSession = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 let destroyedOpen = false;
 let maintenanceCadenceState = null;
 
@@ -72,7 +73,7 @@ function nextShotIdentity(runtime) {
   const shooterId = String(status.localId || globalThis.ironRainEntry?.localId || 'local');
   const mamuteId = String(status.room || globalThis.ironRainEntry?.room || 'solo');
   shotSerial += 1;
-  return Object.freeze({ shotId: `${mamuteId}:${shooterId}:${shotSerial}`, shooterId, mamuteId, shotSerial });
+  return Object.freeze({ shotId: `${mamuteId}:${shooterId}:${shotSession}:${shotSerial}`, shooterId, mamuteId, shotSerial });
 }
 
 function liveShotPayload() {
