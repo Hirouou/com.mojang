@@ -7,8 +7,13 @@ const source = await readFile(new URL('../modules/maintenance-overlay.js', impor
 test('maintenance vfx only animates while canonical local action feedback is active', () => {
   assert.match(source, /const isExtinguish = detail\.kind === 'extinguish'/);
   assert.match(source, /const localVfx = detail\.remote !== true/);
-  assert.match(source, /const vfxActive = localVfx && \(isExtinguish \? spray > \.02 : repairMotion > \.02 \|\| sparks > \.02\)/);
+  assert.ok(source.includes('const vfxActive = localVfx && !coarseMaintenanceVfx() && (isExtinguish ? spray > .02 : repairMotion > .02 || sparks > .02)'));
   assert.match(source, /ir-maintenance-vfx\$\{vfxActive \? ' active' : ''\}/);
+});
+
+test('maintenance vfx fails closed on coarse pointers instead of starting screen-space compositor loops', () => {
+  assert.ok(source.includes("globalThis.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches === true"));
+  assert.ok(source.includes('.ir-maintenance-vfx{display:none!important}'));
 });
 
 test('maintenance vfx consumes canonical engine danger without adding another clock', () => {
