@@ -80,7 +80,10 @@ export function loaderArmPose(cycle) {
     extension = mix(.42, 0, retract);
     rammer = 1 - smooth(retract);
     gripping = t < releaseAt;
-    shellVisible = t < .28;
+    // The live renderer parents the carried shell to the wrist. Hide that
+    // carried mesh exactly when the claw releases so it cannot visually follow
+    // the retracting arm after the round has already seated in the breech.
+    shellVisible = t < releaseAt;
   }
 
   return Object.freeze({ baseYaw, shoulder, elbow, claw, extension, rammer, gripping, shellVisible, phase });
