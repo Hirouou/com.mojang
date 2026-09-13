@@ -9,7 +9,7 @@ function graph() {
       createLogisticsNode({ id: 'ALLY-REAR-A', team: 'ally', kind: 'depot' }),
       createLogisticsNode({ id: 'ALLY-REAR-B', team: 'ally', kind: 'depot' }),
       createLogisticsNode({ id: 'ALLY-MID', team: 'ally', kind: 'outpost' }),
-      createLogisticsNode({ id: 'ALLY-FRONT', team: 'ally', kind: 'front' }),
+      createLogisticsNode({ id: 'ALLY-FRONT', team: 'ally', kind: 'front', assets: { troops: 4 } }),
       createLogisticsNode({ id: 'ENEMY-REAR', team: 'enemy', kind: 'depot' }),
     ],
     routes: [
