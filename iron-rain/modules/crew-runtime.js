@@ -10,6 +10,7 @@ export function createCrewRuntime({
   now = () => performance.now() / 1000,
   onStatus = () => {},
   applyMamuteCommand = () => true,
+  fireInventory = null,
   mamuteSnapshot = () => null,
   onMamuteState = () => {},
   onCommandResult = () => {},
@@ -24,7 +25,7 @@ export function createCrewRuntime({
   const effectListeners = new Set();
 
   const session = createCrewSession({ localId: id, now, send: packet => transport?.send?.(packet) });
-  const commandAuthority = createMamuteCommandAuthority({ stationOwner: station => session.stationOwner(station), apply: command => applyMamuteCommand(command) });
+  const commandAuthority = createMamuteCommandAuthority({ stationOwner: station => session.stationOwner(station), apply: command => applyMamuteCommand(command), fireInventory });
 
   const publish = () => {
     const base = session.status();
