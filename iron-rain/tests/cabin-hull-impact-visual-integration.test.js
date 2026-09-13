@@ -6,7 +6,7 @@ const source = await readFile(new URL('../modules/cabin-view.js', import.meta.ur
 
 test('crew cabin renders replicated hull impacts inside the live scene', () => {
   assert.match(source, /function createHullImpactVisual\(scene, \{ reducedMotion = false \} = \{\}\)/);
-  assert.match(source, /hullImpactVisual\.kick\(feedback\.intensity\)/);
+  assert.match(source, /hullImpactVisual\.kick\(feedback\)/);
   assert.match(source, /hullImpactVisual\.update\(elapsed\)/);
   assert.match(source, /new THREE\.PointLight\('#ffc58d'/);
   assert.match(source, /new THREE\.IcosahedronGeometry\(\.045, 0\)/);
