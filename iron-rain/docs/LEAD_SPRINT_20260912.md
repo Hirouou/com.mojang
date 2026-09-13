@@ -2,6 +2,48 @@
 
 This file is the current short-horizon integration handoff. It does not replace `IRON_RAIN_VISION.md`, `MULTI_AGENT_CONTROL.md`, `ACTIVE_USER_DIRECTIVES_20260912.md`, `MAP_REWORK_20260912.md` or `AGENT_LOG.md`.
 
+## OWNER OVERRIDE — 2026-09-12 21:32 BRT — SERVIDOR PERSISTENTE + OVERNIGHT PUSH
+
+Esta seção tem precedência sobre linguagem antiga de `host`, `single-player` ou sessão que possua a guerra.
+
+### Arquitetura de produto correta
+- Iron Rain é ONLINE-FIRST e SERVER-AUTHORITATIVE.
+- Não existe jogador-host como autoridade da guerra. O servidor/authority backend mantém a guerra compartilhada e continua avançando mesmo quando todos os jogadores de um Mamute saem.
+- ALIADOS e EIXO entram na MESMA guerra persistente, em Mamutes separados por facção.
+- Um Mamute é uma entidade persistente/registrada dessa guerra, não uma nova cópia do teatro.
+- A tripulação de um Mamute continua limitada a 3 jogadores e com posse exclusiva de postos, mas essa autoridade local de posto não torna nenhum cliente autoridade do mundo.
+- Entrar sozinho significa apenas estar sozinho naquele Mamute naquele momento; não existe arquitetura offline paralela.
+- O próximo checkpoint obrigatório de combate é cross-faction: jogador A em Mamute ALIADOS e jogador B em Mamute EIXO, ambos na mesma guerra, cada um vendo/afetando o estado autoritativo do outro através do servidor. Um disparo deve ser resolvido uma única vez pela authority compartilhada e replicado para ambos; nenhum cliente decide localmente se acertou.
+- Toda linguagem/contrato antigo `host creates room/session` deve ser tratada como legado temporário de transporte e migrada para `server allocates/joins Mamute within persistent theatre`.
+
+### OVERNIGHT EXECUTION GATE — TODAS AS CONTAS
+O owner quer acordar e perceber evolução clara. Até novo override, cada execução noturna deve escolher uma FATIA INTEGRADA GRANDE o bastante para produzir uma das duas coisas: mudança visível/player-testable OU avanço estrutural diretamente necessário ao checkpoint de servidor persistente. Micro-helper isolado, teste sem consumidor ou polish invisível não contam como ciclo completo, salvo correção crítica/regressão.
+
+- Antes de editar, reler HEAD/commits recentes e preservar concorrência.
+- Depois de uma fundação estar pronta, o ciclo seguinte deve CONSUMI-LA no caminho vivo; não criar helper irmão.
+- Cada workstream deve terminar com uma mudança integrada ou um bloqueio concreto, reproduzível e registrado.
+- Se um hotspot estiver ocupado por outro agente, escolher uma integração adjacente de alto impacto em vez de esperar.
+- Não reduzir escopo para evitar trabalho perceptível. Preferir uma fatia maior, mas coerente/testável.
+
+### COBRANÇA ESPECÍFICA — FP VISUALS + AUDIO
+O visual está atrasado em relação às fundações. Até de manhã, ciclos de FP VISUALS + AUDIO devem priorizar mudança que o owner consiga VER/Ouvir no mesmo link estável, não apenas contratos internos.
+
+Prioridade visual, nesta ordem, consumindo sistemas existentes:
+1. integrar o braço mecânico de recarga no renderer real e remover a recarga visual antiga/mágica;
+2. tornar impactos no casco claramente perceptíveis dentro do Mamute: shake, iluminação/poeira/metal + crack/thump/rattle compartilhados;
+3. extintor com spray/foam visível e reparo com feedback mecânico/progresso real no interior;
+4. corrigir props flutuantes/desalinhados e melhorar leitura espacial/industrial da cabine sem reescrever Three.js;
+5. validar mobile/desktop sem ressuscitar UI duplicada no AIM.
+
+Um ciclo de VISUAL que apenas adiciona teste de apresentação sem alterar o caminho renderizado deve ser tratado como incompleto, a menos que esteja corrigindo regressão P0 que bloqueia a build.
+
+### COBRANÇA POR WORKSTREAM — FATIAS GRANDES
+- FP SYSTEMS: fechar presença/posse/reconnect no caminho online canônico e preparar consumo de authority de servidor, sem segunda stack.
+- FP VISUALS + AUDIO: resultado perceptível obrigatório conforme lista acima.
+- COMBAT AI: integrar reservas/território/logística no fluxo vivo; forças de ambos os lados devem obedecer as mesmas regras e nunca materializar frontline regular atrás da linha inimiga.
+- ARTILLERY: uma cadeia única de aim/load/fire autoritativa; tiro gasta munição do Mamute e deve poder produzir resultado replicável contra outro Mamute, sem duplicar fire local/remoto.
+- WORLD WAR: uma única guerra persistente com múltiplos Mamutes de ambas as facções, posição em grande hex/setor, frente coerente e estado pronto para snapshot autoritativo; mapa estratégico e mesa de cartas continuam ligados.
+
 ## LEAD AUDIT — 2026-09-12 21:02 BRT
 
 A auditoria deste ciclo foi feita na branch ativa `iron-rain-v6-1-continuation`, após reler handoff, visão, diretivas do owner, MAP REWORK, MAP REFERENCE, MULTI_AGENT_CONTROL, AGENT_LOG e commits recentes. `iron-rain-frontline` continua histórica e não deve ser editada.
