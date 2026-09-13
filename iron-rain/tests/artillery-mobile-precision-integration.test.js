@@ -10,7 +10,9 @@ test('mobile AIM keeps canonical metre range telemetry without restoring duplica
   assert.match(css, /handwheel-box\.elevation-box/);
   assert.match(css, /range-readout/);
   assert.match(css, /handwheel-box\.elevation-box \.handwheel/);
-  assert.match(game, /UI\.range\.textContent\s*=\s*`\$\{Math\.round\(solution\.range\)\.toLocaleString\('pt-BR'\)\} m`/);
+  // The compact mobile readout may include extra telemetry (for example apex),
+  // but the canonical ballistic range must still be displayed in metres.
+  assert.match(game, /UI\.range\.(?:textContent|innerHTML)\s*=.*Math\.round\((?:solution|B)\.range\)\.toLocaleString\('pt-BR'\).* m/);
 });
 
 test('touch handwheels are geared down while desktop retains the original delta', async () => {
