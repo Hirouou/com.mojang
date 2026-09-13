@@ -84,6 +84,7 @@ General direction: less abstract UI, more physical machine operation. `mobile-st
 - Mamute ammunition is finite. Every shot consumes onboard stock.
 - A friendly base with zero shell stock cannot refill the Mamute. The crew must travel to another stocked base or wait for logistics to deliver ammunition there.
 - Range remains physical: being ordered to support a sector does not make the artillery able to hit a target outside its actual ballistic range.
+- **Owner update 2026-09-13:** all agents touching logistics/AI/world war must also consume `LOGISTICS_ECONOMY_DIRECTIVE_20260913.md`. Resources are scarce; most initial material comes from deep rear territory; trucks, troop transports and tanks are finite physical entities; destroyed tanks must be reproduced only at capitals with the required industrial infrastructure, stock and build time; produced vehicles then travel physically to staging/front. No vehicle/reinforcement spawn magic.
 
 ## Radio, world map and missions
 
