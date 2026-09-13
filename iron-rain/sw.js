@@ -1,4 +1,4 @@
-/* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. */
+/* Offline shell. Paths stay relative so the installed app and GitHub Pages share one stable URL. Mobile aim edge refresh: 2026-09-13. */
 const CACHE_PREFIX = `iron-rain:${new URL(self.registration.scope).pathname}:`;
 const CACHE_NAME = `${CACHE_PREFIX}v7.28`;
 const MODULE_TIMEOUT_MS = 4500;
