@@ -62,10 +62,6 @@ export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
   let best = null;
   for (const node of nodes) {
     if (!node?.alive || node.team !== team || node.kind !== 'depot' || node.id === destination.id) continue;
-    // Canonical logistics nodes expose physical troop inventory. Never claim an
-    // empty depot as the source of regular reinforcements; legacy/lightweight
-    // adapters that do not model assets remain route-only for compatibility.
-    if (node.assets && hasOwn(node.assets, 'troops') && !positiveFinite(Number(node.assets.troops))) continue;
     let path;
     try {
       path = strategicLogistics.route(team, node.id, destination.id);
@@ -75,7 +71,14 @@ export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
     if (!validRoutePath(path, node.id, destination.id)) continue;
     const distance = path.reduce((sum, leg) => sum + Number(leg.distance), 0);
     if (!positiveFinite(distance)) continue;
-    if (!best || distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))) best = { id: node.id, distance };
+    const stocked = positiveFinite(Number(node.assets?.troops));
+    // Prefer a rear depot that actually holds physical troop inventory whenever
+    // the canonical graph exposes it. If none is stocked, keep the nearest
+    // reachable depot as route lineage; destination staging inventory still
+    // gates actual admission, so this fallback cannot materialize troops.
+    if (!best || (stocked && !best.stocked) || (stocked === best.stocked && (distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))))) {
+      best = { id: node.id, distance, stocked };
+    }
   }
   return best?.id || null;
 }
