@@ -30,7 +30,7 @@ export function stepCamera(state, dt, viewportWidth) {
   if (cam.mode === 'impact') {
     const impactHold = Number.isFinite(state.impactHold) ? Math.max(0, state.impactHold) : 0;
     state.impactHold = impactHold - frameDt;
-    if (state.impactHold <= 0) beginReturn(state);
+    if (!frameDtValid || state.impactHold <= 0) beginReturn(state);
     return;
   }
   const anchor = cameraAnchor(state, viewportWidth);
