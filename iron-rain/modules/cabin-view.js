@@ -293,7 +293,16 @@ export function createCabinView(canvas, options = {}) {
     try { originalOnPointerUnlock?.(); } catch {}
   }
 
+  function quiesceTransientCabinVfx() {
+    remoteRecoil = 0;
+    remoteImpact = 0;
+    hullImpactVisual.reset();
+    canvas.style.transform = '';
+    canvas.style.filter = '';
+  }
+
   function releaseCrewStationsForBackground() {
+    quiesceTransientCabinVfx();
     cancelPendingCrewStation();
     if (activeCrewStation && leaveCrewStation() !== false) runPointerUnlockCleanup();
   }
