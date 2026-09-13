@@ -16,7 +16,7 @@ let observedFireButton = null;
 let fireArmed = true;
 let suppressObservedFire = false;
 let authoritativeFireReplay = false;
-let guestFirePendingUntil = 0;
+let guestFirePendingShotId = null;
 let shotSerial = 0;
 const shotSession = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 let destroyedOpen = false;
@@ -57,7 +57,9 @@ function showRemoteMaintenance(kind, progress) {
 
 function replayAuthoritativeLocalFire(effect) {
   const fire = document.getElementById('fireBtn');
-  guestFirePendingUntil = 0;
+  const shotId = remoteFireReplayKey(effect);
+  if (guestFirePendingShotId && shotId !== guestFirePendingShotId) return false;
+  guestFirePendingShotId = null;
   if (!fire || fire.disabled) return false;
   authoritativeFireReplay = true;
   suppressObservedFire = true;
@@ -89,7 +91,7 @@ function applyRemoteEffect(effect) {
 function bindRuntime() {
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime || runtime === lastRuntime) return;
-  unsubscribeEffects?.(); lastRuntime = runtime; maintenanceCadenceState = null;
+  unsubscribeEffects?.(); lastRuntime = runtime; maintenanceCadenceState = null; guestFirePendingShotId = null;
   unsubscribeEffects = runtime.subscribeEffects?.(applyRemoteEffect) || null;
 }
 
@@ -129,11 +131,11 @@ function canReplicateLocalShot(runtime) {
   return runtime.stationOwner?.('aim') === status.localId;
 }
 
-function emitLocalShot() {
+function emitLocalShot(payload = liveShotPayload()) {
   if (suppressObservedFire) { suppressObservedFire = false; return null; }
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.issueCommand || !canReplicateLocalShot(runtime)) return null;
-  return runtime.issueCommand('fire', liveShotPayload());
+  return runtime.issueCommand('fire', payload);
 }
 
 function guestOwnsAim(runtime) {
@@ -153,7 +155,7 @@ function currentFireBinding() {
 }
 
 function guestFirePending() {
-  return performance.now() < guestFirePendingUntil;
+  return Boolean(guestFirePendingShotId);
 }
 
 function pendingGuestAimPointer(event) {
@@ -180,11 +182,11 @@ function interceptGuestFire(event) {
   if (!runtime?.issueCommand || !fire || fire.disabled || !guestOwnsAim(runtime)) return false;
   event.preventDefault?.();
   event.stopImmediatePropagation?.();
-  const now = performance.now();
-  if (now < guestFirePendingUntil) return true;
-  const result = emitLocalShot();
+  if (guestFirePending()) return true;
+  const payload = liveShotPayload();
+  const result = emitLocalShot(payload);
   if (result?.pending) {
-    guestFirePendingUntil = now + 1800;
+    guestFirePendingShotId = payload.shotId;
     toast('DISPARO ENVIADO · aguardando autorização do Mamute.', 'PONTARIA');
   }
   return true;
