@@ -4,8 +4,10 @@ const SQRT3 = Math.sqrt(3);
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 
 export const STRATEGIC_HEX = Object.freeze({
-  radius: 6_200,
-  sectorRadius: 2_250,
+  // Visual scale follows MAP_REFERENCE_20260912.svg: fewer, clearly readable
+  // strategic regions instead of a dense debug-like honeycomb.
+  radius: 8_400,
+  sectorRadius: 3_300,
   sectorNames: Object.freeze(['CENTRO', 'NORTE', 'NORDESTE', 'SUDESTE', 'SUL', 'SUDOESTE', 'NOROESTE']),
 });
 
