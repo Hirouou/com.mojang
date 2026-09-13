@@ -242,10 +242,10 @@ export function createCabinView(canvas, options = {}) {
   function updateRemoteCrew(remotes = [], dt = 0) { return crewVisuals.update(remotes, 1, safeDt(dt)); }
   function publishMaintenance(engine) {
     const detail = maintenanceFeedback(engine);
-    try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
+    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail })); } catch {}
     return detail;
   }
-  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } })); } catch {} }
+  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail: { active: false } })); } catch {} }
 
   function onSharedCrewEffect(event) {
     const effect = event.detail || {};
@@ -281,12 +281,17 @@ export function createCabinView(canvas, options = {}) {
     return core.leaveStation?.();
   }
 
-  function onVisibilityChange() {
-    if (globalThis.document?.visibilityState !== 'hidden') return;
+  function releaseCrewStationsForBackground() {
     cancelPendingCrewStation();
     if (activeCrewStation) leaveCrewStation();
   }
+  function onVisibilityChange() {
+    if (globalThis.document?.visibilityState !== 'hidden') return;
+    releaseCrewStationsForBackground();
+  }
+  function onPageHide() { releaseCrewStationsForBackground(); }
   globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
+  globalThis.addEventListener?.('pagehide', onPageHide);
 
   function reconcileCrewStation() {
     if (!activeCrewStation || enteringCrewStation === activeCrewStation) return true;
@@ -352,6 +357,7 @@ export function createCabinView(canvas, options = {}) {
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = pendingCrewStation = enteringCrewStation = null;
       globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
+      globalThis.removeEventListener?.('pagehide', onPageHide);
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
       canvas.style.transform = ''; canvas.style.filter = '';
       clearMaintenance(); hullImpactVisual.dispose(); loaderVisual.dispose(); crewVisuals.dispose(); core.dispose();
