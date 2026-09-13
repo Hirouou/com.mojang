@@ -41,9 +41,10 @@ test('phase gate preserves deterministic retreat to regroup while new breaks ret
 
 test('healthy formations wait for support instead of launching low-supply assaults', () => {
   const healthy = { strength: 55, morale: .7, suppression: .2, ammo: .8 };
-  for (const phase of ['hold', 'suppress', 'wait_support', 'assault']) {
+  for (const phase of ['hold', 'suppress', 'wait_support']) {
     assert.equal(combatRecoveryPhase({ phase, ...healthy, supply: .19 }), 'wait_support', `${phase} is supply-gated`);
   }
+  assert.equal(combatRecoveryPhase({ phase: 'assault', ...healthy, supply: .19 }), 'retreat', 'active assault breaks contact when supply is exhausted');
   assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy, supply: .3 }), null, 'the offensive supply band releases normal phase selection');
   assert.equal(combatRecoveryPhase({ phase: 'hold', ...healthy }), 'wait_support', 'missing supply fails closed for offensive readiness');
 });
@@ -83,10 +84,10 @@ test('staging formations do not counter-attack until morale, suppression, ammo a
   assert.equal(combatRecoveryPhase(base), null, 'ready formation can return to the existing tactical selector');
 });
 
-test('active assaults stop when logistics or composure fall below offensive readiness', () => {
+test('active assaults break contact when logistics or recovery composure become unsustainable', () => {
   const base = { phase: 'assault', strength: 55, morale: .7, suppression: .2, ammo: .8, supply: .8 };
-  assert.equal(combatRecoveryPhase({ ...base, ammo: .31 }), 'wait_support', 'assault pauses when ammunition falls below the offensive band');
-  assert.equal(combatRecoveryPhase({ ...base, supply: .29 }), 'wait_support', 'assault pauses when local supply falls below the offensive band');
+  assert.equal(combatRecoveryPhase({ ...base, ammo: .31 }), 'retreat', 'assault withdraws when ammunition falls below the offensive band');
+  assert.equal(combatRecoveryPhase({ ...base, supply: .29 }), 'retreat', 'assault withdraws when local supply falls below the offensive band');
   assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'assault falls back to cover when morale slips');
   assert.equal(combatRecoveryPhase({ ...base, suppression: .56 }), 'hold', 'assault falls back to cover when suppression rises');
   assert.equal(combatRecoveryPhase({ ...base, morale: .31 }), 'retreat', 'active assault withdraws once morale crosses the recovery band');
