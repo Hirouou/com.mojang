@@ -20,6 +20,8 @@ Immediate target after same-Mamute transport is proven: two real devices in OPPO
 The transport/session layer should therefore converge toward: client connects -> authenticate/identify -> join persistent theatre -> choose faction -> list/create/join eligible Mamute -> occupy station -> send commands -> receive authoritative world/Mamute events/snapshots. Creating a Mamute must NOT create a new war instance.
 
 ## MISSÃO
+Checkpoint CODEX: boot público reproduzido congelando ao entrar mesmo sem SW; corrigido loop de MutationObserver do mapa. 410 testes passaram + entrada real em Chromium localhost. Código neste commit `fix: stop notebook observer from freezing game entry`; validação Pages subsequente. STATUS permanece IN_PROGRESS: transporte/server authority não estão concluídos. WIP player-host anterior preservado localmente e não reaplicado; server/backend é a direção obrigatória. Hotspots CODEX: bootstrap, crew-runtime/session, game-v6, backend. Evitar integração concorrente nesses arquivos.
+
 Atualização direta do usuário (2026-09-12): auditar e estabilizar a implementação atual, incluindo PC+PC e PC+celular, postos exclusivos simultâneos, reconexão e feedback compartilhado de tiro/recarga/impacto. Não partir do BASE_HEAD antigo nem recriar transporte. Correções mínimas e evidência browser obrigatórias. Responsável atual: CODEX; hotspots previstos: crew-runtime/session/transport, bootstrap e integração em game-v6.js.
 
 Implementar a menor fatia coerente que permita multiplayer REAL entre dispositivos para tripulações de M-47 Mamute, aproveitando a fundação já existente de presença/replicação/sessão e sem reescrever a cabine, MAS sem consolidar autoridade final em um navegador.

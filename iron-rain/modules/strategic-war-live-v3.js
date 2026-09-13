@@ -167,7 +167,7 @@ function parseMamutePosition() {
   return { x: Number(match[1]), y: Number(match[2]) };
 }
 
-function installNotebookBridge(locate) {
+export function installNotebookBridge(locate) {
   const notebook = document.getElementById('notebook');
   if (!notebook) return () => {};
   const update = () => {
@@ -181,7 +181,10 @@ function installNotebookBridge(locate) {
     }
     const position = parseMamutePosition();
     const current = position && locate(position);
-    chip.textContent = current ? `TEATRO: ${current.hex.name} / ${current.sector.name}` : 'TEATRO: LOCALIZAÇÃO INDISPONÍVEL';
+    const label = current ? `TEATRO: ${current.hex.name} / ${current.sector.name}` : 'TEATRO: LOCALIZAÇÃO INDISPONÍVEL';
+    // This chip is inside the observed subtree. Replacing identical text still
+    // emits childList mutations and would starve rendering/input indefinitely.
+    if (chip.textContent !== label) chip.textContent = label;
   };
   const observer = new MutationObserver(update);
   observer.observe(notebook, { attributes: true, childList: true, subtree: true, attributeFilter: ['class'] });

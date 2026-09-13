@@ -1,5 +1,13 @@
 # IRON RAIN — SHARED AGENT LOG
 
+### 2026-09-12 — CODEX — P0 boot recovery / server migration
+- FEITO: reproduzido congelamento total após entrar na partida no Pages fresco (`?test=1`, sem Service Worker). `installNotebookBridge` observava sua própria escrita incondicional em `chip.textContent`; MutationObserver nunca esvaziava a fila e bloqueava render/input. Escrita agora idempotente. Preservados os commits concorrentes até `563ea7c`.
+- TESTE: 410/410 testes Node passaram no Windows; regressão comportamental de estabilização das mutações e mudança de posição adicionada; teste de station release normaliza CRLF. Chromium em localhost entrou na cabine sem erros, simulation clock avançando, renderer ativo. Evidência local: `test-results/boot-local.log` e `test-results/boot-local.png` (artefatos ignorados, não publicados como prova remota).
+- ARQUIVOS: `modules/strategic-war-live-v3.js`, `tests/notebook-mutation-lifecycle.test.js`, `tests/cabin-station-release-lifecycle.test.js`.
+- PRÓXIMO: confirmar Pages após este commit; CODEX continua dono dos requests P0 de transporte e backend. Player-host authority = NÃO para a solução final. WIP anterior de integração host foi preservado em stash, não aplicado sobre o novo HEAD. Backend persistente ainda não existe neste checkpoint; não declarar multiplayer servidor pronto.
+- RISCO: P0 server authority e persistência ainda pendentes; P1 emissão de eventos locais por observadores DOM não é fonte autoritativa. Evitar novas integrações paralelas em bootstrap/crew-runtime/game-v6 enquanto CODEX fecha esse fluxo.
+- COMMIT: este commit (fix: stop notebook observer from freezing game entry).
+
 Use este arquivo para handoff curto entre contas. Adicione entradas novas no topo.
 
 ## Modelo

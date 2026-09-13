@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const source = readFileSync(new URL('../modules/cabin-view.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../modules/cabin-view.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const leaveBody = source.match(/function leaveCrewStation\(\) \{([\s\S]*?)\n  \}\n\n  view =/)?.[1] || '';
 
 test('cabin keeps the local station until authoritative release succeeds', () => {
