@@ -40,9 +40,16 @@ function remoteFireReplayKey(effect) {
   return Number.isFinite(at) ? `${shotId}@${at}` : shotId;
 }
 
+function effectFromLocalShooter(effect) {
+  const shooterId = String(effect?.payload?.shooterId || '').trim();
+  const localId = String(globalThis.ironRainEntry?.runtime?.status?.()?.localId || globalThis.ironRainEntry?.localId || '').trim();
+  return Boolean(shooterId && localId && shooterId === localId);
+}
+
 function applyRemoteEffect(effect) {
   if (!effect?.type) return;
   if (effect.type === 'fire' && !remoteShotReplayGuard.accept(remoteFireReplayKey(effect))) return;
+  if ((effect.type === 'fire' || effect.type === 'reload') && effectFromLocalShooter(effect)) return;
   try { dispatchEvent(new CustomEvent('ironrain:shared-crew-effect', { detail: { ...effect, remote: true } })); } catch {}
   if (effect.type === 'fire') { audio.fire(); toast('OUTRO TRIPULANTE DISPAROU · recuo e recarga sincronizados.', 'MAMUTE'); }
   else if (effect.type === 'reload') audio.load(effect.payload);
@@ -94,16 +101,14 @@ function liveShotPayload() {
 
 function canReplicateLocalShot(runtime) {
   const status = runtime?.status?.();
-  if (!status || status.mode === 'offline') return true;
+  if (!status || status.mode === 'offline') return false;
   return runtime.stationOwner?.('aim') === status.localId;
 }
 
 function emitLocalShot() {
   const runtime = globalThis.ironRainEntry?.runtime;
-  if (!runtime?.emitEffect || !canReplicateLocalShot(runtime)) return;
-  const shot = liveShotPayload();
-  runtime.emitEffect('fire', shot);
-  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell });
+  if (!runtime?.issueCommand || !canReplicateLocalShot(runtime)) return;
+  runtime.issueCommand('fire', liveShotPayload());
 }
 
 function bindFireState() {
