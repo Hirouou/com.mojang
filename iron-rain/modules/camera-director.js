@@ -4,7 +4,11 @@ export const smooth = (rate, dt) => 1 - Math.exp(-rate * Math.max(0, dt));
 export function cameraAnchor(state, viewportWidth) {
   const width = Number.isFinite(viewportWidth) ? Math.max(0, viewportWidth) : 0;
   const zoom = Number.isFinite(state.cam.zoom) && state.cam.zoom > 0 ? state.cam.zoom : 1;
-  return { x: state.robot.x + Math.min(230, width / zoom * .12), y: state.robot.y };
+  const fallbackX = Number.isFinite(state.cam.x) ? state.cam.x : 0;
+  const fallbackY = Number.isFinite(state.cam.y) ? state.cam.y : 0;
+  const robotX = Number.isFinite(state.robot?.x) ? state.robot.x : fallbackX;
+  const robotY = Number.isFinite(state.robot?.y) ? state.robot.y : fallbackY;
+  return { x: robotX + Math.min(230, width / zoom * .12), y: robotY };
 }
 export function finishCamera(state, viewportWidth) {
   const p = cameraAnchor(state, viewportWidth);
