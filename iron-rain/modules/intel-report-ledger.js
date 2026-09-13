@@ -41,8 +41,9 @@ export function snapshotIntelObservation(observation, reportedAt = 0) {
 }
 
 /**
- * Upsert one immutable report by stable id. The returned array is a new frozen
- * ledger, so no consumer can mutate a prior snapshot in place.
+ * Upsert one immutable report by stable id without letting delayed packets
+ * rewind newer earned intel. The returned array is a new frozen ledger, so no
+ * consumer can mutate a prior snapshot in place.
  */
 export function upsertIntelReport(reports, observation, reportedAt = 0) {
   const report = snapshotIntelObservation(observation, reportedAt);
@@ -50,6 +51,10 @@ export function upsertIntelReport(reports, observation, reportedAt = 0) {
   if (!report) return Object.freeze([...current]);
   const index = current.findIndex(item => String(item?.id) === report.id);
   if (index < 0) return Object.freeze([...current, report]);
+  const currentReportedAt = finite(current[index]?.reportedAt);
+  if (currentReportedAt !== null && currentReportedAt > report.reportedAt) {
+    return Object.freeze([...current]);
+  }
   const next = [...current];
   next[index] = report;
   return Object.freeze(next);
