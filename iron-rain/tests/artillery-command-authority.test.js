@@ -58,7 +58,7 @@ test('wrong crew member, unclaimed station and replay cannot mutate artillery st
   assert.equal(mutations, 1);
 });
 
-test('out-of-ammo fire sequence cannot become a live replay after resupply', () => {
+test('out-of-ammo fire sequence reports authoritative remaining ammo and cannot become a live replay after resupply', () => {
   const inventory = { capacity: { HE: 1 }, shells: { HE: 0 } };
   let mutations = 0;
   const authority = createMamuteCommandAuthority({
@@ -69,10 +69,26 @@ test('out-of-ammo fire sequence cannot become a live replay after resupply', () 
   const command = { playerId: 'gunner', seq: 7, type: 'fire', payload: { shell: 'HE', shotId: 'dry-7' } };
 
   assert.deepEqual(authority.receive(command), {
-    ok: false, reason: 'out-of-ammo', station: 'aim', owner: 'gunner', shell: 'HE', shotId: 'dry-7',
+    ok: false, reason: 'out-of-ammo', station: 'aim', owner: 'gunner', shell: 'HE', shotId: 'dry-7', ammoRemaining: 0,
   });
   inventory.shells.HE = 1;
   assert.deepEqual(authority.receive(command), { ok: false, reason: 'stale-command' });
   assert.equal(inventory.shells.HE, 1);
   assert.equal(mutations, 0);
+});
+
+test('rejected fire returns the restored authoritative ammo count', () => {
+  const inventory = { capacity: { HE: 2 }, shells: { HE: 1 } };
+  const authority = createMamuteCommandAuthority({
+    stationOwner: station => station === 'aim' ? 'gunner' : null,
+    fireInventory: inventory,
+    apply: () => false,
+  });
+
+  assert.deepEqual(authority.receive({
+    playerId: 'gunner', seq: 1, type: 'fire', payload: { shell: 'HE', shotId: 'rejected-1' },
+  }), {
+    ok: false, reason: 'command-rejected', station: 'aim', owner: 'gunner', shotId: 'rejected-1', shell: 'HE', ammoRemaining: 1,
+  });
+  assert.equal(inventory.shells.HE, 1);
 });
