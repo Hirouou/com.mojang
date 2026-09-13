@@ -33,6 +33,21 @@ function routeIntelSafe(logistics, path) {
   return true;
 }
 
+function knownLocalRouteThreat(strategicLogistics, to) {
+  if (!strategicLogistics || typeof strategicLogistics.snapshot !== 'function') return 0;
+  let routes;
+  try { routes = strategicLogistics.snapshot()?.routes; } catch { return 0; }
+  if (!Array.isArray(routes)) return 0;
+  const nodeId = String(to ?? '');
+  let threat = 0;
+  for (const route of routes) {
+    if (String(route?.from ?? '') !== nodeId && String(route?.to ?? '') !== nodeId) continue;
+    const knownThreat = Number(route?.knownThreat);
+    if (Number.isFinite(knownThreat)) threat = Math.max(threat, knownThreat);
+  }
+  return threat;
+}
+
 /** Ask the canonical strategic-logistics graph whether a friendly route really exists. */
 export function combatRouteOpen({ logistics, team, from, to } = {}) {
   if (!validTeam(team) || !logistics || typeof logistics.route !== 'function' || typeof logistics.getNode !== 'function') return false;
@@ -112,9 +127,17 @@ function withDeliveredTroops(logistics, strategicLogistics, to) {
   // Keep physical defenders at the same canonical field node instead of
   // stripping critical logistics infrastructure to feed the front. Depots and
   // garages retain two aggregate defenders; a basic outpost retains one.
+  // If earned route intel reports lethal pressure on any road touching this
+  // node, keep an extra local security element instead of draining a threatened
+  // depot/garage/outpost to reinforce another trench. Raw/unreported threat is
+  // deliberately ignored so COMBAT AI does not become an omniscient sensor.
   const criticalLogistics = bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
   const fieldNode = bool(logistics?.hasOutpost) || criticalLogistics;
-  const garrison = criticalLogistics ? 2 : fieldNode ? 1 : 0;
+  const knownThreat = knownLocalRouteThreat(strategicLogistics, to);
+  const threatened = knownThreat >= COMBAT_ROUTE_THREAT_LIMIT;
+  const baseGarrison = criticalLogistics ? 2 : fieldNode ? 1 : 0;
+  const threatReserve = threatened ? (criticalLogistics ? 2 : fieldNode ? 1 : 0) : 0;
+  const garrison = baseGarrison + threatReserve;
   const deployableTroops = Math.max(0, availableTroops - garrison);
   return Object.freeze({ ...logistics, availableTroops, deployableTroops });
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { combatLogisticsState, combatReserveBatch, combatReserveGate, combatRouteOpen } from '../modules/combat-reserves.js';
+import { combatLogisticsState, combatReserveBatch, combatReserveGate, combatReservePlan, combatRouteOpen } from '../modules/combat-reserves.js';
 import { createLogisticsNode, createStrategicLogistics, createSupplyRoute } from '../modules/strategic-logistics.js';
 
 const readyLogistics = Object.freeze({
@@ -173,4 +173,31 @@ test('reserve batch fails closed for cut or malformed logistics', () => {
   }
   assert.equal(combatReserveBatch({ logistics: readyLogistics, deficit: NaN }), 0);
   assert.equal(combatReserveBatch({ logistics: readyLogistics, deficit: -1 }), 0);
+});
+
+test('known lethal pressure keeps extra defenders at a logistics node without reading raw threat', () => {
+  const nodes = [
+    createLogisticsNode({ id: 'rear', team: 'ally', kind: 'depot' }),
+    createLogisticsNode({ id: 'front', team: 'ally', kind: 'depot', assets: { troops: 5 } }),
+    createLogisticsNode({ id: 'flank', team: 'ally', kind: 'outpost' }),
+  ];
+  const routes = [
+    createSupplyRoute({ id: 'rear-front', team: 'ally', from: 'rear', to: 'front', distance: 1000 }),
+    createSupplyRoute({ id: 'front-flank', team: 'ally', from: 'front', to: 'flank', distance: 1000 }),
+  ];
+  const territory = { owner: 'ally', contested: false, structures: ['depot'] };
+
+  const rawThreatOnly = createStrategicLogistics({ nodes: nodes.map(node => ({ ...node, stock: { ...node.stock }, assets: { ...node.assets } })), routes: routes.map(route => ({ ...route })) });
+  rawThreatOnly.setRouteOpen('front-flank', true, .9);
+  const unobserved = combatReservePlan({ strategicLogistics: rawThreatOnly, territory, team: 'ally', from: 'rear', to: 'front', timerExpired: true, fallbackComplete: true, deficit: 20 });
+  assert.equal(unobserved.logistics.availableTroops, 5);
+  assert.equal(unobserved.logistics.deployableTroops, 3);
+
+  const observedThreat = createStrategicLogistics({ nodes, routes });
+  observedThreat.reportRouteThreat('front-flank', { team: 'ally', threat: .9, reportedAt: 10 });
+  const defended = combatReservePlan({ strategicLogistics: observedThreat, territory, team: 'ally', from: 'rear', to: 'front', timerExpired: true, fallbackComplete: true, deficit: 20 });
+  assert.equal(defended.routeOpen, true);
+  assert.equal(defended.logistics.availableTroops, 5);
+  assert.equal(defended.logistics.deployableTroops, 1);
+  assert.equal(defended.amount, 1);
 });
