@@ -120,6 +120,22 @@ test('combat route reachability delegates to the canonical strategic logistics g
   assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), false);
 });
 
+test('combat reserves avoid a route only when canonical intel marks it lethally threatened', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [
+      createLogisticsNode({ id: 'rear', team: 'ally' }),
+      createLogisticsNode({ id: 'front', team: 'ally' }),
+    ],
+    routes: [createSupplyRoute({ id: 'rear-front', team: 'ally', from: 'rear', to: 'front', distance: 1000 })],
+  });
+
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), true);
+  logistics.reportRouteThreat('rear-front', { team: 'ally', threat: .74, reportedAt: 10 });
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), true);
+  logistics.reportRouteThreat('rear-front', { team: 'ally', threat: .8, reportedAt: 11 });
+  assert.equal(combatRouteOpen({ logistics, team: 'ally', from: 'rear', to: 'front' }), false);
+});
+
 test('combat route reachability fails closed for invalid endpoints or adapters', () => {
   const logistics = createStrategicLogistics({
     nodes: [createLogisticsNode({ id: 'front', team: 'ally' })],
