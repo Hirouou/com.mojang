@@ -76,13 +76,14 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * unknown local supply waits for support while it still has enough composure to
  * hold. If that same supply failure is paired with empty magazines, weak morale
  * or heavy suppression, the formation withdraws before crossing the hard break
- * threshold. A formation that is both shaken and heavily suppressed also
- * withdraws early even with supply available, instead of unrealistically
- * sitting in the assault/hold loop until one hard-break threshold is crossed.
- * Offensive phases also require a modest readiness band, preventing tired or
- * pinned squads from launching or sustaining attacks. Once an assault is in
- * close contact, crossing either recovery composure threshold is enough to
- * withdraw rather than treating the formation like a stationary defender.
+ * threshold. A formation that is both shaken and heavily suppressed, or both
+ * depleted below recovery strength and heavily suppressed, also withdraws early
+ * even with supply available instead of unrealistically sitting in the line
+ * until one hard-break threshold is crossed. Offensive phases also require a
+ * modest readiness band, preventing tired or pinned squads from launching or
+ * sustaining attacks. Once an assault is in close contact, crossing either
+ * recovery composure threshold is enough to withdraw rather than treating the
+ * formation like a stationary defender.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
@@ -90,13 +91,16 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
   if (phase === 'retreat') return 'regroup';
   if (recovery.broken) return 'retreat';
 
+  const strengthValue = finiteOr(strength, 0);
   const supplyValue = finiteOr(supply, 0);
   const ammoValue = finiteOr(ammo, 0);
   const moraleValue = finiteOr(morale, 0);
   const suppressionValue = finiteOr(suppression, 1);
   const cohesionWithdrawal = moraleValue < COMBAT_RECOVERY_THRESHOLDS.morale &&
     suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression;
-  if (cohesionWithdrawal && SUPPLY_GATED_PHASES.has(phase)) return 'retreat';
+  const attritionWithdrawal = strengthValue < COMBAT_RECOVERY_THRESHOLDS.strength &&
+    suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression;
+  if ((cohesionWithdrawal || attritionWithdrawal) && SUPPLY_GATED_PHASES.has(phase)) return 'retreat';
 
   const supplied = supplyValue >= COMBAT_RECOVERY_THRESHOLDS.supply;
   if (!supplied && SUPPLY_GATED_PHASES.has(phase)) {
