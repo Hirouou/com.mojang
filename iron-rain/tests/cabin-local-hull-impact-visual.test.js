@@ -8,7 +8,7 @@ test('local Mamute impacts feed the live 3D hull impact presentation', () => {
   assert.match(source, /import \{ hullImpactFeedback \} from '\.\/cabin-hit-feedback\.js';/);
   assert.match(source, /function onLocalHullImpact\(event\) \{\s*applyHullImpact\(hullImpactFeedback\(event\?\.detail \|\| \{\}\)\);\s*\}/s);
   assert.match(source, /addEventListener\?\.\('ironrain:mamute-impact', onLocalHullImpact\)/);
-  assert.match(source, /function applyHullImpact\(feedback\) \{[\s\S]*remoteImpact = Math\.max\(remoteImpact, feedback\.intensity\);[\s\S]*hullImpactVisual\.kick\(feedback\.intensity\);[\s\S]*\}/);
+  assert.match(source, /function applyHullImpact\(feedback\) \{[\s\S]*remoteImpact = Math\.max\(remoteImpact, feedback\.intensity\);[\s\S]*hullImpactVisual\.kick\(feedback\);[\s\S]*\}/);
 });
 
 test('local and replicated impacts share one renderer seam and listener is disposed', () => {
