@@ -9,8 +9,8 @@ import { normalizeFaction, factionInfo } from './modules/factions.js';
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
 const app = document.getElementById('app');
-const CLIENT_BUILD = '20260912-2335-bootfix';
-const EXPECTED_CACHE_SUFFIX = 'v7.22';
+const CLIENT_BUILD = '20260913-mobile-viewport-hotfix';
+const EXPECTED_CACHE_SUFFIX = 'v7.28';
 const BOOT_RECOVERY_PARAM = 'ir_recovery';
 const BOOT_TIMEOUT_MS = 8000;
 const FIRE_AMMO_COUNTER_ID = Object.freeze({ HE: 'heCount', SMOKE: 'smokeCount', FRAG: 'fragCount' });
@@ -24,6 +24,8 @@ let crewToastTimer = 0;
 let bootWatchdogTimer = 0;
 let liveIntegrationPromise = null;
 let lastCrewFrameAt = performance.now();
+let visibleViewportWidth = 0;
+let visibleViewportHeight = 0;
 
 if (!document.querySelector('link[data-iron-rain-mobile-station]')) {
   const stationStyles = document.createElement('link');
@@ -32,6 +34,45 @@ if (!document.querySelector('link[data-iron-rain-mobile-station]')) {
   stationStyles.dataset.ironRainMobileStation = '1';
   document.head.appendChild(stationStyles);
 }
+
+if (!document.querySelector('link[data-iron-rain-viewport-hotfix]')) {
+  const viewportStyles = document.createElement('link');
+  viewportStyles.rel = 'stylesheet';
+  viewportStyles.href = './mobile-viewport-hotfix.css';
+  viewportStyles.dataset.ironRainViewportHotfix = '1';
+  document.head.appendChild(viewportStyles);
+}
+
+function viewportMetrics() {
+  const viewport = window.visualViewport;
+  const width = Math.max(1, Math.round(Number(viewport?.width) || window.innerWidth || document.documentElement.clientWidth || 1));
+  const height = Math.max(1, Math.round(Number(viewport?.height) || window.innerHeight || document.documentElement.clientHeight || 1));
+  return { width, height };
+}
+
+function syncVisibleViewport({ notifyRenderer = false } = {}) {
+  const { width, height } = viewportMetrics();
+  const changed = width !== visibleViewportWidth || height !== visibleViewportHeight;
+  visibleViewportWidth = width;
+  visibleViewportHeight = height;
+  document.documentElement.style.setProperty('--ir-viewport-w', `${width}px`);
+  document.documentElement.style.setProperty('--ir-viewport-h', `${height}px`);
+  if (changed && notifyRenderer) {
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  }
+  return changed;
+}
+
+function settleVisibleViewport() {
+  syncVisibleViewport({ notifyRenderer: true });
+  requestAnimationFrame(() => syncVisibleViewport({ notifyRenderer: true }));
+  window.setTimeout(() => syncVisibleViewport({ notifyRenderer: true }), 120);
+}
+
+syncVisibleViewport();
+window.addEventListener('resize', () => syncVisibleViewport());
+window.addEventListener('orientationchange', settleVisibleViewport);
+window.visualViewport?.addEventListener('resize', () => syncVisibleViewport({ notifyRenderer: true }));
 
 function localPlayerId() {
   const tabKey = 'iron-rain-crew-tab-id';
