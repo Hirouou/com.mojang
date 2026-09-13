@@ -24,7 +24,8 @@ export function beginReturn(state) {
 }
 export function stepCamera(state, dt, viewportWidth) {
   const cam = state.cam;
-  const frameDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+  const frameDtValid = Number.isFinite(dt) && dt >= 0;
+  const frameDt = frameDtValid ? dt : 0;
   if (cam.mode === 'shell' || cam.mode === 'intel') return;
   if (cam.mode === 'impact') {
     const impactHold = Number.isFinite(state.impactHold) ? Math.max(0, state.impactHold) : 0;
@@ -40,6 +41,13 @@ export function stepCamera(state, dt, viewportWidth) {
   if (!Number.isFinite(cam.x)) cam.x = anchor.x;
   if (!Number.isFinite(cam.y)) cam.y = anchor.y;
   if (cam.mode === 'return') {
+    // A corrupted/negative frame delta cannot safely advance the bounded return
+    // timer. Snap to the same canonical anchor rather than leave the projectile
+    // camera stranded indefinitely away from the Mamute.
+    if (!frameDtValid) {
+      finishCamera(state, viewportWidth);
+      return;
+    }
     cam.elapsed = (cam.elapsed || 0) + frameDt;
     const a = smooth(5.5, frameDt);
     cam.x += (anchor.x - cam.x) * a;
