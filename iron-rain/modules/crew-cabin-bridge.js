@@ -94,6 +94,17 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     }
   }
 
+  function reconcileGrantedPendingIntent(snapshot) {
+    if (!pendingStations.size || snapshot?.station) return;
+    const focused = snapshot?.focus?.id ?? null;
+    if (!focused || !pendingStations.has(focused)) return;
+    const state = stationGateState(runtime, focused);
+    if (!state.ready) return;
+    let entered = null;
+    try { entered = cabin?.interact?.() ?? null; } catch { entered = null; }
+    if (entered === focused) pendingStations.delete(focused);
+  }
+
   function update(dt = 0, at) {
     const snapshot = cabin?.snapshot?.();
     reconcilePendingIntent(snapshot);
@@ -110,6 +121,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
       if (guestDisconnected(status) || identityChanged) {
         return failClosedFrame(dt, snapshot);
       }
+      reconcileGrantedPendingIntent(snapshot);
       remotes = at === undefined
         ? runtime.renderSamples(undefined, delay)
         : runtime.renderSamples(at, delay);
