@@ -15,9 +15,13 @@ export function installStrategicWarLive(options = {}) {
   const base = installCanonicalStrategicWarLive(options);
   if (!base) return base;
 
+  // v3 owns the canonical theatre/logistics instance. Preserve its read-only
+  // reserve bridge before this façade replaces the global map surface.
+  const combatReserveContext = globalThis.ironRainStrategicMap?.combatReserveContext;
   const mobileUx = installMobileUXReview(document);
   globalThis.ironRainStrategicMap = Object.freeze({
     locate: point => base.locate?.(point) || null,
+    combatReserveContext: (sectorId, team) => combatReserveContext?.(sectorId, team) || null,
     open: () => base.open?.(),
     close: () => base.close?.(),
     mobileUx,
