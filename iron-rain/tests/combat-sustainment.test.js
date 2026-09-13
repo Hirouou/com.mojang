@@ -30,6 +30,15 @@ test('combat sustainment follows canonical route and field stock without creatin
   assert.equal(combatSustainmentSupply({ strategicLogistics: graph(), territory, team: 'enemy', to: 'field' }), .08);
 });
 
+test('combat sustainment requires a physical field logistics node before stock supports an offensive', () => {
+  const roadOnlyTerritory = Object.freeze({ owner: 'ally', contested: false, structures: [] });
+  const roadOnly = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80 }), territory: roadOnlyTerritory, team: 'ally', to: 'field' });
+  const outpost = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80 }), territory, team: 'ally', to: 'field' });
+
+  assert.equal(roadOnly, .08, 'ammo parked on a generic road/sector node must not become tactical supply without field infrastructure');
+  assert.ok(outpost > .6, 'the same delivered stock should support combat once a canonical field node exists');
+});
+
 test('live war wrapper caps tactical base supply from the canonical sustainment seam', async () => {
   const source = await readFile(new URL('../modules/war-simulation.js', import.meta.url), 'utf8');
   assert.match(source, /import \{ combatSustainmentSupply \} from '\.\/combat-sustainment\.js';/);
