@@ -21,7 +21,7 @@ export const COMBAT_OFFENSIVE_THRESHOLDS = Object.freeze({
 
 const finiteOr = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const SUPPLY_GATED_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
-const OFFENSIVE_STAGING_PHASES = new Set(['hold', 'suppress', 'wait_support']);
+const OFFENSIVE_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
 
 /**
  * Pure recovery policy for aggregate infantry forces.
@@ -58,9 +58,9 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * Once a formation reaches regroup it stays there until the healthier recovery
  * band is satisfied. Outside retreat/regroup, a formation with exhausted or
  * unknown local supply waits for support instead of starting/continuing an
- * offensive phase. Staging phases also require a modest offensive-ready band;
- * this prevents a tired or pinned squad from turning a nearly empty enemy line
- * into an immediate counter-attack while preserving the existing phase machine.
+ * offensive phase. Offensive phases also require a modest readiness band;
+ * this prevents a tired or pinned squad from launching or sustaining an attack
+ * while preserving the existing phase machine.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
@@ -75,7 +75,7 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
   const supplied = supplyValue >= COMBAT_RECOVERY_THRESHOLDS.supply;
   if (!supplied && SUPPLY_GATED_PHASES.has(phase)) return 'wait_support';
 
-  if (OFFENSIVE_STAGING_PHASES.has(phase)) {
+  if (OFFENSIVE_PHASES.has(phase)) {
     const logisticsReady = ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo && supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
     if (!logisticsReady) return 'wait_support';
     const composureReady = moraleValue >= COMBAT_OFFENSIVE_THRESHOLDS.morale && suppressionValue <= COMBAT_OFFENSIVE_THRESHOLDS.suppression;
