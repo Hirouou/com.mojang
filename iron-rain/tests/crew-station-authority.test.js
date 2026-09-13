@@ -25,12 +25,29 @@ test('disconnect releases every station owned by that crew member', () => {
 });
 
 test('authoritative snapshots do not roll backwards', () => {
-  const host = createCrewStationAuthority();
-  host.claim('engine', 'alpha');
-  const snapshot = host.snapshot();
-  const guest = createCrewStationAuthority();
-  assert.equal(guest.apply(snapshot), true);
-  assert.equal(guest.ownerOf('engine'), 'alpha');
-  assert.equal(guest.apply({ revision: snapshot.revision - 1, claims: [] }), false);
-  assert.equal(guest.ownerOf('engine'), 'alpha');
+  const server = createCrewStationAuthority();
+  server.claim('engine', 'alpha');
+  const snapshot = server.snapshot();
+  const client = createCrewStationAuthority();
+  assert.equal(client.apply(snapshot), true);
+  assert.equal(client.ownerOf('engine'), 'alpha');
+  assert.equal(client.apply({ revision: snapshot.revision - 1, claims: [] }), false);
+  assert.equal(client.ownerOf('engine'), 'alpha');
+});
+
+test('same revision is idempotent but cannot replace station ownership', () => {
+  const server = createCrewStationAuthority();
+  server.claim('drive', 'alpha');
+  const snapshot = server.snapshot();
+  const client = createCrewStationAuthority();
+
+  assert.equal(client.apply(snapshot), true);
+  assert.equal(client.apply(snapshot), true);
+  assert.equal(client.ownerOf('drive'), 'alpha');
+
+  assert.equal(client.apply({
+    revision: snapshot.revision,
+    claims: [{ station: 'drive', owner: 'bravo' }],
+  }), false);
+  assert.equal(client.ownerOf('drive'), 'alpha');
 });
