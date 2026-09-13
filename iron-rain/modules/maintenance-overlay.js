@@ -12,6 +12,8 @@ function ensureOverlay() {
   style.textContent = `
     .ir-maintenance{--p:0;position:fixed;left:50%;top:58%;z-index:18;transform:translate(-50%,-50%);display:grid;grid-template-columns:46px auto;align-items:center;gap:10px;min-width:178px;padding:8px 11px 8px 8px;pointer-events:none;background:#091009d9;border:1px solid #b9ad7558;border-left:2px solid #c4ad70;box-shadow:0 8px 26px #0009;color:#e8ddb9;font-family:ui-monospace,Consolas,monospace;backdrop-filter:blur(2px);contain:layout paint}
     .ir-maintenance[hidden]{display:none}
+    .ir-maintenance.remote{border-left-color:#7fa7c8;box-shadow:0 8px 26px #0009,0 0 0 1px #7fa7c81f}
+    .ir-maintenance.remote .ir-maintenance-copy b{color:#b7d7ee}
     .ir-maintenance-ring{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#d5bc78 calc(var(--p)*1turn),#30362d calc(var(--p)*1turn));box-shadow:inset 0 0 0 1px #d8c48733,0 0 14px #0008;position:relative}
     .ir-maintenance-ring:after{content:'';width:27px;height:27px;border-radius:50%;background:#111811;box-shadow:inset 0 0 0 1px #6e755f55}
     .ir-maintenance-value{position:absolute;inset:0;display:grid;place-items:center;z-index:2;font-size:8px;font-weight:700;color:#efe4c0}
@@ -71,10 +73,17 @@ function render(detail) {
   const repairMotion = Math.max(0, Math.min(1, Number(detail.repairMotion) || 0));
   const danger = Math.max(0, Math.min(1, Number(detail.dangerPulse) || 0));
   const isExtinguish = detail.kind === 'extinguish';
+  const isRepair = detail.kind === 'repair';
+  if (!isExtinguish && !isRepair) {
+    element.hidden = true;
+    if (vfx) vfx.className = 'ir-maintenance-vfx';
+    return;
+  }
   const vfxActive = isExtinguish ? spray > .02 : repairMotion > .02 || sparks > .02;
   element.hidden = false;
   element.classList.toggle('extinguish', isExtinguish);
-  element.classList.toggle('repair', detail.kind === 'repair');
+  element.classList.toggle('repair', isRepair);
+  element.classList.toggle('remote', detail.remote === true);
   element.style.setProperty('--p', String(progress));
   source.textContent = detail.remote ? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL';
   label.textContent = isExtinguish ? 'APAGANDO INCÊNDIO' : 'REPARANDO MOTOR';
