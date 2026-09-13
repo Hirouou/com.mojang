@@ -74,11 +74,12 @@ export function createMamuteCommandAuthority({
       rejected += 1;
       return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null });
     }
+    const shotId = type === 'fire' ? cleanId(command.payload?.shotId) : null;
     const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
     if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
       rejected += 1;
-      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner });
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId });
     }
 
     const inventory = type === 'fire' ? currentFireInventory() : null;
@@ -87,12 +88,12 @@ export function createMamuteCommandAuthority({
     if (inventory) {
       if (!canFireShell(inventory, shell)) {
         rejected += 1;
-        return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null });
+        return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}) });
       }
       shellReserved = consumeShell(inventory, shell, 1);
       if (!shellReserved) {
         rejected += 1;
-        return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null });
+        return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}) });
       }
     }
 
@@ -101,13 +102,13 @@ export function createMamuteCommandAuthority({
     if (!applied) {
       if (shellReserved) restoreShell(inventory, shell);
       rejected += 1;
-      return Object.freeze({ ok: false, reason: 'command-rejected', station, owner });
+      return Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}) });
     }
 
     if (shotKey) rememberFireShot(shotKey);
     sequences.set(playerId, seq); accepted += 1;
     const ammoRemaining = inventory ? inventory.shells?.[shell] : undefined;
-    return Object.freeze({ ok: true, station, owner, accepted, ...(inventory ? { shell, ammoRemaining } : {}) });
+    return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ammoRemaining } : {}) });
   }
 
   return Object.freeze({
