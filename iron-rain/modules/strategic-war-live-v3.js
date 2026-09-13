@@ -254,7 +254,16 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     return { hex: bestHex, sector: bestSector, position, insideRegion: bestHexDistance <= bestHex.radius * 1.04 };
   }
 
-  window.ironRainStrategicMap = Object.freeze({ locate, open: () => setOpen(true) });
+  function combatReserveContext(sectorId, team) {
+    const id = String(sectorId ?? '');
+    if (!id || !['ally', 'enemy'].includes(team)) return null;
+    const node = theatre.territory.get(id);
+    const endpoint = theatre.logistics.getNode(id);
+    if (!node || node.owner !== team || !endpoint?.alive || endpoint.team !== team) return null;
+    return Object.freeze({ strategicLogistics: theatre.logistics, territory: territorySnapshot(node), to: id });
+  }
+
+  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, open: () => setOpen(true) });
   const stopNotebookBridge = installNotebookBridge(locate);
 
   function resize() {
