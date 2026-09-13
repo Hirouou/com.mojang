@@ -183,10 +183,12 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   }
 
   function releaseStation(station) {
+    const wasPending = typeof station === 'string' && pendingStations.has(station);
     const released = releaseStationGate(runtime, station);
     if (released && typeof station === 'string') {
       pendingStations.delete(station);
-      abandonedStations.delete(station);
+      if (wasPending) abandonedStations.add(station);
+      else abandonedStations.delete(station);
     }
     return released;
   }
