@@ -98,11 +98,14 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
 }
 
 function combatDeliveredTroops(strategicLogistics, to) {
-  if (!strategicLogistics || typeof strategicLogistics.getNode !== 'function') return null;
+  if (!strategicLogistics || typeof strategicLogistics.getNode !== 'function') return 0;
   try {
     const destination = strategicLogistics.getNode(String(to ?? ''));
     if (!destination?.alive) return 0;
-    if (!destination.assets || !hasOwn(destination.assets, 'troops')) return null;
+    // Canonical fronts must have a physical troop inventory. Treating a missing
+    // asset field as "unbounded legacy reserves" would recreate soldiers at the
+    // front without an origin, stock debit or delivery.
+    if (!destination.assets || !hasOwn(destination.assets, 'troops')) return 0;
     return Math.max(0, Math.floor(Number(destination.assets.troops) || 0));
   } catch { return 0; }
 }
@@ -123,7 +126,6 @@ function consumeDeliveredTroops(strategicLogistics, to, amount) {
 
 function withDeliveredTroops(logistics, strategicLogistics, to) {
   const availableTroops = combatDeliveredTroops(strategicLogistics, to);
-  if (availableTroops == null) return logistics;
   // Keep physical defenders at the same canonical field node instead of
   // stripping critical logistics infrastructure to feed the front. Depots and
   // garages retain two aggregate defenders; a basic outpost retains one.
