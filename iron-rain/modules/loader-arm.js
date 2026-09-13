@@ -11,6 +11,7 @@ const smooth = value => {
   return t * t * (3 - 2 * t);
 };
 const mix = (a, b, t) => a + (b - a) * smooth(t);
+const LOADER_PHASES = new Set(['extract', 'rotate', 'ram', 'lock']);
 
 export const LOADER_ARM_HOME = Object.freeze({
   baseYaw: -0.72,
@@ -28,7 +29,8 @@ export function loaderArmPose(cycle) {
   if (!cycle) return Object.freeze({ ...LOADER_ARM_HOME, gripping: false, rammer: 0, phase: 'idle', shellVisible: false });
 
   const p = clamp01(cycle.progress);
-  const phase = cycle.phase || (p < .22 ? 'extract' : p < .62 ? 'rotate' : p < .9 ? 'ram' : 'lock');
+  const derivedPhase = p < .22 ? 'extract' : p < .62 ? 'rotate' : p < .9 ? 'ram' : 'lock';
+  const phase = LOADER_PHASES.has(cycle.phase) ? cycle.phase : derivedPhase;
   let baseYaw = LOADER_ARM_HOME.baseYaw;
   let shoulder = LOADER_ARM_HOME.shoulder;
   let elbow = LOADER_ARM_HOME.elbow;
