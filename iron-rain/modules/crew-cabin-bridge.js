@@ -33,10 +33,17 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     return result;
   }
 
+  function abandonPendingStations() {
+    for (const station of pendingStations) {
+      abandonedStations.add(station);
+      releaseStationGate(runtime, station);
+    }
+    pendingStations.clear();
+  }
+
   function failClosedFrame(dt = 0) {
     try { cabin?.leaveStation?.(); } catch {}
-    pendingStations.clear();
-    abandonedStations.clear();
+    abandonPendingStations();
     cabin?.updateRemoteCrew?.([], clampDt(dt));
     return Object.freeze({ status: null, remoteCount: 0 });
   }
@@ -81,8 +88,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
 
   function clear() {
     try { cabin?.leaveStation?.(); } catch {}
-    for (const station of pendingStations) releaseStationGate(runtime, station);
-    pendingStations.clear();
+    abandonPendingStations();
     abandonedStations.clear();
     cabin?.updateRemoteCrew?.([], 0);
   }
