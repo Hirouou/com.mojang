@@ -31,6 +31,20 @@ test('nearby local roads reuse canonical logistics nodes and routes without leak
   assert.doesNotMatch(war, /strategicRoads[^\n]*team/);
 });
 
+test('nearby canonical capitals reuse logistics node positions and live territory structures for the existing base renderer', () => {
+  assert.match(war, /const LOCAL_CAPITAL_RADIUS = 6_500/);
+  assert.match(war, /function publishStrategicCapitals\(state, snapshot\)/);
+  assert.match(war, /for \(const node of snapshot\?\.nodes \|\| \[\]\)/);
+  assert.match(war, /strategicMap\.locate\(node\)/);
+  assert.match(war, /Array\.isArray\(sector\.structures\) \? \[\.\.\.sector\.structures\] : \[\]/);
+  assert.match(war, /id: `strategic-capital:\$\{node\.id\}`/);
+  assert.match(war, /level: capitalVisualLevel\(structures\)/);
+  assert.match(war, /__strategicCapitalVisual: true/);
+  assert.match(war, /host\.war\.bases\.push\(\.\.\.capitals\)/);
+  assert.match(war, /stripStrategicCapitalVisuals\(state\);/);
+  assert.ok(war.indexOf('stripStrategicCapitalVisuals(state);') < war.indexOf('coreUpdateWar(state, dt)'));
+});
+
 test('hostile convoy materialization is earned locally or by active intel target', () => {
   assert.match(war, /function convoyObservedLocally\(state, convoy\)/);
   assert.match(war, /<= 950/);
