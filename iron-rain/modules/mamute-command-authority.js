@@ -75,16 +75,15 @@ export function createMamuteCommandAuthority({
     if (seq <= last) {
       // A real network retry normally reuses the exact same sequence number.
       // If that packet was an already accepted shot, return the canonical
-      // duplicate result instead of degrading it to a generic stale-command so
-      // the client can reconcile shell/ammo state without firing again.
+      // accepted result idempotently so the host can re-emit the missing fire
+      // effect without spending a second shell or reopening the guest fire deck.
       if (type === 'fire') {
         const shotId = cleanId(command.payload?.shotId);
         const shotKey = fireShotKey(playerId, command.payload);
         if (shotKey && acceptedFireShots.has(shotKey)) {
           const station = MAMUTE_COMMAND_STATION[type];
           const acceptedShot = acceptedFireShots.get(shotKey);
-          rejected += 1;
-          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: acceptedShot.owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
+          return Object.freeze({ ok: true, duplicate: true, reason: 'duplicate-shot', station, owner: acceptedShot.owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
         }
       }
       rejected += 1; return Object.freeze({ ok: false, reason: 'stale-command' });
@@ -105,9 +104,8 @@ export function createMamuteCommandAuthority({
     const shell = type === 'fire' ? command.payload?.shell : null;
     if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
-      rejected += 1;
       const acceptedShot = acceptedFireShots.get(shotKey);
-      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: acceptedShot.owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
+      return Object.freeze({ ok: true, duplicate: true, reason: 'duplicate-shot', station, owner: acceptedShot.owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
     }
 
     let shellReserved = false;
