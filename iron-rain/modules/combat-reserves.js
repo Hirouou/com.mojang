@@ -84,17 +84,25 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
 }
 
 function combatDeliveredTroops(strategicLogistics, to) {
-  if (!strategicLogistics || typeof strategicLogistics.getNode !== 'function') return 0;
+  if (!strategicLogistics || typeof strategicLogistics.getNode !== 'function') return null;
   try {
     const destination = strategicLogistics.getNode(String(to ?? ''));
-    return destination?.alive ? Math.max(0, Math.floor(Number(destination.assets?.troops) || 0)) : 0;
+    if (!destination?.alive) return 0;
+    // Lightweight route mocks predate physical asset inventories. Treat an
+    // absent inventory as "not modelled" rather than silently inventing zero;
+    // canonical strategic-logistics nodes always expose `assets.troops`.
+    if (!destination.assets || !hasOwn(destination.assets, 'troops')) return null;
+    return Math.max(0, Math.floor(Number(destination.assets.troops) || 0));
   } catch {
     return 0;
   }
 }
 
 function withDeliveredTroops(logistics, strategicLogistics, to) {
-  return Object.freeze({ ...logistics, availableTroops: combatDeliveredTroops(strategicLogistics, to) });
+  const availableTroops = combatDeliveredTroops(strategicLogistics, to);
+  return availableTroops == null
+    ? logistics
+    : Object.freeze({ ...logistics, availableTroops });
 }
 
 /**
