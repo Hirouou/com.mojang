@@ -30,6 +30,9 @@ html body .crew-lobby{
   overflow:auto!important;
   box-sizing:border-box!important;
 }
+/* mobile-station-ui.css forces the lobby to display:grid!important; the
+   canonical hidden state must win after ENTRAR NO MAMUTE on every viewport. */
+html body .crew-lobby.hidden{display:none!important;}
 html body .crew-lobby-card{
   box-sizing:border-box!important;
   width:min(760px,100%)!important;
