@@ -29,7 +29,7 @@ export const CABIN_STATIONS = Object.freeze([
   { id: 'drive', label: 'POSTO DO CONDUTOR', action: 'Assumir marcha', x: -1.57, y: 1.18, z: -2.68, focusX: -.7, focusZ: -2.4, radius: 1.5 },
   { id: 'radio', label: 'RÁDIO DE CAMPANHA', action: 'Consultar chamados', x: -2.08, y: 1.4, z: 2.53, focusX: -1.55, focusZ: 2.53, radius: 1.48 },
   { id: 'extinguisher', label: 'EXTINTOR DE BORDO', action: 'Pegar extintor', x: -2.25, y: 1.15, z: 1.88, focusX: -1.55, focusZ: 1.88, radius: 1.2 },
-  { id: 'engine', label: 'MOTOR / REFRIGERAÇÃO', action: 'Inspecionar motor', x: .82, y: 1.24, z: 6.6, focusX: .5, focusZ: 6.6, radius: 1.35 },
+  { id: 'engine', label: 'MOTOR / REFRIGERAÇÃO', action: 'Inspecionar motor', x: .82, y: 1.24, z: 6.6, focusX: .5, focusZ: 6.6, fallbackFocusX: .66, fallbackFocusZ: 5.55, radius: 1.35 },
 ]);
 export const CABIN_SECTIONS = Object.freeze({ CABIN:'cabin', SERVICE_CORRIDOR:'service-corridor', ENGINE_ROOM:'engine-room' });
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
