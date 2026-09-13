@@ -19,6 +19,20 @@ test('canonical maintenance feedback is bounded while preserving starts and swit
   assert.equal(result.emit.type, 'extinguisher', 'changing maintenance tool is immediately perceptible');
 });
 
+test('maintenance source switches are immediately perceptible without opening another cadence', () => {
+  const local = maintenanceEffectCadence(null, { active: true, kind: 'repair', progress: .2, remote: false }, 10);
+  assert.equal(local.emit.payload.remote, false);
+
+  const remote = maintenanceEffectCadence(local.state, { active: true, kind: 'repair', progress: .21, remote: true }, 10.01);
+  assert.equal(remote.emit.type, 'repair', 'another crew member taking over the same tool emits immediately');
+  assert.equal(remote.emit.payload.remote, true);
+  assert.equal(remote.state.remote, true);
+
+  const localAgain = maintenanceEffectCadence(remote.state, { active: true, kind: 'repair', progress: .22, remote: false }, 10.02);
+  assert.equal(localAgain.emit.type, 'repair', 'local operator taking the tool back is not swallowed by remote cadence');
+  assert.equal(localAgain.emit.payload.remote, false);
+});
+
 test('inactive canonical feedback resets cadence so an interrupted action can restart immediately', () => {
   const started = maintenanceEffectCadence(null, { active: true, kind: 'repair', progress: .2 }, 3);
   const stopped = maintenanceEffectCadence(started.state, { active: false, kind: 'damaged', progress: 0 }, 3.05);
@@ -42,7 +56,7 @@ test('maintenance cadence restarts immediately when presentation clock moves bac
 
 test('maintenance cadence keeps compatibility aliases and clamps presentation progress', () => {
   const clamped = maintenanceEffectCadence(null, { action: 'repair', progress: 8 }, 5);
-  assert.deepEqual(clamped.emit, { type: 'repair', payload: { progress: 1 } });
+  assert.deepEqual(clamped.emit, { type: 'repair', payload: { progress: 1, remote: false } });
 
   const legacyExtinguisher = maintenanceEffectCadence(null, { extinguisherActive: true, progress: .5 }, 6);
   assert.equal(legacyExtinguisher.emit.type, 'extinguisher');
