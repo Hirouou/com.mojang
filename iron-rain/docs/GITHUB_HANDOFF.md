@@ -12,6 +12,7 @@
 - Roteamento obrigatório pós-Codex P0: `iron-rain/docs/POST_CODEX_ROUTING_20260912.md`
 - Diretiva/mapa visual atual OBRIGATÓRIA: `iron-rain/docs/MAP_REWORK_20260912.md`
 - Referência visual compartilhada entre agentes: `iron-rain/docs/MAP_REFERENCE_20260912.svg`
+- Prioridade visível atual OBRIGATÓRIA: `iron-rain/docs/VISIBLE_WORLD_PRIORITY_20260913.md`
 - Publicação Pages: o workflow em `.github/workflows/iron-rain-pages.yml` publica o conteúdo de `iron-rain/` quando o GitHub Pages estiver habilitado no repositório.
 - URL esperada depois da primeira execução: `https://hirouou.github.io/com.mojang/`
 
@@ -34,7 +35,7 @@ O jogo remoto usa `game-v6.js` como módulo ES e importa os módulos em `iron-ra
 
 ## Verificação antes de editar
 
-Leia também `LEAD_SPRINT_20260912.md` e `MAP_REWORK_20260912.md` antes de escolher a próxima integração para não duplicar helpers, regressar prioridades validadas pelo usuário ou voltar ao mapa de debug anterior.
+Leia também `LEAD_SPRINT_20260912.md`, `MAP_REWORK_20260912.md` e `VISIBLE_WORLD_PRIORITY_20260913.md` antes de escolher a próxima integração para não duplicar helpers, regressar prioridades validadas pelo usuário ou voltar ao mapa de debug anterior.
 
 Enquanto a missão Codex P0 de multiplayer real estiver `IN_PROGRESS`, leia `CODEX_LIVE_DISPATCH_20260912.md`, não crie transporte/lobby concorrente e prepare somente consumidores/contratos independentes. Quando ela retornar `DONE` ou `BLOCKED`, consuma primeiro a evidência devolvida pelo Codex e siga `POST_CODEX_ROUTING_20260912.md` + `CODEX_LIVE_DISPATCH_20260912.md` para dividir integração de multiplayer, presença visual, mapa/território, múltiplos Mamutes, novos jogadores, IA e artilharia entre os workstreams. O usuário não deve precisar retransmitir a resposta do Codex.
 
@@ -79,3 +80,12 @@ Auditoria de ritmo após reler todas as diretivas obrigatórias, referência vis
 - **P0 MULTIPLAYER:** permanece dono exclusivo do request Codex enquanto `IN_PROGRESS`; nenhum Slot abre signaling/transporte paralelo. Aceitação continua PC↔PC e PC↔mobile reais, até 3 tripulantes, facção, presença, station ownership e resultado compartilhado.
 
 A referência visual de mapa continua exigindo estradas/rotas sutis e legíveis entre regiões/capitais, sem transformar logística inimiga em informação onisciente. Toda logística nova deve respeitar `CAPITAL_CAPTURE_DIRECTIVE_20260913.md` + `LOGISTICS_ECONOMY_DIRECTIVE_20260913.md`.
+
+## OWNER escalation — 2026-09-13 10:36 BRT
+
+Screenshot real do owner confirma que a vista local continua visualmente vazia: sem estradas legíveis, sem capital/setor materializado com construções e sem tráfego contínuo evidente. A fundação estratégica existente não conta como entrega visual concluída. `VISIBLE_WORLD_PRIORITY_20260913.md` passa a ser gate obrigatório.
+
+- **WORLD WAR:** próxima entrega deve conectar a malha canônica de estradas, `strategic-logistics` e suas posições contínuas de comboio ao mundo local. Sem novo helper de intel/polish antes disso, salvo regressão crítica.
+- **FP SYSTEMS / MATERIALIZATION:** capital próxima precisa materializar ruas, construções, defesas e infraestrutura existentes no estado canônico; estrada local deve ser a mesma rota estratégica, não decoração paralela.
+- **FP VISUALS:** usar `battlefield-view.js`/pipeline local atual para leitura PS1 militar da estrada, capital, veículos, destruição/reconstrução. Não abrir overlay paralelo.
+- **ACEITE:** screenshot/vídeo real mostrando estrada, capital e o mesmo caminhão avançando por vários segundos sem salto. Somente depois essa fatia pode ser chamada de pronta.
