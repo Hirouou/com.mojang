@@ -13,6 +13,7 @@ const CLIENT_BUILD = '20260912-2335-bootfix';
 const EXPECTED_CACHE_SUFFIX = 'v7.22';
 const BOOT_RECOVERY_PARAM = 'ir_recovery';
 const BOOT_TIMEOUT_MS = 8000;
+const FIRE_AMMO_COUNTER_ID = Object.freeze({ HE: 'heCount', SMOKE: 'smokeCount', FRAG: 'fragCount' });
 let started = false;
 let lobby = null;
 let heartbeatTimer = 0;
@@ -72,12 +73,28 @@ function showCrewToast(message, source = 'TRIPULAÇÃO') {
   return true;
 }
 
-function handleMamuteCommandResult(result, packet) {
-  if (!result || result.pending || result.ok || result.reason !== 'out-of-ammo') return;
-  const localResult = packet?.kind === 'mamute-command-result'
+function localMamuteCommandResult(packet) {
+  return packet?.kind === 'mamute-command-result'
     ? String(packet.target || '') === localId
     : String(packet?.playerId || '') === localId;
-  if (localResult) showCrewToast('SEM MUNIÇÃO · disparo recusado pelo Mamute.', 'PAIOL');
+}
+
+function reconcileAuthoritativeFireAmmo(result, packet) {
+  if (!localMamuteCommandResult(packet) || String(packet?.type || result?.type || '') !== 'fire') return false;
+  const ammoRemaining = Number(result?.ammoRemaining);
+  if (!Number.isFinite(ammoRemaining)) return false;
+  const counterId = FIRE_AMMO_COUNTER_ID[String(result?.shell || '').toUpperCase()];
+  const counter = counterId ? document.getElementById(counterId) : null;
+  if (!counter) return false;
+  counter.textContent = String(Math.max(0, Math.floor(ammoRemaining)));
+  return true;
+}
+
+function handleMamuteCommandResult(result, packet) {
+  if (!result || result.pending) return;
+  reconcileAuthoritativeFireAmmo(result, packet);
+  if (result.ok || result.reason !== 'out-of-ammo') return;
+  if (localMamuteCommandResult(packet)) showCrewToast('SEM MUNIÇÃO · disparo recusado pelo Mamute.', 'PAIOL');
 }
 
 async function refreshServiceWorker() {
