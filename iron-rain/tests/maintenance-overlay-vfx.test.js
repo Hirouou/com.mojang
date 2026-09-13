@@ -30,12 +30,23 @@ test('mobile landscape keeps local maintenance motion but stops large compositor
 });
 
 test('maintenance overlay identifies replicated work without calling it local', () => {
-  assert.match(source, /source\.textContent = detail\.remote \? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL'/);
+  assert.match(source, /setText\(source, detail\.remote \? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL'\)/);
   assert.match(source, /classList\.toggle\('remote', detail\.remote === true\)/);
   assert.match(source, /\.ir-maintenance\.remote\{border-left-color:#7fa7c8/);
 });
 
 test('maintenance overlay fails closed for unknown maintenance kinds', () => {
   assert.match(source, /const isRepair = detail\.kind === 'repair'/);
-  assert.match(source, /if \(!isExtinguish && !isRepair\) \{[\s\S]*element\.hidden = true;[\s\S]*vfx\.className = 'ir-maintenance-vfx'/);
+  assert.match(source, /if \(!isExtinguish && !isRepair\) \{\s*hideMaintenance\(element\);\s*return;/);
+  assert.match(source, /function hideMaintenance\(element\) \{[\s\S]*element\.hidden = true;[\s\S]*vfx\.className = 'ir-maintenance-vfx'/);
+});
+
+test('maintenance overlay avoids redundant per-frame DOM and style writes', () => {
+  assert.match(source, /function setStyleProperty\(element, name, next\)/);
+  assert.match(source, /element\.style\.getPropertyValue\(name\) === next/);
+  assert.match(source, /function setText\(element, next\)/);
+  assert.match(source, /element\.textContent !== next/);
+  assert.match(source, /Math\.round\(progress \* 100\) \/ 100/);
+  assert.match(source, /Math\.round\(spray \* 100\) \/ 100/);
+  assert.match(source, /if \(vfx\.className !== nextClass\) vfx\.className = nextClass/);
 });
