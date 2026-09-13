@@ -92,3 +92,23 @@ test('convoy routing only avoids a threatened road while faction intel is curren
   // Older observations cannot overwrite a newer threat report.
   assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: 0, reportedAt: 99 }), false);
 });
+
+test('dispatch current time prevents stale threat intel from becoming fresh again on the next step', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [node('A', { fuel: 5 }), node('B'), node('D')],
+    routes: [
+      road('A-D', 'A', 'D', 150),
+      road('A-B', 'A', 'B', 100),
+      road('B-D', 'B', 'D', 100),
+    ],
+  });
+
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: .9, reportedAt: 100 }), true);
+  const dispatch = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 }, now: 401, speed: 10 });
+  assert.equal(dispatch.ok, true);
+  assert.deepEqual(logistics.snapshot().convoys[0].path.map(leg => leg.routeId), ['A-D']);
+
+  const events = logistics.step(1);
+  assert.equal(events.some(event => event.type === 'convoy-rerouted'), false);
+  assert.deepEqual(logistics.snapshot().convoys[0].path.map(leg => leg.routeId), ['A-D']);
+});
