@@ -1,5 +1,6 @@
 import './integration-live.js';
 import { installMobileUXReview } from './mobile-ux-review.js';
+import { createMamuteTacticalLifecycle } from './theatre-mamute-lifecycle.js';
 import { createTheatreMamuteSnapshotCycle } from './theatre-mamute-snapshot.js';
 import { installStrategicWarLive as installCanonicalStrategicWarLive } from './strategic-war-live-v3.js';
 
@@ -21,12 +22,17 @@ export function installStrategicWarLive(options = {}) {
   const combatReserveContext = globalThis.ironRainStrategicMap?.combatReserveContext;
   const applySectorControl = globalThis.ironRainStrategicMap?.applySectorControl;
   const mamuteSnapshots = createTheatreMamuteSnapshotCycle();
+  const mamuteLifecycle = options.mamuteLifecycle || createMamuteTacticalLifecycle(options.mamuteTactical || {});
   const mobileUx = installMobileUXReview(document);
   globalThis.ironRainStrategicMap = Object.freeze({
     locate: point => base.locate?.(point) || null,
     combatReserveContext: (sectorId, team) => combatReserveContext?.(sectorId, team) || null,
     applySectorControl: update => applySectorControl?.(update) || Object.freeze({ ok: false, changed: false, reason: 'strategic-map-unavailable' }),
-    mamuteSnapshot: options => mamuteSnapshots.build(options),
+    mamuteSnapshot: snapshotOptions => {
+      const snapshot = mamuteSnapshots.build(snapshotOptions);
+      mamuteLifecycle.apply?.(snapshot);
+      return snapshot;
+    },
     open: () => base.open?.(),
     close: () => base.close?.(),
     mobileUx,
@@ -36,6 +42,7 @@ export function installStrategicWarLive(options = {}) {
     ...base,
     mobileUx,
     destroy() {
+      mamuteLifecycle.reset?.();
       mamuteSnapshots.reset();
       base.destroy?.();
       if (globalThis.ironRainStrategicMap?.mobileUx === mobileUx) delete globalThis.ironRainStrategicMap;
