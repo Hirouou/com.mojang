@@ -17,6 +17,18 @@ test('idle loader rests at the mechanical home pose', () => {
   assert.equal(loaderActivity(null).moving, false);
 });
 
+test('loader approaches the carousel empty, then visibly owns the picked round', () => {
+  const approach = loaderArmPose(cycle(.08, 'extract'));
+  const pickup = loaderArmPose(cycle(.16, 'extract'));
+  const approachRig = loaderRigState(cycle(.08, 'extract'));
+  const pickupRig = loaderRigState(cycle(.16, 'extract'));
+
+  assert.equal(approach.shellVisible, false, 'round stays in the magazine during the empty approach');
+  assert.equal(approachRig.shell.owner, null, 'loader does not claim renderer ownership before pickup');
+  assert.equal(pickup.shellVisible, true, 'round appears once the claw reaches the pickup band');
+  assert.equal(pickupRig.shell.owner, 'claw', 'picked round belongs to the claw');
+});
+
 test('loader visibly grabs, swings and rams instead of linearly floating a shell', () => {
   const grab = loaderArmPose(cycle(.18, 'extract'));
   const swing = loaderArmPose(cycle(.48, 'rotate'));
