@@ -345,9 +345,28 @@ function drawSupportProjectile(ctx, shot, frame) {
   });
 }
 
+function drawStrategicRoad(ctx, road, frame) {
+  const from = road?.from, to = road?.to;
+  if (!Number.isFinite(from?.x) || !Number.isFinite(from?.y) || !Number.isFinite(to?.x) || !Number.isFinite(to?.y)) return;
+  const midpoint = { x: (from.x + to.x) * .5, y: (from.y + to.y) * .5 };
+  if (frame.visible && !frame.visible(midpoint.x, midpoint.y, Math.hypot(to.x - from.x, to.y - from.y) * frame.zoom * .55 + 64)) return;
+  const a = frame.worldToScreen(from.x, from.y), b = frame.worldToScreen(to.x, to.y);
+  const roadWidth = Math.max(5, 13 * frame.zoom);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(72,66,52,.82)'; ctx.lineWidth = roadWidth + Math.max(2, 5 * frame.zoom);
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.strokeStyle = road.open === false ? 'rgba(91,82,64,.72)' : 'rgba(112,102,78,.92)'; ctx.lineWidth = roadWidth;
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.strokeStyle = 'rgba(178,166,126,.28)'; ctx.lineWidth = Math.max(1, frame.zoom * 1.2); ctx.setLineDash([Math.max(5, 18 * frame.zoom), Math.max(4, 14 * frame.zoom)]);
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 /**
  * Draw after terrain/trenches and before impact effects. Expected state schema:
- * sector.war.{bases,vehicles,mortars}, strategic traffic, and support projectiles.
+ * sector.war.{bases,vehicles,mortars}, canonical strategic roads/traffic, and support projectiles.
  * Options: { worldToScreen(x,y), visible(x,y,pad), zoom, time, width, height }.
  * Unknown enemies stay hidden unless locally observed or in active recon/impact.
  */
@@ -356,6 +375,7 @@ export function drawWarInfrastructure(ctx, state, options) {
   const frame = { ...options, zoom: Math.max(.01, finite(options.zoom, state.cam?.zoom || 1)), time: finite(options.time, finite(state.time)) };
   ctx.save();
   ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+  for (const road of (state.warSimulation?.strategicRoads || []).slice(0, 48)) drawStrategicRoad(ctx, road, frame);
   for (const sector of (state.sectors || [])) {
     const war = sector.war;
     if (!war) continue;

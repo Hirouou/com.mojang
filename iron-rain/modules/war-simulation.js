@@ -17,6 +17,7 @@ const playerTeam = () => globalThis.ironRainEntry?.faction === 'axis' ? 'enemy' 
 const frontDistance = point => finitePoint(point) ? Math.abs(point.x - controlLineX(point.y)) : Infinity;
 const LEGACY_GAME_SECTORS = new Set(['FALCON', 'BIRCH', 'CINDER', 'DAGGER', 'ECHO', 'FROST', 'LINHA 07']);
 const COMBAT_RESERVE_REAR_STEPS = Object.freeze([9_000, 12_000, 15_500, 19_000, 24_000]);
+const LOCAL_ROAD_RADIUS = 12_000;
 
 function isLiveGameState(state) {
   if (state?.warSimulation?.strategicIntegration === true) return true;
@@ -249,14 +250,38 @@ function convoyObservedLocally(state, convoy) {
   return finitePoint(target) && Math.hypot(convoy.position.x - target.x, convoy.position.y - target.y) <= 850;
 }
 
+function distanceToSegment(point, from, to) {
+  if (!finitePoint(point) || !finitePoint(from) || !finitePoint(to)) return Infinity;
+  const dx = to.x - from.x, dy = to.y - from.y, lengthSq = dx * dx + dy * dy;
+  if (lengthSq <= 1e-6) return Math.hypot(point.x - from.x, point.y - from.y);
+  const t = Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSq));
+  return Math.hypot(point.x - (from.x + dx * t), point.y - (from.y + dy * t));
+}
+
+function localStrategicRoads(snapshot, playerPosition) {
+  const nodes = new Map((snapshot?.nodes || []).filter(finitePoint).map(node => [node.id, node]));
+  return (snapshot?.routes || []).flatMap(route => {
+    const from = nodes.get(route.from), to = nodes.get(route.to);
+    if (!from || !to || distanceToSegment(playerPosition, from, to) > LOCAL_ROAD_RADIUS) return [];
+    return [Object.freeze({
+      id: route.id,
+      from: Object.freeze({ x: from.x, y: from.y }),
+      to: Object.freeze({ x: to.x, y: to.y }),
+      laneOffset: Math.max(0, Number(route.laneOffset) || 0),
+      open: route.open !== false,
+    })];
+  }).slice(0, 48);
+}
+
 function publishStrategicTraffic(state) {
   state.warSimulation ||= {};
   const now = Number(state.time) || 0;
   if (now < (state.warSimulation.nextTrafficProjection || 0)) return;
   state.warSimulation.nextTrafficProjection = now + .35;
   const logistics = strategicLogistics(state);
-  if (!logistics) { state.warSimulation.strategicTraffic = []; return; }
+  if (!logistics) { state.warSimulation.strategicTraffic = []; state.warSimulation.strategicRoads = []; return; }
   const snapshot = logistics.snapshot();
+  state.warSimulation.strategicRoads = localStrategicRoads(snapshot, state.robot);
   const own = playerTeam();
   const observedEnemyIds = (snapshot.convoys || [])
     .filter(convoy => convoy?.team !== own && convoyObservedLocally(state, convoy))

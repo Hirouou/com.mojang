@@ -20,6 +20,17 @@ test('live war projects canonical logistics convoys into bounded local traffic w
   assert.match(war, /publishStrategicTraffic\(state\)/);
 });
 
+test('nearby local roads reuse canonical logistics nodes and routes without leaking route ownership', () => {
+  assert.match(war, /function localStrategicRoads\(snapshot, playerPosition\)/);
+  assert.match(war, /snapshot\?\.nodes \|\| \[\]/);
+  assert.match(war, /snapshot\?\.routes \|\| \[\]/);
+  assert.match(war, /distanceToSegment\(playerPosition, from, to\) > LOCAL_ROAD_RADIUS/);
+  assert.match(war, /state\.warSimulation\.strategicRoads = localStrategicRoads\(snapshot, state\.robot\)/);
+  assert.match(war, /from: Object\.freeze\(\{ x: from\.x, y: from\.y \}\)/);
+  assert.match(war, /to: Object\.freeze\(\{ x: to\.x, y: to\.y \}\)/);
+  assert.doesNotMatch(war, /strategicRoads[^\n]*team/);
+});
+
 test('hostile convoy materialization is earned locally or by active intel target', () => {
   assert.match(war, /function convoyObservedLocally\(state, convoy\)/);
   assert.match(war, /<= 950/);
@@ -27,6 +38,14 @@ test('hostile convoy materialization is earned locally or by active intel target
   assert.match(war, /target\.id && target\.id === convoy\.id/);
   assert.match(war, /<= 850/);
   assert.match(war, /convoy\?\.team !== own && convoyObservedLocally\(state, convoy\)/);
+});
+
+test('local battlefield draws canonical roads before strategic traffic', () => {
+  assert.match(view, /function drawStrategicRoad\(ctx, road, frame\)/);
+  assert.match(view, /state\.warSimulation\?\.strategicRoads/);
+  assert.match(view, /for \(const road of .*strategicRoads.*\) drawStrategicRoad\(ctx, road, frame\);/);
+  assert.ok(view.indexOf('strategicRoads || []') < view.indexOf('strategicTraffic || []'));
+  assert.match(view, /road\.open === false/);
 });
 
 test('local battlefield renders strategic armor as tanks and supply or troop traffic as trucks', () => {
