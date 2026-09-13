@@ -12,6 +12,12 @@ function reportIntelState(report, now) {
   return assessIntelAge({ reportedAt: reportObservedAt(report) }, Number(now)).state;
 }
 
+function newestReport(current, candidate) {
+  if (!candidate) return current || null;
+  if (!current) return candidate;
+  return Number(reportObservedAt(candidate)) > Number(reportObservedAt(current)) ? candidate : current;
+}
+
 /** Friendly radio sites expose their own front and neighboring front situation. */
 export function radioVisibleHexIds(hexes, team) {
   if (!Array.isArray(hexes) || !['ally', 'enemy'].includes(team)) return Object.freeze([]);
@@ -31,15 +37,21 @@ export function radioVisibleHexIds(hexes, team) {
  *
  * When `now` is supplied, reports use the shared intel-age policy. Lost reports
  * no longer keep remote hostile control live forever; stale reports remain only
- * as historical contact rather than current front disclosure.
+ * as historical contact rather than current front disclosure. Sector-scoped
+ * reports disclose only the observed sector; a coarse hex report is required to
+ * disclose the whole remote hex.
  */
 export function createWorldMapIntel({ hexes = [], team = 'ally', playerPosition = null, reports = [], now = null } = {}) {
   const radioVisible = new Set(radioVisibleHexIds(hexes, team));
   const reportsByHex = new Map();
+  const reportsBySector = new Map();
   for (const report of reports || []) {
     if (!report?.hexId) continue;
-    const previous = reportsByHex.get(report.hexId);
-    if (!previous || Number(reportObservedAt(report)) > Number(reportObservedAt(previous))) reportsByHex.set(report.hexId, report);
+    if (report.sectorId) {
+      reportsBySector.set(report.sectorId, newestReport(reportsBySector.get(report.sectorId), report));
+      continue;
+    }
+    reportsByHex.set(report.hexId, newestReport(reportsByHex.get(report.hexId), report));
   }
 
   return Object.freeze(hexes.map(hex => {
@@ -51,18 +63,32 @@ export function createWorldMapIntel({ hexes = [], team = 'ally', playerPosition 
     const reportState = report ? reportIntelState(report, now) : 'lost';
     const liveReport = Boolean(report) && (reportState === 'fresh' || reportState === 'aging');
     const staleReport = Boolean(report) && reportState === 'stale';
-    const hasIntel = local || radio || liveReport;
-    const sectors = hex.sectors.map(sector => Object.freeze({
-      id: sector.id,
-      name: sector.name,
-      owner: friendly || local ? sector.owner : sector.owner === team ? team : hasIntel ? 'reported-hostile-or-contested' : 'unknown',
-      radio: sector.owner === team ? Boolean(sector.radio || (sector.structures || []).includes('radio')) : false,
-    }));
+    let newestSectorReport = null;
+    let hasLiveSectorReport = false;
+    let hasStaleSectorReport = false;
+    const sectors = hex.sectors.map(sector => {
+      const sectorReport = reportsBySector.get(sector.id) || null;
+      if (sectorReport?.hexId === hex.id) newestSectorReport = newestReport(newestSectorReport, sectorReport);
+      const sectorReportState = sectorReport?.hexId === hex.id ? reportIntelState(sectorReport, now) : 'lost';
+      const liveSectorReport = Boolean(sectorReport) && sectorReport.hexId === hex.id && (sectorReportState === 'fresh' || sectorReportState === 'aging');
+      const staleSectorReport = Boolean(sectorReport) && sectorReport.hexId === hex.id && sectorReportState === 'stale';
+      hasLiveSectorReport ||= liveSectorReport;
+      hasStaleSectorReport ||= staleSectorReport;
+      const sectorHasIntel = local || radio || liveReport || liveSectorReport;
+      return Object.freeze({
+        id: sector.id,
+        name: sector.name,
+        owner: friendly || local ? sector.owner : sector.owner === team ? team : sectorHasIntel ? 'reported-hostile-or-contested' : 'unknown',
+        radio: sector.owner === team ? Boolean(sector.radio || (sector.structures || []).includes('radio')) : false,
+      });
+    });
+    const coarseIntel = local || radio || liveReport;
+    const latestReport = newestReport(report, newestSectorReport);
     return Object.freeze({
       id: hex.id, name: hex.name, x: hex.x, y: hex.y,
-      control: friendly || local ? control : hasIntel ? (control === team ? team : 'reported') : 'unknown',
-      frontDetail: local ? 'local' : radio ? 'radio' : liveReport ? 'report' : staleReport ? 'report-stale' : 'none',
-      lastReportTime: reportObservedAt(report) ?? null,
+      control: friendly || local ? control : coarseIntel ? (control === team ? team : 'reported') : 'unknown',
+      frontDetail: local ? 'local' : radio ? 'radio' : liveReport || hasLiveSectorReport ? 'report' : staleReport || hasStaleSectorReport ? 'report-stale' : 'none',
+      lastReportTime: reportObservedAt(latestReport) ?? null,
       sectors: Object.freeze(sectors),
     });
   }));
