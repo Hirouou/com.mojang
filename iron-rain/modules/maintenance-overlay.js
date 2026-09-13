@@ -60,11 +60,24 @@ function ensureOverlay() {
   return root;
 }
 
+function setStyleProperty(element, name, next) {
+  if (!element || element.style.getPropertyValue(name) === next) return;
+  element.style.setProperty(name, next);
+}
+
+function setText(element, next) {
+  if (element && element.textContent !== next) element.textContent = next;
+}
+
+function hideMaintenance(element) {
+  if (element && !element.hidden) element.hidden = true;
+  if (vfx && vfx.className !== 'ir-maintenance-vfx') vfx.className = 'ir-maintenance-vfx';
+}
+
 function render(detail) {
   const element = ensureOverlay();
   if (!element || !detail?.active) {
-    if (element) element.hidden = true;
-    if (vfx) vfx.className = 'ir-maintenance-vfx';
+    hideMaintenance(element);
     return;
   }
   const progress = Math.max(0, Math.min(1, Number(detail.progress) || 0));
@@ -75,8 +88,7 @@ function render(detail) {
   const isExtinguish = detail.kind === 'extinguish';
   const isRepair = detail.kind === 'repair';
   if (!isExtinguish && !isRepair) {
-    element.hidden = true;
-    if (vfx) vfx.className = 'ir-maintenance-vfx';
+    hideMaintenance(element);
     return;
   }
   const vfxActive = isExtinguish ? spray > .02 : repairMotion > .02 || sparks > .02;
@@ -84,16 +96,17 @@ function render(detail) {
   element.classList.toggle('extinguish', isExtinguish);
   element.classList.toggle('repair', isRepair);
   element.classList.toggle('remote', detail.remote === true);
-  element.style.setProperty('--p', String(progress));
-  source.textContent = detail.remote ? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL';
-  label.textContent = isExtinguish ? 'APAGANDO INCÊNDIO' : 'REPARANDO MOTOR';
-  value.textContent = `${Math.round(progress * 100)}%`;
+  setStyleProperty(element, '--p', (Math.round(progress * 100) / 100).toFixed(2));
+  setText(source, detail.remote ? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL');
+  setText(label, isExtinguish ? 'APAGANDO INCÊNDIO' : 'REPARANDO MOTOR');
+  setText(value, `${Math.round(progress * 100)}%`);
   if (vfx) {
-    vfx.className = `ir-maintenance-vfx${vfxActive ? ' active' : ''} ${isExtinguish ? 'extinguish' : 'repair'}`;
-    vfx.style.setProperty('--spray', String(spray));
-    vfx.style.setProperty('--sparks', String(sparks));
-    vfx.style.setProperty('--danger', String(danger));
-    vfx.style.setProperty('--repair-speed', `${(.42 - repairMotion * .12).toFixed(3)}s`);
+    const nextClass = `ir-maintenance-vfx${vfxActive ? ' active' : ''} ${isExtinguish ? 'extinguish' : 'repair'}`;
+    if (vfx.className !== nextClass) vfx.className = nextClass;
+    setStyleProperty(vfx, '--spray', (Math.round(spray * 100) / 100).toFixed(2));
+    setStyleProperty(vfx, '--sparks', (Math.round(sparks * 100) / 100).toFixed(2));
+    setStyleProperty(vfx, '--danger', (Math.round(danger * 100) / 100).toFixed(2));
+    setStyleProperty(vfx, '--repair-speed', `${(.42 - Math.round(repairMotion * 100) / 100 * .12).toFixed(3)}s`);
   }
 }
 
