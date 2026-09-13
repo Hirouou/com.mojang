@@ -9,6 +9,7 @@ import { loaderAudioCue } from './modules/loader-audio-cue.js';
 import { beginLoading, stepLoading, loadingLabel } from './modules/loading-cycle.js';
 import { DEFAULT_BINDINGS, eventCode, keyLabel, actionForKey, rebindKey, restoreBindings } from './modules/key-bindings.js';
 import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine as stepEngine, engineStatus } from './modules/engine-system.js';
+import { mamuteTravelSpeed } from './modules/road-mobility.js';
 'use strict';
 (() => {
   const $ = id => document.getElementById(id);
@@ -434,7 +435,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
       return;
     }
     const v={x:joy.x+(heldKeys.has('right')?1:0)-(heldKeys.has('left')?1:0),y:joy.y+(heldKeys.has('back')?1:0)-(heldKeys.has('forward')?1:0)},n=Math.max(1,Math.hypot(v.x,v.y));v.x/=n;v.y/=n;
-    const sp=38*(state.robot.armor<=0?.2:1);state.robot.speed=Math.hypot(v.x,v.y)*sp;state.robot.x=clamp(state.robot.x+v.x*sp*dt,400,WORLD.w-400);state.robot.y=clamp(state.robot.y+v.y*sp*dt,400,WORLD.h-400);if(Math.hypot(v.x,v.y)>.08)state.robot.facing=Math.atan2(v.y,v.x);state.robot.turret+=angDiff(state.robot.turret,state.robot.facing)*smooth(7,dt);
+    const base=38*(state.robot.armor<=0?.2:1),sp=mamuteTravelSpeed(base,state.robot);state.robot.speed=Math.hypot(v.x,v.y)*sp;state.robot.x=clamp(state.robot.x+v.x*sp*dt,400,WORLD.w-400);state.robot.y=clamp(state.robot.y+v.y*sp*dt,400,WORLD.h-400);if(Math.hypot(v.x,v.y)>.08)state.robot.facing=Math.atan2(v.y,v.x);state.robot.turret+=angDiff(state.robot.turret,state.robot.facing)*smooth(7,dt);
   }
   function updateGun(dt){if(state.mode!=='artillery'||state.shell||cinematicActive(state)||sheetOpen)return;const bd=((state.azTarget-state.bearing+540)%360)-180;state.bearing=(state.bearing+clamp(bd,-16*dt,16*dt)+360)%360;state.elev+=clamp(state.elTarget-state.elev,-8*dt,8*dt);const direction=bearingVector(state.bearing);state.robot.turret=Math.atan2(direction.y,direction.x);}
 
