@@ -58,6 +58,10 @@ export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
   let best = null;
   for (const node of nodes) {
     if (!node?.alive || node.team !== team || node.kind !== 'depot' || node.id === destination.id) continue;
+    // Canonical logistics nodes expose physical troop inventory. Never claim an
+    // empty depot as the source of regular reinforcements; legacy/lightweight
+    // adapters that do not model assets remain route-only for compatibility.
+    if (node.assets && hasOwn(node.assets, 'troops') && !positiveFinite(Number(node.assets.troops))) continue;
     let path;
     try {
       path = strategicLogistics.route(team, node.id, destination.id);
