@@ -14,7 +14,7 @@ test('table map charge page consumes the shared charge-table presentation model'
   assert.doesNotMatch(tableMapSource, /elevationsForRange\(/);
 });
 
-test('charge page renders canonical display labels including manual crank cues', () => {
+test('charge page renders canonical display labels including manual crank or aligned cues', () => {
   assert.match(tableMapSource, /arc\.displayLabel/);
   assert.doesNotMatch(tableMapSource, /arc\.kind === 'low' \? 'BAIXO'/);
 
@@ -23,10 +23,15 @@ test('charge page renders canonical display labels including manual crank cues',
   const current = rows.find(entry => entry.charge === 5);
   assert.ok(current);
   assert.ok(current.arcs.length > 0);
-  assert.ok(current.arcs.every(arc => arc.displayLabel.includes('MANIVELA')));
+  assert.ok(current.arcs.every(arc =>
+    arc.displayLabel.includes('MANIVELA') || arc.displayLabel.includes('ELEVAÇÃO ALINHADA')
+  ));
+  assert.ok(current.arcs.some(arc => arc.displayLabel.includes('ELEVAÇÃO ALINHADA')));
 
   for (const row of rows.filter(entry => entry.charge !== 5)) {
-    assert.ok(row.arcs.every(arc => !arc.displayLabel.includes('MANIVELA')));
+    assert.ok(row.arcs.every(arc =>
+      !arc.displayLabel.includes('MANIVELA') && !arc.displayLabel.includes('ELEVAÇÃO ALINHADA')
+    ));
   }
 });
 
