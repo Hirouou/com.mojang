@@ -26,14 +26,16 @@ export function stationGateState(runtime, station) {
   try { owner = runtime.stationOwner?.(id) ?? null; } catch { owner = null; }
   const localId = status?.localId ?? status?.session?.localId ?? null;
 
+  // A disconnected guest cannot prove current station authority. Treat any
+  // cached stationOwner() value as stale until the shared runtime reconnects.
+  if (status?.mode === 'guest' && !status?.connected) {
+    return Object.freeze({ ok: false, ready: false, pending: false, reason: 'not-connected', station: id, owner: null });
+  }
   if (owner != null && localId != null && String(owner) === String(localId)) {
     return Object.freeze({ ok: true, ready: true, pending: false, reason: 'owned', station: id, owner });
   }
   if (owner != null) {
     return Object.freeze({ ok: false, ready: false, pending: false, reason: 'occupied', station: id, owner });
-  }
-  if (status?.mode === 'guest' && !status?.connected) {
-    return Object.freeze({ ok: false, ready: false, pending: false, reason: 'not-connected', station: id, owner: null });
   }
   return Object.freeze({ ok: true, ready: false, pending: false, reason: 'available', station: id, owner: null });
 }
