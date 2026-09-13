@@ -7,6 +7,15 @@ import { beginLoading, stepLoading } from './loading-cycle.js';
 import './maintenance-overlay.js';
 
 export function createCabinView(canvas, options = {}) {
+  // Offline/single-player must never depend on the multiplayer scene wrapper.
+  // This keeps the proven cabin renderer isolated from crew authority/presence
+  // plumbing and gives us a hard fail-safe against a black boot screen.
+  if (globalThis.ironRainEntry?.mode === 'offline') {
+    const core = createCabinViewCore(canvas, options);
+    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:cabin-ready', { detail: { cabin: core } })); } catch {}
+    return core;
+  }
+
   let scene = null;
   let view = null;
   let activeCrewStation = null;
