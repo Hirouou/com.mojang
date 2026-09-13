@@ -9,6 +9,10 @@ import { normalizeFaction, factionInfo } from './modules/factions.js';
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
 const app = document.getElementById('app');
+const CLIENT_BUILD = '20260912-2335-bootfix';
+const EXPECTED_CACHE_SUFFIX = 'v7.22';
+const BOOT_RECOVERY_PARAM = 'ir_recovery';
+const BOOT_TIMEOUT_MS = 8000;
 let started = false;
 let lobby = null;
 let heartbeatTimer = 0;
@@ -16,6 +20,7 @@ let crewBridge = null;
 let crewFrame = 0;
 let strategicWar = null;
 let crewToastTimer = 0;
+let bootWatchdogTimer = 0;
 let liveIntegrationPromise = null;
 let lastCrewFrameAt = performance.now();
 
@@ -65,6 +70,87 @@ function showCrewToast(message, source = 'TRIPULAÇÃO') {
   clearTimeout(crewToastTimer);
   crewToastTimer = window.setTimeout(() => shell.classList.add('hidden'), 2600);
   return true;
+}
+
+async function refreshServiceWorker() {
+  if (!('serviceWorker' in navigator) || params.has('test')) return null;
+  try {
+    const registration = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+    try { await registration.update(); } catch {}
+    return registration;
+  } catch (error) {
+    console.warn('Iron Rain service worker:', error?.message || error);
+    return null;
+  }
+}
+
+async function purgeLegacyModuleCaches({ force = false } = {}) {
+  if (!('caches' in globalThis)) return false;
+  try {
+    if (!force && localStorage.getItem('iron-rain-client-build') === CLIENT_BUILD) return false;
+    const names = await caches.keys();
+    const stale = names.filter(name => name.startsWith('iron-rain:') && (force || !name.endsWith(EXPECTED_CACHE_SUFFIX)));
+    await Promise.all(stale.map(name => caches.delete(name)));
+    if (!force) localStorage.setItem('iron-rain-client-build', CLIENT_BUILD);
+    return stale.length > 0;
+  } catch (error) {
+    console.warn('Iron Rain cache refresh:', error?.message || error);
+    return false;
+  }
+}
+
+function clearBootWatchdog() {
+  if (bootWatchdogTimer) clearTimeout(bootWatchdogTimer);
+  bootWatchdogTimer = 0;
+}
+
+function bootIsStillVisible() {
+  const boot = document.getElementById('bootStatus');
+  return Boolean(boot && !boot.classList.contains('hidden'));
+}
+
+function setBootMessage(title, copy) {
+  const boot = document.getElementById('bootStatus');
+  if (!boot) return;
+  const heading = boot.querySelector('b');
+  const detail = boot.querySelector('small');
+  if (heading) heading.textContent = title;
+  if (detail) detail.textContent = copy;
+}
+
+function armBootWatchdog() {
+  clearBootWatchdog();
+  bootWatchdogTimer = window.setTimeout(async () => {
+    bootWatchdogTimer = 0;
+    if (!started || !bootIsStillVisible()) return;
+
+    const recoveryAttempt = Number(new URLSearchParams(location.search).get(BOOT_RECOVERY_PARAM) || 0);
+    if (recoveryAttempt < 1) {
+      setBootMessage('RECUPERANDO COMPARTIMENTO', 'Limpando módulos antigos e recarregando a build atual…');
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.filter(registration => registration.scope.startsWith(location.origin)).map(registration => registration.unregister()));
+        }
+      } catch {}
+      await purgeLegacyModuleCaches({ force: true });
+      try { sessionStorage.setItem('iron-rain-boot-recovery', String(Date.now())); } catch {}
+      const url = new URL(location.href);
+      url.searchParams.set(BOOT_RECOVERY_PARAM, '1');
+      url.searchParams.delete('utm_source');
+      location.replace(url.href);
+      return;
+    }
+
+    console.error('Iron Rain: cabin boot timed out after recovery reload.');
+    setBootMessage('INTERIOR 3D NÃO RESPONDEU', 'A build foi atualizada, mas a cabine ainda não iniciou. Recarregue para tentar novamente.');
+    window.setTimeout(() => {
+      if (!bootIsStillVisible()) return;
+      document.getElementById('bootStatus')?.classList.add('hidden');
+      lobby?.show?.();
+      setNotice('FALHA AO ABRIR O MAMUTE', 'O interior 3D não respondeu mesmo após a recuperação automática. A tela de entrada foi restaurada para não deixar o jogo travado.');
+    }, 2200);
+  }, BOOT_TIMEOUT_MS);
 }
 
 function loadLiveIntegration() {
@@ -127,7 +213,7 @@ function attachCrewCabin(cabin) {
   return true;
 }
 
-window.addEventListener('ironrain:cabin-ready', event => { attachCrewCabin(event.detail?.cabin); });
+window.addEventListener('ironrain:cabin-ready', event => { clearBootWatchdog(); attachCrewCabin(event.detail?.cabin); });
 window.addEventListener('ironrain:station-gate', event => { const message = stationGateMessage(event.detail); if (message) showCrewToast(message, 'POSTO'); });
 
 async function startGame(status = {}, fallbackMode = 'offline') {
@@ -142,12 +228,15 @@ async function startGame(status = {}, fallbackMode = 'offline') {
   app.classList.toggle('faction-allies', entry.faction === 'allies');
   app.classList.toggle('faction-axis', entry.faction === 'axis');
   try {
+    await purgeLegacyModuleCaches();
     const strategicModule = await import('./modules/strategic-war-live.js');
     strategicWar ||= strategicModule.installStrategicWarLive({ app });
     lobby.hide();
+    armBootWatchdog();
     void loadLiveIntegration();
     await import('./game-v6.js');
   } catch (error) {
+    clearBootWatchdog();
     started = false; stopCrewFrame(); lobby.show();
     setNotice('FALHA AO ABRIR O MAMUTE', 'A entrada continua disponível, mas um módulo da partida falhou ao iniciar. Recarregue a página para receber a build mais recente.');
     console.error('Iron Rain bootstrap:', error);
@@ -184,10 +273,12 @@ lobby = createCrewLobbyUI({
 lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, capacity: 3, lastEvent: 'choose-faction' });
 setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
 lobby.show();
+void refreshServiceWorker();
 void loadLiveIntegration();
 if (crewQa) setNotice('QA MULTIPLAYER LOCAL', 'Modo de teste: duas abas no mesmo computador podem criar/entrar na mesma sala sem usar a internet pública.');
 
 window.addEventListener('beforeunload', () => {
+  clearBootWatchdog();
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (crewToastTimer) clearTimeout(crewToastTimer);
   stopCrewFrame();
