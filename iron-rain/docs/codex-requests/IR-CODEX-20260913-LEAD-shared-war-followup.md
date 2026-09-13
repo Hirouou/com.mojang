@@ -27,3 +27,9 @@ Valores antes/depois de bytes por poll, cenários de intel bloqueado/liberado, d
 VPS/compra/contas, reescrita artística da cabine, novo renderer, novas armas/regras. Melhorias visuais de estradas/construções já solicitadas pelo owner devem virar fatia P2 separada após essa consolidação, com referência existente e sem mudar autoridade. Não afirmar que esta missão garante que outros agentes nunca errem.
 
 Reserva: CODEX integra world/intel/UI; colaboração interna delimitada em server/frontline.mjs e server/air-war.mjs com testes. Não publicar outra autoridade concorrente.
+
+## Correção incremental — interação PC, 13/09
+- Owner ampliou o escopo: restaurar controles 2D mobile com alcance, coordenadas persistentes/acessíveis, eliminar fila de comandos, tiro visível e dano único; depois arte industrial PS1/PS2, exterior restrito de base com abastecimento físico, regiões carregadas localmente e simulação real compartilhada. Estes pedidos substituem as restrições artísticas/mobile anteriores; não remover primeira pessoa ou autoridade dedicada.
+- Concluído neste checkpoint: pré-reivindicar posto antes de alterar câmera/captura do mouse. Claim pendente não ejeta operador livre. Mesa abre ao conceder posse.
+- Evidência: tests/pc-delayed-interaction.mjs com 900ms de atraso em /command; captura preservada durante espera, mesa aberta após resposta. npm test: 719/719 (inclui 8 testes do bridge de front ainda não integrado nesta publicação).
+- Arquivos desta correção: modules/cabin-view.js, modules/crew-cabin-bridge.js, bootstrap.js, sw.js, tests/pc-delayed-interaction.mjs. Build 20260913-pc-interaction / cache v7.34. Publicação em andamento; demais itens continuam IN_PROGRESS.

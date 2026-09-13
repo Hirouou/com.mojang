@@ -376,6 +376,15 @@ export function createCabinView(canvas, options = {}) {
   view = {
     ...core,
     leaveStation: leaveCrewStation,
+    interact() {
+      const focus = core.getFocus?.();
+      if (!focus) return null;
+      if (!['engine', 'extinguisher'].includes(focus.id)) {
+        const result = requestCrewStation(focus.id);
+        if (!result?.ready) { pendingCrewStation = result?.pending ? focus.id : null; return null; }
+      }
+      return core.interact();
+    },
     update(dt, data = {}) {
       reconcileCrewStation();
       const elapsed = safeDt(dt);

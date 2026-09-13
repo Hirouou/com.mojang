@@ -33,7 +33,11 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
 
   function keepCabinOutsideUntilReady(result) {
     if (result?.ready) return result;
-    try { cabin?.leaveStation?.(); } catch {}
+    // A pending network claim must not release mouse capture or reset a free operator.
+    try {
+      const current = cabin?.snapshot?.();
+      if (!current || current.station) cabin?.leaveStation?.();
+    } catch {}
     return result;
   }
 
