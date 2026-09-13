@@ -323,7 +323,7 @@ function publishStrategicTraffic(state) {
   state.warSimulation ||= {};
   const now = Number(state.time) || 0;
   if (now < (state.warSimulation.nextTrafficProjection || 0)) return;
-  state.warSimulation.nextTrafficProjection = now + .35;
+  state.warSimulation.nextTrafficProjection = now + .1;
   stripStrategicCapitalVisuals(state);
   const logistics = strategicLogistics(state);
   if (!logistics) { state.warSimulation.strategicTraffic = []; state.warSimulation.strategicRoads = []; state.warSimulation.strategicCapitals = []; return; }
