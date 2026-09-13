@@ -300,6 +300,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       }))),
       routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({
         ...route,
+        knownThreat: knownRouteThreat(route),
         threatIntel: route.threatIntel ? Object.freeze({ ...route.threatIntel }) : null,
       }))),
       convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({
