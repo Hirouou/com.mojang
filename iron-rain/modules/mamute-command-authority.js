@@ -31,8 +31,8 @@ export function createMamuteCommandAuthority({
   fireInventory = null,
 } = {}) {
   const sequences = new Map();
-  const fireShotResults = new Map();
-  const fireShotOrder = [];
+  const acceptedFireShots = new Map();
+  const acceptedFireOrder = [];
   let accepted = 0, rejected = 0;
 
   function fireShotKey(playerId, payload) {
@@ -40,26 +40,11 @@ export function createMamuteCommandAuthority({
     return shotId ? `${playerId}:${shotId}` : null;
   }
 
-  function rememberFireShot(key, result) {
-    if (!key || !result) return;
-    fireShotResults.set(key, result);
-    fireShotOrder.push(key);
-    while (fireShotOrder.length > FIRE_REPLAY_WINDOW) fireShotResults.delete(fireShotOrder.shift());
-  }
-
-  function replayFireShot(key, station, owner, shotId) {
-    const previous = key ? fireShotResults.get(key) : null;
-    if (!previous) return null;
-    if (!previous.ok) return previous;
-    return Object.freeze({
-      ok: false,
-      reason: 'duplicate-shot',
-      station,
-      owner: owner || null,
-      shotId,
-      ...(previous.shell != null ? { shell: previous.shell } : {}),
-      ...(previous.ammoRemaining !== undefined ? { ammoRemaining: previous.ammoRemaining } : {}),
-    });
+  function rememberFireShot(key, shell, ammoRemaining, owner) {
+    if (!key) return;
+    acceptedFireShots.set(key, Object.freeze({ shell: shell ?? null, ammoRemaining, owner: owner || null }));
+    acceptedFireOrder.push(key);
+    while (acceptedFireOrder.length > FIRE_REPLAY_WINDOW) acceptedFireShots.delete(acceptedFireOrder.shift());
   }
 
   function currentFireInventory() {
@@ -89,17 +74,17 @@ export function createMamuteCommandAuthority({
     const last = sequences.get(playerId) ?? -1;
     if (seq <= last) {
       // A real network retry normally reuses the exact same sequence number.
-      // Return the canonical terminal result for a known shot identity so a
-      // dropped response cannot turn accepted or rejected fire into a different
-      // ammo snapshot on retry.
+      // If that packet was an already accepted shot, return the canonical
+      // duplicate result instead of degrading it to a generic stale-command so
+      // the client can reconcile shell/ammo state without firing again.
       if (type === 'fire') {
         const shotId = cleanId(command.payload?.shotId);
         const shotKey = fireShotKey(playerId, command.payload);
-        const station = MAMUTE_COMMAND_STATION[type];
-        const replay = replayFireShot(shotKey, station, stationOwner(station), shotId);
-        if (replay) {
+        if (shotKey && acceptedFireShots.has(shotKey)) {
+          const station = MAMUTE_COMMAND_STATION[type];
+          const acceptedShot = acceptedFireShots.get(shotKey);
           rejected += 1;
-          return replay;
+          return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: acceptedShot.owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
         }
       }
       rejected += 1; return Object.freeze({ ok: false, reason: 'stale-command' });
@@ -110,38 +95,33 @@ export function createMamuteCommandAuthority({
     if (type === 'fire') sequences.set(playerId, seq);
     const station = MAMUTE_COMMAND_STATION[type];
     const shotId = type === 'fire' ? cleanId(command.payload?.shotId) : null;
-    const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
     const owner = stationOwner(station);
-    if (shotKey && fireShotResults.has(shotKey)) {
-      sequences.set(playerId, seq);
-      rejected += 1;
-      return replayFireShot(shotKey, station, owner, shotId);
-    }
     if (owner !== playerId) {
       rejected += 1;
-      const result = Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null, ...(shotId ? { shotId } : {}) });
-      if (shotKey) rememberFireShot(shotKey, result);
-      return result;
+      return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null, ...(shotId ? { shotId } : {}) });
     }
+    const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
     const inventory = type === 'fire' ? currentFireInventory() : null;
     const shell = type === 'fire' ? command.payload?.shell : null;
+    if (shotKey && acceptedFireShots.has(shotKey)) {
+      sequences.set(playerId, seq);
+      rejected += 1;
+      const acceptedShot = acceptedFireShots.get(shotKey);
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner: acceptedShot.owner, shotId, ...(acceptedShot.shell != null ? { shell: acceptedShot.shell } : {}), ...(acceptedShot.ammoRemaining !== undefined ? { ammoRemaining: acceptedShot.ammoRemaining } : {}) });
+    }
 
     let shellReserved = false;
     if (inventory) {
       if (!canFireShell(inventory, shell)) {
         rejected += 1;
         const ammoRemaining = remainingShells(inventory, shell);
-        const result = Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
-        if (shotKey) rememberFireShot(shotKey, result);
-        return result;
+        return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
       }
       shellReserved = consumeShell(inventory, shell, 1);
       if (!shellReserved) {
         rejected += 1;
         const ammoRemaining = remainingShells(inventory, shell);
-        const result = Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
-        if (shotKey) rememberFireShot(shotKey, result);
-        return result;
+        return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
       }
     }
 
@@ -151,16 +131,13 @@ export function createMamuteCommandAuthority({
       if (shellReserved) restoreShell(inventory, shell);
       rejected += 1;
       const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
-      const result = Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
-      if (shotKey) rememberFireShot(shotKey, result);
-      return result;
+      return Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
     }
 
     sequences.set(playerId, seq); accepted += 1;
     const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
-    const result = Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(type === 'fire' && shell != null ? { shell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
-    if (shotKey) rememberFireShot(shotKey, result);
-    return result;
+    if (shotKey) rememberFireShot(shotKey, shell, ammoRemaining, owner);
+    return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(type === 'fire' && shell != null ? { shell } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
   }
 
   return Object.freeze({
