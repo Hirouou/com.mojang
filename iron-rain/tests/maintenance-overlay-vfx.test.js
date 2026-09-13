@@ -14,7 +14,7 @@ test('maintenance overlay consumes canonical spray, sparks and repair motion sig
 });
 
 test('maintenance overlay exposes perceptible foam and repair vfx with safe fallbacks', () => {
-  assert.match(source, /ir-maintenance-vfx active/);
+  assert.match(source, /vfxActive \? ' active' : ''/);
   assert.match(source, /ir-spray-cone/);
   assert.match(source, /ir-tool-strike/);
   assert.match(source, /prefers-reduced-motion:reduce/);
