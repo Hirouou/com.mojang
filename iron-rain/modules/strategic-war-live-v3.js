@@ -3,6 +3,7 @@ import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, s
 import { chooseTerritoryProject, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
 import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from './strategic-logistics.js';
 import { strategicFrontPath } from './strategic-front-pressure.js';
+import { applyAuthoritativeSectorControl } from './strategic-capture-state.js';
 import { THEATRE_SIZE, lineSnapshot } from './theatre-control.js';
 
 const COLOR = Object.freeze({
@@ -267,7 +268,26 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     return Object.freeze({ strategicLogistics: theatre.logistics, territory: territorySnapshot(node), to: id });
   }
 
-  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, open: () => setOpen(true) });
+  function applySectorControl({ sectorId, owner, contested = false } = {}) {
+    const id = String(sectorId ?? '');
+    const record = theatre.records.get(id);
+    const territoryNode = theatre.territory.get(id);
+    if (!record || !territoryNode) return Object.freeze({ ok: false, changed: false, reason: 'unknown-sector' });
+    const result = applyAuthoritativeSectorControl({
+      record,
+      territoryNode,
+      logistics: theatre.logistics,
+      owner,
+      contested,
+    });
+    if (result.ok && result.changed) {
+      updatePanels();
+      if (open) draw();
+    }
+    return result;
+  }
+
+  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, applySectorControl, open: () => setOpen(true) });
   const stopNotebookBridge = installNotebookBridge(locate);
 
   function resize() {
@@ -454,6 +474,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     open: () => setOpen(true),
     close: () => setOpen(false),
     locate,
+    applySectorControl,
     destroy() { setOpen(false); stopNotebookBridge(); button.remove(); root.remove(); delete window.ironRainStrategicMap; },
   });
 }
