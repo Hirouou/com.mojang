@@ -12,11 +12,12 @@ const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(value) ? value 
 export function chooseTerritoryProject(node, context = {}) {
   if (!node?.owner || node.contested || node.activeProject || context.routeOpen === false) return null;
   const pressure = clamp01(context.frontPressure);
+  const routeThreat = clamp01(context.routeThreat);
   const armorThreat = clamp01(context.armorThreat);
   const infantryThreat = clamp01(context.infantryThreat);
   const armorDemand = clamp01(context.armorDemand ?? context.friendlyArmorDeficit);
   const criticalInfrastructure = ['depot', 'garage', 'factory', 'armorWorks'].some(type => has(node, type));
-  const protectCriticalInfrastructure = pressure > .42 && criticalInfrastructure && !has(node, 'bunker');
+  const protectCriticalInfrastructure = criticalInfrastructure && (pressure > .42 || routeThreat > .55) && !has(node, 'bunker');
 
   const preference = [];
   if (!has(node, 'outpost')) preference.push('outpost');
@@ -38,7 +39,7 @@ export function chooseTerritoryProject(node, context = {}) {
     if (check.ok) return Object.freeze({
       type,
       reason: type === 'bunker' && protectCriticalInfrastructure
-        ? 'logistics-defense'
+        ? routeThreat > .55 && pressure <= .42 ? 'route-defense' : 'logistics-defense'
         : pressure > .55 && type === 'bunker'
           ? 'front-pressure'
           : infantryThreat > .45 && type === 'mortar'
