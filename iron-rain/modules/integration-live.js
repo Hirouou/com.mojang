@@ -65,7 +65,8 @@ function nextShotIdentity(runtime) {
   return Object.freeze({ shotId: `${mamuteId}:${shooterId}:${shotSerial}`, shooterId, mamuteId, shotSerial });
 }
 
-function liveShotPayload(runtime) {
+function liveShotPayload() {
+  const runtime = globalThis.ironRainEntry?.runtime;
   const shell = document.querySelector('.ammo.active')?.dataset.shell || 'HE';
   const ammoId = shell === 'SMOKE' ? 'smokeCount' : shell === 'FRAG' ? 'fragCount' : 'heCount';
   const identity = nextShotIdentity(runtime);
@@ -89,9 +90,9 @@ function canReplicateLocalShot(runtime) {
 function emitLocalShot() {
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.emitEffect || !canReplicateLocalShot(runtime)) return;
-  const shot = liveShotPayload(runtime);
+  const shot = liveShotPayload();
   runtime.emitEffect('fire', shot);
-  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell, shotId: shot.shotId });
+  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell });
 }
 
 function bindFireState() {
