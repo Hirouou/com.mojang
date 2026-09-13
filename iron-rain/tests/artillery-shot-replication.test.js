@@ -24,6 +24,6 @@ test('replication reads the live ballistic readouts instead of adding another ba
 
 test('authoritative echo does not replay fire or reload feedback on the original shooter', () => {
   assert.match(source, /function effectFromLocalShooter\(effect\)/);
-  assert.match(source, /effect\.payload\?\.shooterId/);
+  assert.match(source, /effect\?\.payload\?\.shooterId/);
   assert.match(source, /\(effect\.type === 'fire' \|\| effect\.type === 'reload'\) && effectFromLocalShooter\(effect\)/);
 });
