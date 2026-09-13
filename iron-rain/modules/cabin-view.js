@@ -2,6 +2,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { createCabinView as createCabinViewCore } from './cabin-view-core.js';
 import { createCabinCrewVisualLayer } from './crew-visual-layer.js';
 import { maintenanceFeedback } from './maintenance-feedback.js';
+import { hullImpactFeedback } from './cabin-hit-feedback.js';
 import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
 import { loaderRigState } from './loader-arm.js';
 import { beginLoading, stepLoading } from './loading-cycle.js';
@@ -247,6 +248,16 @@ export function createCabinView(canvas, options = {}) {
   }
   function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail: { active: false } })); } catch {} }
 
+  function applyHullImpact(feedback) {
+    if (!feedback?.active) return;
+    remoteImpact = Math.max(remoteImpact, feedback.intensity);
+    hullImpactVisual.kick(feedback.intensity);
+  }
+
+  function onLocalHullImpact(event) {
+    applyHullImpact(hullImpactFeedback(event?.detail || {}));
+  }
+
   function onSharedCrewEffect(event) {
     const effect = event.detail || {};
     if (!effect.remote) return;
@@ -256,13 +267,10 @@ export function createCabinView(canvas, options = {}) {
       remoteLoading = beginLoading(shell, shell);
     }
     if (effect.type === 'impact' || effect.type === 'critical') {
-      const feedback = remoteHullImpactFeedback(effect);
-      if (feedback) {
-        remoteImpact = Math.max(remoteImpact, feedback.intensity);
-        hullImpactVisual.kick(feedback.intensity);
-      }
+      applyHullImpact(remoteHullImpactFeedback(effect));
     }
   }
+  globalThis.addEventListener?.('ironrain:mamute-impact', onLocalHullImpact);
   globalThis.addEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
 
   function cancelPendingCrewStation() {
@@ -356,6 +364,7 @@ export function createCabinView(canvas, options = {}) {
       if (pendingCrewStation) releaseCrewStation(pendingCrewStation);
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
       activeCrewStation = pendingCrewStation = enteringCrewStation = null;
+      globalThis.removeEventListener?.('ironrain:mamute-impact', onLocalHullImpact);
       globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
       globalThis.removeEventListener?.('pagehide', onPageHide);
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
