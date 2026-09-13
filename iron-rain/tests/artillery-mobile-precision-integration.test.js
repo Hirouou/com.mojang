@@ -5,25 +5,12 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
 
-test('mobile AIM exposes dual canonical touch dials with metre-precise range telemetry', async () => {
-  const [css, viewportCss, game] = await Promise.all([
-    read('mobile-station-ui.css'),
-    read('mobile-viewport-hotfix.css'),
-    read('game-v6.js'),
-  ]);
-  const liveCss = `${css}\n${viewportCss}`;
-  assert.match(viewportCss, /handwheel-box:not\(\.elevation-box\)/);
-  assert.match(viewportCss, /handwheel-box\.elevation-box/);
-  assert.match(viewportCss, /#azWheel,[\s\S]*#elWheel/);
-  assert.match(viewportCss, /position:absolute!important/);
-  assert.match(liveCss, /#rangeReadout/);
-  assert.match(liveCss, /DISTÂNCIA \/ SOLUÇÃO/);
-  assert.match(liveCss, /\.charge-box/);
-  // The mobile readout exposes the canonical ballistic result in metres so a
-  // one-decimal kilometre display can never hide meaningful aiming differences.
+test('mobile AIM uses physical cranks while the shared solution remains metre-precise', async () => {
+  const [css, game] = await Promise.all([read('mobile-viewport-hotfix.css'), read('game-v6.js')]);
+  assert.match(css, /#fireDeck\[data-station="aim"\] \.handwheel-box,[\s\S]*display:none!important/);
+  assert.match(css, /\.charge-box/);
   assert.match(game, /UI\.range\.(?:textContent|innerHTML)\s*=.*Math\.round\((?:solution|B)\.range\)\.toLocaleString\('pt-BR'\).* m/);
 });
-
 test('touch handwheels are geared down while desktop retains the original delta', async () => {
   const cabin = await read('modules/cabin-view.js');
   assert.match(cabin, /\(hover: none\) and \(pointer: coarse\)/);

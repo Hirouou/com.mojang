@@ -1,5 +1,7 @@
 # Iron Rain — handoff para trabalho paralelo
 
+**Checkpoint do owner 13/09:** ler primeiro `CONTINUE_FROM_HERE_20260913.md`. Primeira pessoa restaurada; ajuste mobile entregue. Servidor persistente ainda não integrado: próximos agentes devem fechar o teste de dois Mamutes opostos no MESMO mundo antes de logística/visual. Não remover cabine para contornar exceções.
+
 ## Onde está a build
 
 - Repositório: `Hirouou/com.mojang`

@@ -12,14 +12,12 @@ test('hidden AIM deck wins over mobile display override while menus are open', (
   assert.match(css, /\.inside\.station-engaged \.fire-deck\[data-station="aim"\]\.hidden\s*\{\s*display:none!important;\s*\}/);
 });
 
-test('mobile AIM anchors both dial containers without Safari display-contents positioning', () => {
-  assert.match(css, /\.handwheel-box\.elevation-box\{[\s\S]*position:absolute!important/);
-  assert.match(css, /\.handwheel-box:not\(\.elevation-box\)\{[\s\S]*left:var\(--aim-side\)!important/);
-  assert.match(css, /\.handwheel-box\.elevation-box\{[\s\S]*right:var\(--aim-right\)!important/);
-  assert.match(css, /#azWheel,[\s\S]*#elWheel[\s\S]*position:absolute!important/);
-  assert.doesNotMatch(css, /display:contents!important/);
+test('mobile AIM keeps physical cranks unobstructed and charge/fire together', () => {
+  assert.match(css, /#fireDeck\[data-station="aim"\] \.handwheel-box,[\s\S]*display:none!important/);
+  assert.match(css, /#fireDeck\[data-station="aim"\] \.charge-box\{[\s\S]*position:static!important/);
+  assert.match(css, /#fireDeck\[data-station="aim"\] #fireBtn\{[\s\S]*min-height:46px!important/);
+  assert.doesNotMatch(css, /--aim-dial-size/);
 });
-
 test('visible viewport is shared by app, lobby and renderer resize flow', () => {
   assert.match(css, /#app\{[\s\S]*width:var\(--ir-viewport-w\)!important/);
   assert.match(css, /html body \.crew-lobby\{[\s\S]*height:var\(--ir-viewport-h\)!important/);

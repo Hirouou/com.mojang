@@ -4,6 +4,16 @@ import { createCrewReplication } from '../modules/crew-replication.js';
 
 const pose = (x, z, yaw = 0) => ({ x, z, yaw, pitch: 0 });
 
+test('lobby heartbeats and incomplete remote poses do not abort crew replication', () => {
+  const crew = createCrewReplication({ localId: 'me' });
+  for (const invalid of [null, undefined, false, 0, {}, { x: 0 }]) {
+    assert.equal(crew.localPacket(invalid, 1), null);
+    assert.equal(crew.receive({ kind: 'crew-pose', id: 'friend', seq: 1, at: 1, pose: invalid }), false);
+  }
+  assert.equal(crew.localPacket(pose(0, 2.4), 2).seq, 1);
+  assert.equal(crew.receive({ kind: 'crew-pose', id: 'friend', seq: 1, at: 2, pose: pose(0, 2.4) }), true);
+});
+
 test('one Mamute replication state caps crew at one local plus two remotes', () => {
   const crew = createCrewReplication({ localId: 'me' });
   assert.equal(crew.capacity, 3);
