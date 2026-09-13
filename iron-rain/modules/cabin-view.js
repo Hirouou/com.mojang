@@ -100,7 +100,7 @@ function createLoaderArmVisual(scene) {
   };
 }
 
-function createHullImpactVisual(scene) {
+function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
   const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
   const group = new THREE.Group();
   scene.add(group);
@@ -112,7 +112,8 @@ function createHullImpactVisual(scene) {
   flash.position.set(.15, 2.1, -.8);
   scene.add(flash);
   const particles = [];
-  for (let i = 0; i < 12; i++) {
+  const particleCount = reducedMotion ? 6 : 12;
+  for (let i = 0; i < particleCount; i++) {
     const particle = new THREE.Mesh(i % 3 ? dustGeometry : shardGeometry, i % 3 ? dustMaterial : shardMaterial);
     particle.userData.seed = i * 1.618;
     group.add(particle);
@@ -132,7 +133,8 @@ function createHullImpactVisual(scene) {
     const step = Math.min(.1, Math.max(0, Number(dt) || 0));
     age += step;
     energy = Math.max(0, energy - step * 1.85);
-    const burst = Math.max(0, 1 - age * 2.2);
+    const motionAge = reducedMotion ? 0 : age;
+    const burst = reducedMotion ? 0 : Math.max(0, 1 - age * 2.2);
     flash.intensity = energy * 6.2;
     dustMaterial.opacity = Math.min(.62, energy * .68);
     shardMaterial.opacity = Math.min(.82, energy * .9);
@@ -141,12 +143,16 @@ function createHullImpactVisual(scene) {
       const seed = particle.userData.seed;
       const spread = .16 + (i % 5) * .08;
       particle.position.set(
-        Math.sin(seed * 4.1) * spread * (1 + age * 1.8),
-        2.36 - age * (.45 + (i % 4) * .09),
-        -.95 + Math.cos(seed * 2.7) * spread - age * (.1 + (i % 3) * .05),
+        Math.sin(seed * 4.1) * spread * (1 + motionAge * 1.8),
+        2.36 - motionAge * (.45 + (i % 4) * .09),
+        -.95 + Math.cos(seed * 2.7) * spread - motionAge * (.1 + (i % 3) * .05),
       );
-      particle.rotation.set(seed + age * (2 + i % 3), seed * .6 + age * 1.7, age * (3 + i % 4));
-      particle.scale.setScalar(.55 + burst * (.8 + (i % 4) * .16));
+      particle.rotation.set(
+        seed + motionAge * (2 + i % 3),
+        seed * .6 + motionAge * 1.7,
+        motionAge * (3 + i % 4),
+      );
+      particle.scale.setScalar(reducedMotion ? .82 : .55 + burst * (.8 + (i % 4) * .16));
     });
     group.visible = energy > .015;
   }
@@ -229,7 +235,7 @@ export function createCabinView(canvas, options = {}) {
   if (!scene) throw new Error('Cabin scene was not created');
   const crewVisuals = createCabinCrewVisualLayer(scene, { capacity: 2 });
   const loaderVisual = createLoaderArmVisual(scene);
-  const hullImpactVisual = createHullImpactVisual(scene);
+  const hullImpactVisual = createHullImpactVisual(scene, { reducedMotion });
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   const safeDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
 
