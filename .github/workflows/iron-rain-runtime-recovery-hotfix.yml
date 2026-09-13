@@ -1,0 +1,175 @@
+name: Iron Rain Runtime Recovery Hotfix
+
+on:
+  push:
+    branches:
+      - iron-rain-v6-1-continuation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: iron-rain-runtime-recovery-hotfix
+  cancel-in-progress: false
+
+jobs:
+  patch-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active Iron Rain branch
+        uses: actions/checkout@v4
+        with:
+          ref: iron-rain-v6-1-continuation
+          fetch-depth: 0
+
+      - name: Patch fail-soft war runtime and immortal frame loop
+        shell: python
+        run: |
+          from pathlib import Path
+
+          war_path = Path('iron-rain/modules/war-simulation.js')
+          war = war_path.read_text()
+          old_war = """export function updateWar(state, dt) {
+            const live = isLiveGameState(state);
+            if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); syncCombatSustainment(state); }
+            const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);
+            const strategicBefore = live ? strategicAssetSnapshot(state) : null;
+            if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
+            try { coreUpdateWar(state, dt); }
+            finally {
+              if (rearSafe && state) state.mode = originalMode;
+              if (live) {
+                reconcileStrategicAssets(state, strategicBefore);
+                publishStrategicTraffic(state);
+                dispatchHullState(state, armorBefore);
+                publishWorldBridge(state);
+              }
+            }
+          }
+          """
+          new_war = """export function updateWar(state, dt) {
+            const live = isLiveGameState(state);
+            const reportFault = (stage, error) => {
+              const message = error?.message || String(error || 'unknown error');
+              state.warSimulation ||= {};
+              const key = `${stage}:${message}`;
+              if (state.warSimulation.runtimeFaultKey !== key) {
+                state.warSimulation.runtimeFaultKey = key;
+                console.error(`Iron Rain war runtime (${stage}):`, error);
+              }
+              state.warSimulation.runtimeFault = { stage, message, at: Number(state.time) || 0 };
+            };
+
+            let strategicReady = live;
+            if (live) {
+              try {
+                ensureStrategicAlignment(state);
+                ensureChosenSpawn(state);
+                refreshCombatReserveContext(state);
+                syncCombatSustainment(state);
+              } catch (error) {
+                strategicReady = false;
+                reportFault('strategic-bootstrap', error);
+              }
+            }
+
+            const originalMode = state?.mode;
+            const team = playerTeam();
+            const armorBefore = Number(state?.robot?.armor);
+            let rearSafe = false;
+            let strategicBefore = null;
+            if (strategicReady) {
+              try {
+                rearSafe = Boolean(state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250);
+                strategicBefore = strategicAssetSnapshot(state);
+              } catch (error) {
+                strategicReady = false;
+                reportFault('strategic-snapshot', error);
+              }
+            }
+
+            if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
+            try {
+              coreUpdateWar(state, dt);
+            } catch (error) {
+              reportFault('tactical-core', error);
+            } finally {
+              if (rearSafe && state) state.mode = originalMode;
+            }
+
+            if (!strategicReady) return;
+            for (const [stage, task] of [
+              ['strategic-assets', () => reconcileStrategicAssets(state, strategicBefore)],
+              ['strategic-traffic', () => publishStrategicTraffic(state)],
+              ['hull-state', () => dispatchHullState(state, armorBefore)],
+              ['world-bridge', () => publishWorldBridge(state)],
+            ]) {
+              try { task(); } catch (error) { reportFault(stage, error); }
+            }
+          }
+          """
+          if old_war not in war:
+              if "runtimeFaultKey" not in war:
+                  raise SystemExit('war-simulation.js hotfix anchor not found')
+          else:
+              war_path.write_text(war.replace(old_war, new_war, 1))
+
+          game_path = Path('iron-rain/game-v6.js')
+          game = game_path.read_text()
+          old_loop = "function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop);}"
+          new_loop = """let lastRuntimeFault='';
+            function reportRuntimeFault(phase,error){
+              const message=error?.message||String(error||'unknown error'),key=`${phase}:${message}`;
+              if(lastRuntimeFault!==key){lastRuntimeFault=key;console.error(`Iron Rain runtime (${phase}):`,error);}
+              globalThis.ironRainRuntimeFault={phase,message,at:performance.now()};
+            }
+            function loop(now){
+              const dt=Math.min(.035,(now-last)/1000||0);last=now;
+              try{update(dt);}catch(error){reportRuntimeFault('update',error);}
+              try{draw();}catch(error){reportRuntimeFault('draw',error);}
+              requestAnimationFrame(loop);
+            }"""
+          if old_loop not in game:
+              if "reportRuntimeFault(phase,error)" not in game:
+                  raise SystemExit('game-v6.js loop hotfix anchor not found')
+          else:
+              game_path.write_text(game.replace(old_loop, new_loop, 1))
+
+          test_path = Path('iron-rain/tests/runtime-loop-survival.test.js')
+          test_path.write_text("""import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+
+          const game = await readFile(new URL('../game-v6.js', import.meta.url), 'utf8');
+          const war = await readFile(new URL('../modules/war-simulation.js', import.meta.url), 'utf8');
+
+          test('browser frame loop survives isolated runtime faults', () => {
+            assert.match(game, /try\{update\(dt\);\}catch\(error\)\{reportRuntimeFault\('update',error\);\}/);
+            assert.match(game, /try\{draw\(\);\}catch\(error\)\{reportRuntimeFault\('draw',error\);\}/);
+            assert.match(game, /requestAnimationFrame\(loop\)/);
+          });
+
+          test('strategic simulation failures do not kill the player runtime', () => {
+            assert.match(war, /reportFault\('strategic-bootstrap', error\)/);
+            assert.match(war, /reportFault\('tactical-core', error\)/);
+            assert.match(war, /\['strategic-traffic', \(\) => publishStrategicTraffic\(state\)\]/);
+          });
+          """)
+
+      - name: Test Iron Rain
+        run: |
+          cd iron-rain
+          npm test
+
+      - name: Commit runtime recovery
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Runtime recovery already applied."
+            exit 0
+          fi
+          git config user.name "iron-rain-runtime-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add iron-rain/game-v6.js iron-rain/modules/war-simulation.js iron-rain/tests/runtime-loop-survival.test.js
+          git commit -m "fix: keep cabin runtime alive after simulation faults"
+          git push origin HEAD:iron-rain-v6-1-continuation
