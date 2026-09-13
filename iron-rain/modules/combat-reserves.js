@@ -19,14 +19,14 @@ function validRoutePath(path, originId, destinationId) {
 }
 
 function routeIntelSafe(logistics, path) {
-  if (typeof logistics?.snapshot !== 'function') return true;
+  if (typeof logistics?.snapshot !== 'function') return false;
   let routes;
-  try { routes = logistics.snapshot()?.routes; } catch { return true; }
-  if (!Array.isArray(routes)) return true;
+  try { routes = logistics.snapshot()?.routes; } catch { return false; }
+  if (!Array.isArray(routes)) return false;
   const byId = new Map(routes.map(route => [String(route?.id ?? ''), route]));
   for (const leg of path) {
     const route = byId.get(String(leg?.routeId ?? ''));
-    if (!route) continue;
+    if (!route) return false;
     const knownThreat = Number(route.knownThreat);
     if (Number.isFinite(knownThreat) && knownThreat >= COMBAT_ROUTE_THREAT_LIMIT) return false;
   }
@@ -34,10 +34,10 @@ function routeIntelSafe(logistics, path) {
 }
 
 function knownLocalRouteThreat(strategicLogistics, to) {
-  if (!strategicLogistics || typeof strategicLogistics.snapshot !== 'function') return 0;
+  if (!strategicLogistics || typeof strategicLogistics.snapshot !== 'function') return 1;
   let routes;
-  try { routes = strategicLogistics.snapshot()?.routes; } catch { return 0; }
-  if (!Array.isArray(routes)) return 0;
+  try { routes = strategicLogistics.snapshot()?.routes; } catch { return 1; }
+  if (!Array.isArray(routes)) return 1;
   const nodeId = String(to ?? '');
   let threat = 0;
   for (const route of routes) {
@@ -131,6 +131,8 @@ function withDeliveredTroops(logistics, strategicLogistics, to) {
   // node, keep an extra local security element instead of draining a threatened
   // depot/garage/outpost to reinforce another trench. Raw/unreported threat is
   // deliberately ignored so COMBAT AI does not become an omniscient sensor.
+  // If the canonical intel snapshot is unavailable, treat the node as pressured
+  // rather than stripping its garrison on an unknown security picture.
   const criticalLogistics = bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
   const fieldNode = bool(logistics?.hasOutpost) || criticalLogistics;
   const knownThreat = knownLocalRouteThreat(strategicLogistics, to);
