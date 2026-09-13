@@ -27,6 +27,8 @@ test('authoritative fire results preserve shotId across acceptance and rejection
   });
   assert.equal(duplicate.reason, 'duplicate-shot');
   assert.equal(duplicate.shotId, 'mamute-a:gunner:shot-1');
+  assert.equal(duplicate.shell, 'HE');
+  assert.equal(duplicate.ammoRemaining, 0);
 
   const empty = authority.receive({
     playerId: 'gunner', seq: 3, type: 'fire',
