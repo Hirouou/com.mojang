@@ -5,6 +5,7 @@ import {
   checkRouteAmbush as coreCheckRouteAmbush,
   getFrontGeometry,
 } from './war-simulation-core.js';
+import { combatSustainmentSupply } from './combat-sustainment.js';
 import { createStrategicHexMap, strategicOwnerAt } from './strategic-hex-map.js';
 import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
 
@@ -113,33 +114,6 @@ function ensureStrategicAlignment(state) {
   const targets = chooseTacticalTargets(state.sectors.length); state.sectors.forEach((sector, index) => alignSector(sector, targets[index])); state.warSimulation.strategicAligned = true; return true;
 }
 
-function resolveStrategicStagingContext(state, sectorId, team) {
-  const strategicMap = globalThis.ironRainStrategicMap;
-  if (typeof strategicMap?.combatReserveContext !== 'function' || !['ally', 'enemy'].includes(team)) return null;
-  const fieldReady = context => context?.territory?.owner === team && context.territory.contested === false &&
-    context.territory.structures?.some?.(type => type === 'outpost' || type === 'depot' || type === 'garage');
-  const direct = strategicMap.combatReserveContext(sectorId, team);
-  if (fieldReady(direct)) return direct;
-  if (typeof strategicMap.locate !== 'function') return null;
-
-  const front = state.sectors?.find(candidate => candidate.strategicSectorId === sectorId);
-  if (!front) return null;
-  const center = front.war ? getFrontGeometry(front).center : front;
-  const direction = team === 'ally' ? -1 : 1;
-  // Front sectors are deliberately contested/neutral on the strategic map.
-  // Walk only toward that faction's rear and let the canonical map choose the
-  // actual sector; combat-reserves still delegates route reachability to the
-  // shared strategic-logistics graph before admitting a single replacement.
-  for (const metres of COMBAT_RESERVE_REAR_STEPS) {
-    const located = strategicMap.locate({ x: center.x + direction * metres, y: center.y });
-    const staging = located?.sector;
-    if (!staging || staging.owner !== team) continue;
-    const context = strategicMap.combatReserveContext(staging.id, team);
-    if (fieldReady(context)) return context;
-  }
-  return null;
-}
-
 function refreshCombatReserveContext(state) {
   if (!isLiveGameState(state)) return;
   state.warSimulation ||= {};
@@ -148,73 +122,45 @@ function refreshCombatReserveContext(state) {
     state.warSimulation.combatReserveContext = null;
     return;
   }
-  state.warSimulation.combatReserveContext = ({ sectorId, team }) => resolveStrategicStagingContext(state, sectorId, team);
+  state.warSimulation.combatReserveContext = ({ sectorId, team }) => {
+    const fieldReady = context => context?.territory?.owner === team && context.territory.contested === false &&
+      context.territory.structures?.some?.(type => type === 'outpost' || type === 'depot' || type === 'garage');
+    const direct = strategicMap.combatReserveContext(sectorId, team);
+    if (fieldReady(direct)) return direct;
+    if (!['ally', 'enemy'].includes(team) || typeof strategicMap.locate !== 'function') return null;
+
+    const front = state.sectors?.find(candidate => candidate.strategicSectorId === sectorId);
+    if (!front) return null;
+    const center = front.war ? getFrontGeometry(front).center : front;
+    const direction = team === 'ally' ? -1 : 1;
+    // Front sectors are deliberately contested/neutral on the strategic map.
+    // Walk only toward that faction's rear and let the canonical map choose the
+    // actual sector; combat-reserves still delegates route reachability to the
+    // shared strategic-logistics graph before admitting a single replacement.
+    for (const metres of COMBAT_RESERVE_REAR_STEPS) {
+      const located = strategicMap.locate({ x: center.x + direction * metres, y: center.y });
+      const staging = located?.sector;
+      if (!staging || staging.owner !== team) continue;
+      const context = strategicMap.combatReserveContext(staging.id, team);
+      if (fieldReady(context)) return context;
+    }
+    return null;
+  };
 }
 
-function strategicAssetSnapshot(state) {
-  const snapshot = new Map();
-  for (const sec of state?.sectors || []) {
-    if (!sec?.war || !sec.strategicSectorId) continue;
+function syncCombatSustainment(state) {
+  const contextFor = state?.warSimulation?.combatReserveContext;
+  if (typeof contextFor !== 'function') return;
+  for (const sector of state.sectors || []) {
+    if (!sector?.strategicSectorId || !sector.war?.bases) continue;
     for (const team of ['ally', 'enemy']) {
-      const force = sec.war[team];
-      snapshot.set(`${sec.id}:${team}`, {
-        strength: Number(sec[team === 'ally' ? 'allyStrength' : 'enemyStrength']) || 0,
-        reinforcements: Number(force?.reinforcements) || 0,
-      });
-    }
-    for (const tank of sec.war.vehicles || []) {
-      snapshot.set(`tank:${tank.id}`, { alive: tank.alive !== false, claimed: tank.__strategicAssetClaimed === true });
-    }
-  }
-  return snapshot;
-}
-
-function reconcileStrategicAssets(state, before) {
-  const strategicMap = globalThis.ironRainStrategicMap;
-  if (!before || typeof strategicMap?.combatReserveContext !== 'function') return;
-  for (const sec of state?.sectors || []) {
-    if (!sec?.war || !sec.strategicSectorId) continue;
-    for (const team of ['ally', 'enemy']) {
-      const key = team === 'ally' ? 'allyStrength' : 'enemyStrength';
-      const force = sec.war[team];
-      const previous = before.get(`${sec.id}:${team}`);
-      if (!previous || !force) continue;
-      const reinforcementDelta = Math.max(0, (Number(force.reinforcements) || 0) - previous.reinforcements);
-      if (reinforcementDelta <= 0) continue;
-      const context = resolveStrategicStagingContext(state, sec.strategicSectorId, team);
-      const requested = Math.max(1, Math.ceil(reinforcementDelta));
-      const available = Math.max(0, Math.floor(Number(context?.assetCount?.('troops')) || 0));
-      const accepted = Math.min(requested, available);
-      if (accepted > 0) context.claimAsset?.('troops', accepted);
-      if (accepted < requested) {
-        const allowedDelta = reinforcementDelta * (accepted / requested);
-        const rollback = Math.max(0, reinforcementDelta - allowedDelta);
-        sec[key] = Math.max(previous.strength, (Number(sec[key]) || 0) - rollback);
-        force.reinforcements = Math.max(previous.reinforcements, (Number(force.reinforcements) || 0) - rollback);
+      let context = null;
+      try { context = contextFor({ sectorId: sector.strategicSectorId, team }); } catch {}
+      if (!context) continue;
+      const supplyCap = combatSustainmentSupply({ ...context, team });
+      for (const base of sector.war.bases) {
+        if (base?.alive && base.team === team) base.supply = Math.min(Number(base.supply) || 0, supplyCap);
       }
-    }
-
-    for (const tank of sec.war.vehicles || []) {
-      if (tank?.type !== 'tank') continue;
-      const previous = before.get(`tank:${tank.id}`) || { alive: false, claimed: false };
-      if (tank.alive === false) {
-        if (previous.claimed) tank.__strategicAssetClaimed = false;
-        continue;
-      }
-      if (previous.alive && previous.claimed && tank.__strategicAssetClaimed === true) continue;
-      const context = resolveStrategicStagingContext(state, sec.strategicSectorId, tank.team);
-      if (context?.claimAsset?.('tanks', 1)) {
-        tank.__strategicAssetClaimed = true;
-        tank.__strategicAssetOrigin = context.to || null;
-        continue;
-      }
-      // The legacy tactical core may request a replacement on a timer, but it
-      // only becomes real if a produced tank has actually reached staging.
-      tank.alive = false;
-      tank.hp = 0;
-      tank.flash = 0;
-      tank.__strategicAssetClaimed = false;
-      tank.replacementIn = Math.min(15, Math.max(1, Number(tank.replacementIn) || 15));
     }
   }
 }
@@ -246,19 +192,11 @@ function dispatchHullState(state, armorBefore) {
 
 export function updateWar(state, dt) {
   const live = isLiveGameState(state);
-  if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); }
+  if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); syncCombatSustainment(state); }
   const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);
-  const strategicBefore = live ? strategicAssetSnapshot(state) : null;
   if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
   try { coreUpdateWar(state, dt); }
-  finally {
-    if (rearSafe && state) state.mode = originalMode;
-    if (live) {
-      reconcileStrategicAssets(state, strategicBefore);
-      dispatchHullState(state, armorBefore);
-      publishWorldBridge(state);
-    }
-  }
+  finally { if (rearSafe && state) state.mode = originalMode; if (live) { dispatchHullState(state, armorBefore); publishWorldBridge(state); } }
 }
 
 export function assessRoute(state, from, to) {
