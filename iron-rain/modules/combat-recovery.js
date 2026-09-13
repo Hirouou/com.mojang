@@ -80,7 +80,9 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * withdraws early even with supply available, instead of unrealistically
  * sitting in the assault/hold loop until one hard-break threshold is crossed.
  * Offensive phases also require a modest readiness band, preventing tired or
- * pinned squads from launching or sustaining attacks.
+ * pinned squads from launching or sustaining attacks. Once an assault is in
+ * close contact, crossing either recovery composure threshold is enough to
+ * withdraw rather than treating the formation like a stationary defender.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
@@ -106,6 +108,11 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
 
   if (OFFENSIVE_PHASES.has(phase) && !combatOffensiveReady({ morale, suppression, ammo, supply })) {
     const logisticsReady = ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo && supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
+    const assaultWithdrawal = phase === 'assault' && (
+      moraleValue < COMBAT_RECOVERY_THRESHOLDS.morale ||
+      suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression
+    );
+    if (assaultWithdrawal) return 'retreat';
     return logisticsReady ? 'hold' : 'wait_support';
   }
   return null;
