@@ -17,11 +17,28 @@ test('outside presentation path does not add cabin feedback', () => {
 });
 
 test('impact queue expires old hull reactions instead of accumulating forever', () => {
-  const queue = createHullImpactQueue({ max: 2 });
+  const queue = createHullImpactQueue({ max: 2, mergeWindow: 0 });
   queue.push({ damage: 6, kind: 'hmg', inside: true }, 0);
   queue.push({ damage: 12, kind: 'tank', inside: true }, .1);
   queue.push({ damage: 16, kind: 'battery', inside: true }, .2);
   assert.equal(queue.snapshot().length, 2);
   for (let i = 0; i < 10; i++) queue.update(.25);
   assert.equal(queue.snapshot().length, 0);
+});
+
+test('impact queue coalesces near-simultaneous hull hits into one stronger reaction', () => {
+  const queue = createHullImpactQueue({ max: 4, mergeWindow: .08 });
+  const first = queue.push({ damage: 3, kind: 'rifle', inside: true }, 1);
+  queue.update(.04);
+  const merged = queue.push({ damage: 14, kind: 'tank', inside: true }, 1.06);
+  const snapshot = queue.snapshot();
+
+  assert.equal(snapshot.length, 1);
+  assert.equal(merged.id, first.id);
+  assert.equal(snapshot[0].age, 0);
+  assert.ok(snapshot[0].intensity > first.intensity);
+  assert.equal(snapshot[0].label, 'IMPACTO PESADO NO CASCO');
+
+  queue.push({ damage: 6, kind: 'hmg', inside: true }, 1.2);
+  assert.equal(queue.snapshot().length, 2);
 });
