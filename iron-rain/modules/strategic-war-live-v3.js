@@ -590,11 +590,9 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
 
     for (const convoy of logistics.convoys) {
       if (convoy.team !== t || !['moving', 'blocked'].includes(convoy.status)) continue;
-      const leg = convoy.path[convoy.leg], a = leg && theatre.records.get(leg.from)?.sector, b = leg && theatre.records.get(leg.to)?.sector;
-      if (!a || !b) continue;
-      const q = clamp(convoy.legProgress / leg.distance, 0, 1);
-      const p = toScreen({ x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q });
-      drawConvoy(convoy, p, Math.atan2(b.y - a.y, b.x - a.x));
+      if (!convoy.position) continue;
+      const p = toScreen(convoy.position);
+      drawConvoy(convoy, p, Number(convoy.position.heading) || 0);
     }
 
     if (current) {
