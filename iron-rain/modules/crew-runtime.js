@@ -21,6 +21,7 @@ export function createCrewRuntime({
   let lastStatus = null;
   let localCommandSeq = 0;
   let localEffectSeq = 0;
+  let lastCommandResultSeq = -1;
   const seenEffects = new Map();
   const effectListeners = new Set();
 
@@ -128,7 +129,10 @@ export function createCrewRuntime({
   function acceptMamuteCommandResult(packet) {
     const status = session.status();
     if (status.mode !== 'guest' || !roomMatches(packet) || cleanId(packet.sender) !== status.hostId || cleanId(packet.target) !== id || !packet.result || typeof packet.result !== 'object') return false;
-    const result = Object.freeze({ ...packet.result, authoritative: true, seq: Number(packet.seq) || 0, type: String(packet.type || '') });
+    const seq = Number(packet.seq);
+    if (!Number.isFinite(seq) || seq <= 0 || seq <= lastCommandResultSeq) return false;
+    lastCommandResultSeq = seq;
+    const result = Object.freeze({ ...packet.result, authoritative: true, seq, type: String(packet.type || '') });
     notifyCommandResult(result, packet);
     return true;
   }
@@ -156,7 +160,7 @@ export function createCrewRuntime({
   function disconnect(reason = 'left') {
     if (session.status().mode !== 'offline') session.leave(reason);
     try { transport?.close?.(); } catch {}
-    transport = null; localCommandSeq = 0; localEffectSeq = 0; seenEffects.clear(); commandAuthority.resetPlayer(id);
+    transport = null; localCommandSeq = 0; localEffectSeq = 0; lastCommandResultSeq = -1; seenEffects.clear(); commandAuthority.resetPlayer(id);
     return publish();
   }
   function connect(mode, room, faction) {
