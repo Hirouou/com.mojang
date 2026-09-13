@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { combatReserveOrigin } from '../modules/combat-reserves.js';
+import { combatReserveOrigin, combatReservePlan } from '../modules/combat-reserves.js';
 import { createLogisticsNode, createStrategicLogistics, createSupplyRoute } from '../modules/strategic-logistics.js';
 
-test('reserve origin skips nearer canonical depots with no troops', () => {
+test('reserve origin skips nearer canonical depots with no troops when a stocked route exists', () => {
   const logistics = createStrategicLogistics({
     nodes: [
       createLogisticsNode({ id: 'empty-near', team: 'ally', kind: 'depot', assets: { troops: 0 } }),
@@ -19,12 +19,12 @@ test('reserve origin skips nearer canonical depots with no troops', () => {
   assert.equal(combatReserveOrigin({ strategicLogistics: logistics, team: 'ally', to: 'front' }), 'stocked-far');
 });
 
-test('reserve origin fails closed when every canonical depot is empty', () => {
+test('empty depots keep route lineage but cannot admit undelivered troops', () => {
   const logistics = createStrategicLogistics({
     nodes: [
       createLogisticsNode({ id: 'rear-a', team: 'enemy', kind: 'depot', assets: { troops: 0 } }),
       createLogisticsNode({ id: 'rear-b', team: 'enemy', kind: 'depot', assets: { troops: 0 } }),
-      createLogisticsNode({ id: 'front', team: 'enemy', kind: 'outpost' }),
+      createLogisticsNode({ id: 'front', team: 'enemy', kind: 'outpost', assets: { troops: 0 } }),
     ],
     routes: [
       createSupplyRoute({ id: 'a-front', team: 'enemy', from: 'rear-a', to: 'front', distance: 100 }),
@@ -32,7 +32,20 @@ test('reserve origin fails closed when every canonical depot is empty', () => {
     ],
   });
 
-  assert.equal(combatReserveOrigin({ strategicLogistics: logistics, team: 'enemy', to: 'front' }), null);
+  assert.equal(combatReserveOrigin({ strategicLogistics: logistics, team: 'enemy', to: 'front' }), 'rear-a');
+  const plan = combatReservePlan({
+    strategicLogistics: logistics,
+    territory: { owner: 'enemy', contested: false, structures: ['outpost'] },
+    team: 'enemy',
+    to: 'front',
+    timerExpired: true,
+    fallbackComplete: true,
+    deficit: 40,
+  });
+  assert.equal(plan.origin, 'rear-a');
+  assert.equal(plan.routeOpen, true);
+  assert.equal(plan.ready, false);
+  assert.equal(plan.reason, 'troops');
 });
 
 test('reserve origin accepts a stocked depot already used as the staging destination', () => {
