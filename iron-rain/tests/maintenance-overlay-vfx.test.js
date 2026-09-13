@@ -30,6 +30,7 @@ test('maintenance overlay exposes perceptible foam and repair vfx with safe fall
 
 test('mobile landscape keeps local maintenance motion but stops large compositor loops', () => {
   assert.match(source, /@media\(max-width:900px\) and \(orientation:landscape\)/);
+  assert.match(source, /\.ir-maintenance-vfx\{left:46%;top:42%;right:0;bottom:0;inset:auto;contain:layout paint;background:none\}/);
   assert.match(source, /\.ir-maintenance-vfx\.extinguish:after,\.ir-maintenance-vfx\.repair:after\{animation:none\}/);
   assert.match(source, /\.ir-maintenance-vfx\.extinguish \.foam\{[^}]*animation-duration:\.26s/);
   assert.match(source, /\.ir-maintenance-vfx\.repair \.tool\{left:72%;top:58%\}/);
