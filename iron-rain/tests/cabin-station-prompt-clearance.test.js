@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canReachCabinPoint, createCabinMovement } from '../modules/cabin-controls.js';
+import { canReachCabinPoint, canSeeCabinPoint, createCabinMovement } from '../modules/cabin-controls.js';
 
 function faceTarget(from, target) {
   return Math.atan2(-(target.x - from.x), -(target.z - from.z));
@@ -30,6 +30,23 @@ test('driver prompt follows the visible controls as well as the aisle focus poin
   const visibleControls = { x: -1.57, z: -2.68 };
   assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, visibleControls) }), true);
   assert.equal(movement.focus()?.id, 'drive');
+});
+
+test('station-facing prompt cannot borrow a reachable aisle point through other machinery', () => {
+  const movement = createCabinMovement();
+  const from = { x: -1.55, z: 2.05 };
+  const aisleFocus = { x: -1.55, z: 1.88 };
+  const extinguisher = { x: -2.25, z: 1.88 };
+
+  assert.equal(canReachCabinPoint(from.x, from.z, aisleFocus.x, aisleFocus.z, .08), true, 'the aisle interaction point remains reachable');
+  assert.equal(canSeeCabinPoint(from.x, from.z, extinguisher.x, extinguisher.z), false, 'the radio cabinet blocks direct sight to the extinguisher');
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, extinguisher) }), true);
+  assert.notEqual(movement.focus()?.id, 'extinguisher', 'looking through the cabinet must not activate the hidden extinguisher');
+});
+
+test('station sight accepts the target machine surface but rejects intervening machinery', () => {
+  assert.equal(canSeeCabinPoint(-.85, -2.25, -1.57, -2.68), true, 'the driver console itself may terminate the sight ray');
+  assert.equal(canSeeCabinPoint(-1.55, 2.05, -2.25, 1.88), false, 'a different cabinet blocks the ray before the target');
 });
 
 test('station prompt clears when the player looks far above the console', () => {
