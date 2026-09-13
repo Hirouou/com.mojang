@@ -5,6 +5,18 @@ const validTeam = team => team === 'ally' || team === 'enemy';
 const positiveFinite = value => Number.isFinite(value) && value > 0;
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 
+function validRoutePath(path, originId, destinationId) {
+  if (!Array.isArray(path) || path.length === 0) return false;
+  let expectedFrom = String(originId ?? '');
+  for (const leg of path) {
+    const from = String(leg?.from ?? '');
+    const to = String(leg?.to ?? '');
+    if (!from || !to || from !== expectedFrom || !positiveFinite(Number(leg?.distance))) return false;
+    expectedFrom = to;
+  }
+  return expectedFrom === String(destinationId ?? '');
+}
+
 /**
  * Ask the canonical strategic-logistics graph whether a friendly route really
  * exists. This intentionally delegates pathfinding to `strategic-logistics.js`
@@ -18,7 +30,7 @@ export function combatRouteOpen({ logistics, team, from, to } = {}) {
   if (origin.id === destination.id) return true;
   try {
     const path = logistics.route(team, origin.id, destination.id);
-    return Array.isArray(path) && path.length > 0;
+    return validRoutePath(path, origin.id, destination.id);
   } catch {
     return false;
   }
@@ -52,18 +64,9 @@ export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
     } catch {
       continue;
     }
-    if (!Array.isArray(path) || path.length === 0) continue;
-    let distance = 0;
-    let validPath = true;
-    for (const leg of path) {
-      const legDistance = Number(leg?.distance);
-      if (!positiveFinite(legDistance)) {
-        validPath = false;
-        break;
-      }
-      distance += legDistance;
-    }
-    if (!validPath || !positiveFinite(distance)) continue;
+    if (!validRoutePath(path, node.id, destination.id)) continue;
+    const distance = path.reduce((sum, leg) => sum + Number(leg.distance), 0);
+    if (!positiveFinite(distance)) continue;
     if (!best || distance < best.distance || (distance === best.distance && String(node.id) < String(best.id))) best = { id: node.id, distance };
   }
   return best?.id || null;
