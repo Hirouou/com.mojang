@@ -80,6 +80,8 @@ test('active assaults stop when logistics or composure fall below offensive read
   assert.equal(combatRecoveryPhase({ ...base, supply: .29 }), 'wait_support', 'assault pauses when local supply falls below the offensive band');
   assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'assault falls back to cover when morale slips');
   assert.equal(combatRecoveryPhase({ ...base, suppression: .56 }), 'hold', 'assault falls back to cover when suppression rises');
+  assert.equal(combatRecoveryPhase({ ...base, morale: .31 }), 'retreat', 'active assault withdraws once morale crosses the recovery band');
+  assert.equal(combatRecoveryPhase({ ...base, suppression: .66 }), 'retreat', 'active assault withdraws once suppression crosses the recovery band');
   assert.equal(combatRecoveryPhase(base), null, 'ready assault remains under the existing tactical selector');
 });
 
