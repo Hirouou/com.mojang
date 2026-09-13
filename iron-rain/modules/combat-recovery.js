@@ -24,6 +24,22 @@ const SUPPLY_GATED_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assaul
 const OFFENSIVE_PHASES = new Set(['hold', 'suppress', 'wait_support', 'assault']);
 
 /**
+ * Shared offensive readiness predicate. This is deliberately stricter than
+ * the hard break thresholds: surviving a line is not the same as being fit to
+ * launch or continue an attack. Missing values fail closed.
+ */
+export function combatOffensiveReady({ morale, suppression, ammo, supply } = {}) {
+  const moraleValue = finiteOr(morale, 0);
+  const suppressionValue = finiteOr(suppression, 1);
+  const ammoValue = finiteOr(ammo, 0);
+  const supplyValue = finiteOr(supply, 0);
+  return moraleValue >= COMBAT_OFFENSIVE_THRESHOLDS.morale &&
+    suppressionValue <= COMBAT_OFFENSIVE_THRESHOLDS.suppression &&
+    ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo &&
+    supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
+}
+
+/**
  * Pure recovery policy for aggregate infantry forces.
  *
  * Breaking uses the current hard limits. Returning from regroup deliberately
@@ -81,11 +97,9 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
     return withdrawalPressure ? 'retreat' : 'wait_support';
   }
 
-  if (OFFENSIVE_PHASES.has(phase)) {
+  if (OFFENSIVE_PHASES.has(phase) && !combatOffensiveReady({ morale, suppression, ammo, supply })) {
     const logisticsReady = ammoValue >= COMBAT_OFFENSIVE_THRESHOLDS.ammo && supplyValue >= COMBAT_OFFENSIVE_THRESHOLDS.supply;
-    if (!logisticsReady) return 'wait_support';
-    const composureReady = moraleValue >= COMBAT_OFFENSIVE_THRESHOLDS.morale && suppressionValue <= COMBAT_OFFENSIVE_THRESHOLDS.suppression;
-    if (!composureReady) return 'hold';
+    return logisticsReady ? 'hold' : 'wait_support';
   }
   return null;
 }
