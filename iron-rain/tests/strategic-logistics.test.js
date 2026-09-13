@@ -4,7 +4,7 @@ import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from
 
 function network() {
   const nodes = [
-    createLogisticsNode({ id: 'HQ', team: 'ally', stock: { materials: 300, ammo: 200, fuel: 100 } }),
+    createLogisticsNode({ id: 'HQ', team: 'ally', stock: { materials: 300, ammo: 200, fuel: 100 }, assets: { trucks: 4, tanks: 2, troops: 80 } }),
     createLogisticsNode({ id: 'MID', team: 'ally' }),
     createLogisticsNode({ id: 'FRONT', team: 'ally' }),
   ];
@@ -43,4 +43,39 @@ test('destroyed convoy loses its cargo instead of teleporting stock to destinati
   const events = logistics.step(1, { damageByConvoy: { [convoyId]: 150 } });
   assert.equal(events[0]?.type, 'convoy-destroyed');
   assert.equal(logistics.getNode('FRONT').stock.ammo, 0);
+});
+
+test('tanks and troops physically leave rear inventory and only appear at the front after travel', () => {
+  const logistics = network();
+  const result = logistics.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', assets: { tanks: 1, troops: 24 }, kind: 'reinforcement', speed: 10 });
+  assert.equal(result.ok, true);
+  assert.equal(logistics.getNode('HQ').assets.tanks, 1);
+  assert.equal(logistics.getNode('HQ').assets.troops, 56);
+  assert.equal(logistics.getNode('FRONT').assets.tanks, 0);
+  assert.equal(logistics.getNode('FRONT').assets.troops, 0);
+  logistics.step(19);
+  assert.equal(logistics.getNode('FRONT').assets.tanks, 0);
+  logistics.step(1);
+  assert.equal(logistics.getNode('FRONT').assets.tanks, 1);
+  assert.equal(logistics.getNode('FRONT').assets.troops, 24);
+});
+
+test('destroyed reinforcement convoy permanently loses transported vehicles and soldiers', () => {
+  const logistics = network();
+  const { convoyId } = logistics.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', assets: { trucks: 1, tanks: 1, troops: 18 }, kind: 'reinforcement', speed: 10 });
+  const events = logistics.step(1, { damageByConvoy: { [convoyId]: 150 } });
+  assert.equal(events[0]?.type, 'convoy-destroyed');
+  assert.equal(events[0]?.lostAssets.tanks, 1);
+  assert.equal(events[0]?.lostAssets.trucks, 1);
+  assert.equal(events[0]?.lostAssets.troops, 18);
+  assert.equal(logistics.getNode('FRONT').assets.tanks, 0);
+  assert.equal(logistics.getNode('FRONT').assets.trucks, 0);
+  assert.equal(logistics.getNode('FRONT').assets.troops, 0);
+});
+
+test('dispatch refuses vehicles or troops that do not exist at the origin', () => {
+  const logistics = network();
+  const result = logistics.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', assets: { tanks: 3 } });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'origin-assets-insufficient');
 });
