@@ -2,53 +2,127 @@
    Keep the AIM controls bound to the real visible viewport on iPhone/Safari/PWA.
    This loads after mobile-station-ui.css and intentionally only overrides layout. */
 
-/* Touch operates the physical 3D cranks. Keep the HTML deck to charge/fire,
-   anchored as one compact group so Safari cannot split or clip its children. */
+/* Two thumb-operated dials share one viewport-bound instrument panel. The
+   existing handwheel bindings still send the same authoritative aim commands. */
+/* Responsive panels remain usable in portrait; rotation is never a blocking
+   screen over the map, menu or touch controls. */
+#app .rotate{display:none!important;pointer-events:none!important;}
 @media (pointer:coarse), (hover:none){
   #app.inside.station-engaged #fireDeck[data-station="aim"]{
+    --aim-dial-size:clamp(94px,26dvh,118px);
     position:absolute!important;inset:auto!important;
+    left:calc(10px + var(--safeL,0px))!important;
     right:calc(10px + var(--safeR,0px))!important;
-    bottom:calc(12px + var(--safeB,0px))!important;
-    width:110px!important;max-width:110px!important;height:auto!important;
-    transform:none!important;margin:0!important;padding:0!important;
-    display:grid!important;grid-template-columns:1fr!important;gap:6px!important;
-    background:transparent!important;border:0!important;box-shadow:none!important;
-    backdrop-filter:none!important;pointer-events:none!important;z-index:42!important;
+    bottom:calc(8px + var(--safeB,0px))!important;
+    width:auto!important;max-width:760px!important;height:auto!important;
+    box-sizing:border-box!important;transform:none!important;margin:0 auto!important;
+    padding:7px 8px 3px!important;
+    display:grid!important;
+    grid-template-columns:minmax(var(--aim-dial-size),1fr) minmax(116px,160px) minmax(var(--aim-dial-size),1fr)!important;
+    grid-template-rows:14px max(104px,var(--aim-dial-size)) 38px!important;
+    gap:4px 8px!important;align-items:center!important;
+    background:linear-gradient(180deg,#151e18e8,#0a110ef5)!important;
+    border:1px solid #b0a87370!important;border-radius:4px!important;
+    box-shadow:0 3px 18px #0007!important;
+    backdrop-filter:none!important;pointer-events:auto!important;z-index:42!important;
   }
   #app.inside.station-engaged #fireDeck[data-station="aim"].hidden{display:none!important;}
-  #app.inside.station-engaged #fireDeck[data-station="aim"] .handwheel-box,
-  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout,
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .handwheel-box{
+    display:contents!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .handwheel-box label{
+    grid-column:1!important;grid-row:1!important;
+    justify-self:center!important;height:auto!important;
+    font:600 10px/14px ui-monospace,monospace!important;letter-spacing:1.4px!important;
+    color:#ddd0a6!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .elevation-box label{grid-column:3!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .handwheel{
+    display:block!important;grid-column:1!important;grid-row:2!important;
+    justify-self:center!important;align-self:center!important;
+    width:var(--aim-dial-size)!important;height:var(--aim-dial-size)!important;
+    box-sizing:border-box!important;pointer-events:auto!important;touch-action:none!important;
+    background:radial-gradient(circle,#1c2822 0 28%,#101915 29% 51%,#606249 52% 56%,#18231c 57% 69%,#b8aa73 70% 73%,#1e2b21 74%)!important;
+    border:1px solid #b6aa7270!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #elWheel{grid-column:3!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .wheel-arm{width:36%!important;height:5px!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .wheel-arm em{width:22px!important;height:22px!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .handwheel strong{
+    font-size:13px!important;min-width:58px!important;padding:6px 4px!important;
+    pointer-events:none!important;color:#f1dfab!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout{
+    display:flex!important;grid-column:1 / -1!important;grid-row:3!important;
+    position:static!important;inset:auto!important;transform:none!important;
+    align-items:center!important;justify-content:center!important;gap:18px!important;
+    width:100%!important;height:38px!important;margin:0!important;
+    padding:3px 0 0!important;border-top:1px solid #b0a87340!important;
+    box-sizing:border-box!important;text-align:center!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout>span{
+    display:flex!important;align-items:baseline!important;gap:7px!important;
+    margin:0!important;font:600 8px/1.2 ui-monospace,monospace!important;
+    color:#bac4ae!important;letter-spacing:.7px!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout b{
+    display:inline!important;font:700 22px/1.1 ui-monospace,monospace!important;
+    color:#f0d994!important;letter-spacing:-.6px!important;white-space:nowrap!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout>span+span b{font-size:12px!important;color:#c2c9b2!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #azHint,
   #app.inside.station-engaged #fireDeck[data-station="aim"] .ammo-box,
   #app.inside.station-engaged #fireDeck[data-station="aim"] .loading-text,
   #app.inside.station-engaged #fireDeck[data-station="aim"] #notebookBtn,
   #app.inside.station-engaged #fireDeck[data-station="aim"] #marchBtn{display:none!important;}
   #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box{
     position:static!important;inset:auto!important;transform:none!important;
+    grid-column:2!important;grid-row:1 / 3!important;align-self:start!important;
     display:grid!important;grid-template-columns:1fr 1fr!important;
-    grid-template-rows:12px 20px 44px!important;gap:2px!important;
+    grid-template-rows:20px 44px!important;gap:4px!important;
     width:100%!important;height:auto!important;min-height:0!important;
-    padding:4px!important;margin:0!important;background:#101910ed!important;
-    border:1px solid #b0a87357!important;border-radius:4px!important;pointer-events:auto!important;
+    padding:0!important;margin:0!important;background:transparent!important;
+    border:0!important;pointer-events:auto!important;
   }
-  #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box label{font-size:8px!important;line-height:12px!important;}
-  #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box strong{font-size:18px!important;line-height:20px!important;}
-  #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box button{min-height:44px!important;font-size:22px!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box label{grid-column:1!important;grid-row:1!important;text-align:left!important;align-self:center!important;height:auto!important;font-size:9px!important;line-height:20px!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box strong{grid-column:2!important;grid-row:1!important;justify-self:end!important;font-size:20px!important;line-height:20px!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] .charge-box button{grid-row:2!important;min-height:44px!important;font-size:24px!important;background:#283425!important;border-color:#b0a87370!important;}
   #app.inside.station-engaged #fireDeck[data-station="aim"] #chargeRange{display:none!important;}
   #app.inside.station-engaged #fireDeck[data-station="aim"] .fire-actions{
     position:static!important;inset:auto!important;transform:none!important;
+    grid-column:2!important;grid-row:2!important;align-self:end!important;
     display:block!important;width:100%!important;height:auto!important;
     margin:0!important;padding:0!important;pointer-events:auto!important;
   }
   #app.inside.station-engaged #fireDeck[data-station="aim"] #fireBtn{
     display:block!important;width:100%!important;min-height:46px!important;
-    font-size:10px!important;letter-spacing:1px!important;
+    font-size:11px!important;letter-spacing:1px!important;
   }
   #app.inside.station-engaged #leaveStationBtn{
     top:calc(8px + var(--safeT,0px))!important;left:calc(10px + var(--safeL,0px))!important;
     min-height:44px!important;z-index:50!important;
   }
-  #app.inside.station-engaged .station-label{display:none!important;}
+  #app.inside.station-engaged #stationHeader{display:none!important;}
   body:has(#app.inside.station-engaged) #strategicWarBtn{display:none!important;}
+}
+
+@media (pointer:coarse) and (max-width:430px), (hover:none) and (max-width:430px){
+  #app.inside .hud{
+    left:calc(10px + var(--safeL,0px))!important;right:calc(10px + var(--safeR,0px))!important;
+    top:calc(60px + var(--safeT,0px))!important;width:auto!important;
+    transform:none!important;grid-template-columns:1fr 1fr!important;height:38px!important;
+  }
+  #app.inside .mission-pill{top:calc(104px + var(--safeT,0px))!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"]{
+    --aim-dial-size:clamp(78px,24vw,100px);
+    left:calc(5px + var(--safeL,0px))!important;right:calc(5px + var(--safeR,0px))!important;
+    padding-inline:5px!important;column-gap:4px!important;
+    grid-template-columns:minmax(0,1fr) minmax(104px,116px) minmax(0,1fr)!important;
+    grid-template-rows:14px max(110px,var(--aim-dial-size)) 38px!important;
+  }
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout{gap:10px!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout>span{gap:4px!important;letter-spacing:0!important;}
+  #app.inside.station-engaged #fireDeck[data-station="aim"] #rangeReadout b{font-size:20px!important;}
 }
 
 :root{

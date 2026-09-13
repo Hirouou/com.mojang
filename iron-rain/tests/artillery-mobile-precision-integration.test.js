@@ -5,9 +5,10 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
 
-test('mobile AIM uses physical cranks while the shared solution remains metre-precise', async () => {
+test('mobile AIM exposes both touch dials while the shared solution remains metre-precise', async () => {
   const [css, game] = await Promise.all([read('mobile-viewport-hotfix.css'), read('game-v6.js')]);
-  assert.match(css, /#fireDeck\[data-station="aim"\] \.handwheel-box,[\s\S]*display:none!important/);
+  assert.match(css, /#fireDeck\[data-station="aim"\] \.handwheel-box\{\s*display:contents!important/);
+  assert.match(css, /#fireDeck\[data-station="aim"\] #rangeReadout\{\s*display:flex!important/);
   assert.match(css, /\.charge-box/);
   assert.match(game, /UI\.range\.(?:textContent|innerHTML)\s*=.*Math\.round\((?:solution|B)\.range\)\.toLocaleString\('pt-BR'\).* m/);
 });

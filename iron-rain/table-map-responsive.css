@@ -1,0 +1,38 @@
+/* The notebook is a touch document; only its drawing surface captures gestures. */
+#app:has(#notebook:not(.hidden)){touch-action:pan-y}
+#notebook{touch-action:pan-y}
+#notebook .map-sidebar{overflow:hidden;min-width:0;touch-action:pan-y}
+#notebook .map-tab-content{overflow:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;padding-bottom:8px}
+#notebook .map-tab-content::-webkit-scrollbar{display:none}
+#notebook .map-point-form input{box-sizing:border-box}
+@media(pointer:coarse), (max-width:900px){
+ #app.inside #notebook{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)!important}
+ #notebook .map-card{width:100%;height:100%;max-height:100%;border-radius:0}
+ #notebook .map-workspace{grid-template-columns:minmax(0,1fr) minmax(232px,32%)}
+ #notebook .map-head{height:42px;box-sizing:border-box}
+ #notebook .map-head small,#notebook .map-footer{display:none}
+ #notebook .map-tabs{margin:0 0 4px}
+ #notebook .map-tabs button{min-height:36px}
+ #notebook #map-page-plot{display:flex;flex-direction:column;gap:4px}
+ #notebook #map-page-plot>*{flex-shrink:0}
+ #notebook .map-point-form{order:-3;margin:2px 0 0}
+ #notebook .map-point-form label{font-size:9px}
+ #notebook .map-point-form input{height:40px;font-size:16px}
+ #notebook .map-point-form button{height:40px;min-width:44px;font-size:20px}
+ #notebook .map-solution{order:-2;margin:0;padding:6px 0}
+ #notebook .map-solution strong{font-size:20px}
+ #notebook .map-form-error{order:-1;margin:0;min-height:0}
+ #notebook .map-form-error:empty{display:none}
+ #notebook .map-report-select{min-height:38px;font-size:11px}
+ #notebook .map-coords{order:2}
+ #notebook .map-deltas,#notebook .map-equations{order:3}
+ #notebook .map-report-meta{margin:0}
+}
+@media(max-width:520px) and (orientation:portrait){
+ #notebook .map-workspace{grid-template-columns:1fr;grid-template-rows:minmax(150px,1fr) minmax(210px,43%)}
+ #notebook .map-paper-area{border-right:0;border-bottom:1px solid #6c7252}
+ #notebook .map-sidebar{padding:5px 12px}
+ #notebook .map-head b{font-size:10px;letter-spacing:1px}
+ #notebook .map-head>button{font-size:8px;padding:0 8px}
+ #notebook .map-head-mark{display:none}
+}

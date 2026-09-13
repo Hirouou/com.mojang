@@ -33,3 +33,9 @@ Reserva: CODEX integra world/intel/UI; colaboração interna delimitada em serve
 - Concluído neste checkpoint: pré-reivindicar posto antes de alterar câmera/captura do mouse. Claim pendente não ejeta operador livre. Mesa abre ao conceder posse.
 - Evidência: tests/pc-delayed-interaction.mjs com 900ms de atraso em /command; captura preservada durante espera, mesa aberta após resposta. npm test: 719/719 (inclui 8 testes do bridge de front ainda não integrado nesta publicação).
 - Arquivos desta correção: modules/cabin-view.js, modules/crew-cabin-bridge.js, bootstrap.js, sw.js, tests/pc-delayed-interaction.mjs. Build 20260913-pc-interaction / cache v7.34. Publicação em andamento; demais itens continuam IN_PROGRESS.
+
+## Correção incremental — pontaria e mesa mobile
+- Controles 2D restaurados: azimute/elevação nas laterais, carga/disparo no centro, alcance/ápice abaixo. Retrato liberado; nenhuma manivela fora da tela nos cinco tamanhos 320×568 a 844×390.
+- Mesa mantém coordenada manual após fechar; recalcula régua com origem atual. Campos X/Y e confirmação no topo da caderneta mobile, conteúdo restante rola por toque sem barras.
+- Testes reais Chromium touch: tests/mobile-aim-browser.mjs (altera pontaria/carga na autoridade), tests/table-map-mobile-browser.mjs (3 layouts, confirmação, persistência e gesto de rolagem). Screenshots em test-results/mobile-aim-*.png e table-map-*.png (artefatos locais ignorados). Suíte atual 739/739, inclui trabalho de servidor ainda não entregue neste lote.
+- Build 20260913-mobile-aim-table / cache v7.35. Próximo lote: rede, economia, dano único, trajetórias e integração de frentes/aviação.

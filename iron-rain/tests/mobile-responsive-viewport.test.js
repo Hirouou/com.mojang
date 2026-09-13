@@ -12,11 +12,13 @@ test('hidden AIM deck wins over mobile display override while menus are open', (
   assert.match(css, /\.inside\.station-engaged \.fire-deck\[data-station="aim"\]\.hidden\s*\{\s*display:none!important;\s*\}/);
 });
 
-test('mobile AIM keeps physical cranks unobstructed and charge/fire together', () => {
-  assert.match(css, /#fireDeck\[data-station="aim"\] \.handwheel-box,[\s\S]*display:none!important/);
+test('mobile AIM places thumb dials beside charge/fire and keeps the range below', () => {
+  assert.match(css, /#fireDeck\[data-station="aim"\] \.handwheel-box\{\s*display:contents!important/);
+  assert.match(css, /#elWheel\{grid-column:3!important/);
+  assert.match(css, /#rangeReadout\{\s*display:flex!important;grid-column:1 \/ -1!important;grid-row:3!important/);
   assert.match(css, /#fireDeck\[data-station="aim"\] \.charge-box\{[\s\S]*position:static!important/);
   assert.match(css, /#fireDeck\[data-station="aim"\] #fireBtn\{[\s\S]*min-height:46px!important/);
-  assert.doesNotMatch(css, /--aim-dial-size/);
+  assert.match(css, /--aim-dial-size/);
 });
 test('visible viewport is shared by app, lobby and renderer resize flow', () => {
   assert.match(css, /#app\{[\s\S]*width:var\(--ir-viewport-w\)!important/);

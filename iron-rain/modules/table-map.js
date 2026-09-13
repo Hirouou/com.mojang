@@ -450,8 +450,17 @@ export function createTableMap(root, { onClose = () => {} } = {}) {
     opened = true;
     root.classList.remove('hidden');
     pointers.clear(); gesture = null;
-    selectedReport = snapshot.targets.find(target => target.id === snapshot.missionId) || null;
-    point = selectedReport ? { x: selectedReport.x, y: selectedReport.y } : { ...snapshot.own };
+    // Closing the notebook is not an instruction to erase the operator's plot.
+    // Refresh a selected report when available; retain its last known coordinate
+    // as a manual plot if it expires. New missions remain an explicit button.
+    if (!point) {
+      selectedReport = snapshot.targets.find(target => target.id === snapshot.missionId) || null;
+      point = selectedReport ? { x: selectedReport.x, y: selectedReport.y } : { ...snapshot.own };
+    } else if (selectedReport) {
+      selectedReport = snapshot.targets.find(target => target.id === selectedReport.id) || null;
+      if (selectedReport) point = { x: selectedReport.x, y: selectedReport.y };
+    }
+    point = validPoint(point);
     reportsSelect.innerHTML = `<option value="manual">Régua / coordenada manual</option>${snapshot.targets.map(target => `<option value="${escapeHTML(target.id)}">${escapeHTML(target.type)} · X${coordinate(target.x)} Y${coordinate(target.y)}</option>`).join('')}`;
     reportsSelect.value = selectedReport ? selectedReport.id : 'manual';
     find('[data-map-mission]').disabled = !snapshot.targets.some(target => target.id === snapshot.missionId);
@@ -459,7 +468,7 @@ export function createTableMap(root, { onClose = () => {} } = {}) {
     find('[data-map-stamp]').textContent = `REGISTRO ${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')} · ${snapshot.targets.length} INFORME${snapshot.targets.length === 1 ? '' : 'S'}`;
     chooseTab('plot');
     find('[data-map-error]').textContent = '';
-    resize(); fit(!selectedReport); updateCalculation();
+    resize(); fit(); updateCalculation();
     find('[data-map-close]').focus({ preventScroll: true });
   }
 

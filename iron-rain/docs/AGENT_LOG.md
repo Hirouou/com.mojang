@@ -1250,3 +1250,6 @@ Fechamento desse checkpoint: commit `96e3ba2fa1cf2a7038aaeb541cdf01457c68c7ba`, 
 
 ## CODEX — 13/09 — interação PC com latência
 Pré-claim do posto antes de liberar pointer lock/câmera. Resultado testado com /command atrasado 900ms: mouse preservado durante pendência e mapa abre após grant. 719 testes passam; bridge server/frontline ainda em trabalho separado. Build pc-interaction / v7.34. Continuidade registrada no request shared-war-followup; próximos incrementos mobile e rede, depois exterior/arte autorizados pelo owner.
+
+## CODEX — 13/09 — pontaria e caderneta no celular
+Manivelas 2D e alcance restaurados, toque testado em cinco viewports; notebook com coordenada persistente, formulário acima e rolagem por toque testada em três layouts. Build mobile-aim-table / v7.35. Seguem pendentes rede/servidor, voo e exterior/arte; resultados no request compartilhado.
