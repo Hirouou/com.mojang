@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTerritoryNode, setTerritoryControl, receiveTerritoryDelivery, startTerritoryProject, stepTerritoryDevelopment, createSupplyConvoy, stepSupplyConvoy } from '../modules/territory-development.js';
+import { createTerritoryNode, setTerritoryControl, receiveTerritoryDelivery, startTerritoryProject, stepTerritoryDevelopment, createSupplyConvoy, stepSupplyConvoy, canStartVehicleProduction, startVehicleProduction } from '../modules/territory-development.js';
 
 test('captured territory cannot build until it is secure and a truck delivery arrived', () => {
   const node = createTerritoryNode({ id: 'A1', owner: 'ally' });
@@ -40,4 +40,53 @@ test('factory produces transferable materials but does not auto-build another te
   assert.ok(result.produced > 0);
   assert.ok(node.stock.materials > 0);
   assert.equal(node.activeProject, null);
+});
+
+test('truck production requires a real garage and consumes scarce local stock', () => {
+  const node = createTerritoryNode({ id: 'CAP-TRUCK', owner: 'ally', stock: { materials: 100, fuel: 60 } });
+  node.contested = false;
+  assert.equal(canStartVehicleProduction(node, 'truck').reason, 'missing-production-facility');
+  node.structures.push('garage');
+  const order = startVehicleProduction(node, 'truck');
+  assert.equal(order.ok, true);
+  assert.equal(node.stock.materials, 45);
+  assert.equal(node.stock.fuel, 42);
+  stepTerritoryDevelopment(node, 44, { routeOpen: true, contested: false });
+  assert.equal(node.assets.trucks, 0);
+  stepTerritoryDevelopment(node, 1, { routeOpen: true, contested: false });
+  assert.equal(node.assets.trucks, 1);
+});
+
+test('tank cannot be produced at an ordinary capital without armor works', () => {
+  const node = createTerritoryNode({ id: 'CAP-NO-ARMOR', owner: 'enemy', stock: { materials: 500, ammo: 200, fuel: 200 } });
+  node.contested = false;
+  node.structures.push('outpost', 'depot', 'garage', 'factory');
+  const check = canStartVehicleProduction(node, 'tank');
+  assert.equal(check.ok, false);
+  assert.equal(check.reason, 'missing-production-facility');
+  assert.equal(node.assets.tanks, 0);
+});
+
+test('tank is created only after armor works, stock payment and production time', () => {
+  const node = createTerritoryNode({ id: 'CAP-ARMOR', owner: 'ally', stock: { materials: 250, ammo: 80, fuel: 100 } });
+  node.contested = false;
+  node.structures.push('garage', 'factory', 'armorWorks');
+  const order = startVehicleProduction(node, 'tank');
+  assert.equal(order.ok, true);
+  assert.deepEqual(node.stock, { materials: 60, ammo: 44, fuel: 28 });
+  stepTerritoryDevelopment(node, 120, { routeOpen: true, contested: false });
+  assert.equal(node.assets.tanks, 0);
+  stepTerritoryDevelopment(node, 15, { routeOpen: true, contested: false });
+  assert.equal(node.assets.tanks, 1);
+  assert.equal(node.vehicleProduction, null);
+});
+
+test('tank production fails closed when local resources are insufficient', () => {
+  const node = createTerritoryNode({ id: 'CAP-POOR', owner: 'ally', stock: { materials: 189, ammo: 36, fuel: 72 } });
+  node.contested = false;
+  node.structures.push('armorWorks');
+  const result = startVehicleProduction(node, 'tank');
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'production-stock-insufficient');
+  assert.equal(node.assets.tanks, 0);
 });
