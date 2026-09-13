@@ -221,12 +221,22 @@ export function createWarAudio() {
       tone(.07, .055, 340, 220, 0, 'triangle');
     }); },
     load(cue = null) { safely(() => {
-      // The loader cue owns no clock: it only scales the same compact contact
-      // from the mechanical phase already chosen by loader-arm.js. Generic UI
-      // and service clicks keep the original strength by omitting the cue.
+      // The loader cue owns no clock: it shapes one compact contact from the
+      // mechanical phase already chosen by loader-arm.js. Each semantic phase
+      // stays at one shared-buffer noise source + one tone for the mobile budget.
       const intensity = clamp(Number(cue?.intensity ?? 1), .25, 1);
-      noise(.12, .34 * intensity, 2350, { type: 'bandpass', endFrequency: 720 });
-      tone(.1, .12 * intensity, 205, 92, 0, 'triangle');
+      const profiles = {
+        clamp: { noiseDuration: .065, noiseFrequency: 3400, noiseEnd: 1450, toneDuration: .065, toneFrequency: 390, toneEnd: 220 },
+        swing: { noiseDuration: .11, noiseFrequency: 1550, noiseEnd: 610, toneDuration: .105, toneFrequency: 178, toneEnd: 116 },
+        ram: { noiseDuration: .12, noiseFrequency: 1850, noiseEnd: 360, toneDuration: .12, toneFrequency: 118, toneEnd: 48 },
+        lock: { noiseDuration: .07, noiseFrequency: 4100, noiseEnd: 1900, toneDuration: .07, toneFrequency: 470, toneEnd: 285 },
+      };
+      const profile = profiles[String(cue?.cue || '')] || {
+        noiseDuration: .12, noiseFrequency: 2350, noiseEnd: 720,
+        toneDuration: .1, toneFrequency: 205, toneEnd: 92,
+      };
+      noise(profile.noiseDuration, .34 * intensity, profile.noiseFrequency, { type: 'bandpass', endFrequency: profile.noiseEnd });
+      tone(profile.toneDuration, .12 * intensity, profile.toneFrequency, profile.toneEnd, 0, 'triangle');
     }); },
     fire() { safely(() => {
       // Crack, pressure, hull rattles and a broad tail also read on small speakers.
