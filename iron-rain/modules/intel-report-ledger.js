@@ -7,6 +7,7 @@ const finite = value => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
+const clamp01 = value => Math.max(0, Math.min(1, value));
 
 export function snapshotIntelObservation(observation, reportedAt = 0) {
   const id = observation?.id;
@@ -21,6 +22,12 @@ export function snapshotIntelObservation(observation, reportedAt = 0) {
     ? null
     : Object.freeze({ x: sourceX, y: sourceY });
 
+  const routeId = observation?.routeId;
+  const routeThreat = finite(observation?.routeThreat);
+  const routeIntel = routeId === null || routeId === undefined || String(routeId).length === 0 || routeThreat === null
+    ? null
+    : Object.freeze({ routeId: String(routeId), routeThreat: clamp01(routeThreat) });
+
   return Object.freeze({
     id: String(id),
     type: String(observation?.type ?? 'CONTATO'),
@@ -28,7 +35,8 @@ export function snapshotIntelObservation(observation, reportedAt = 0) {
     y,
     reportedAt: time,
     source: String(observation?.source ?? 'Rádio'),
-    sourcePos
+    sourcePos,
+    ...(routeIntel || {})
   });
 }
 
