@@ -3,10 +3,17 @@ import { buildCapitalLayout, capitalRoadSpeedMultiplier, roadTravelSpeed } from 
 const layoutCache = new Map();
 const playerTeam = () => globalThis.window?.ironRainEntry?.faction === 'axis' ? 'enemy' : 'ally';
 
+function reserveContextForRoad(strategic, sectorId) {
+  const preferred = playerTeam();
+  return strategic.combatReserveContext?.(sectorId, preferred)
+    || strategic.combatReserveContext?.(sectorId, preferred === 'ally' ? 'enemy' : 'ally')
+    || null;
+}
+
 function capitalLayoutFor(position, strategic = globalThis.window?.ironRainStrategicMap) {
   const located = strategic?.locate?.(position);
   if (!located?.sector) return null;
-  const context = strategic.combatReserveContext?.(located.sector.id, playerTeam());
+  const context = reserveContextForRoad(strategic, located.sector.id);
   const logistics = context?.strategicLogistics;
   if (!logistics) return null;
 
