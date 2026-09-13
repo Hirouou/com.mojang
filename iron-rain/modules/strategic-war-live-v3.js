@@ -268,7 +268,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     return Object.freeze({ strategicLogistics: theatre.logistics, territory: territorySnapshot(node), to: id });
   }
 
-  function applySectorControl({ sectorId, owner, contested = false } = {}) {
+  function applySectorControl({ sectorId, owner, contested = false, revision } = {}) {
     const id = String(sectorId ?? '');
     const record = theatre.records.get(id);
     const territoryNode = theatre.territory.get(id);
@@ -279,6 +279,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
       logistics: theatre.logistics,
       owner,
       contested,
+      revision,
     });
     if (result.ok && result.changed) {
       updatePanels();
