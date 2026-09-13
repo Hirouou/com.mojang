@@ -150,14 +150,18 @@ export function createWarAudio() {
       maintenanceState = result.state;
       if (!result.emit || !canPlay()) return;
       const progress = clamp(Number(result.emit.payload?.progress ?? 0), 0, 1);
+      // Remote maintenance shares the same cadence and timbre, but is quieter
+      // inside the hull so another crew member reads as a nearby source rather
+      // than sounding as if the local operator is holding the tool.
+      const sourceGain = result.emit.payload?.remote === true ? .58 : 1;
       if (result.emit.type === 'extinguisher') {
         // Short filtered bursts follow the canonical maintenance cadence; no
         // second clock, loop or gameplay state is introduced here.
-        noise(.16, .13 + progress * .04, 5200, { type: 'bandpass', endFrequency: 1500 });
-        noise(.2, .07 + progress * .03, 8200, { type: 'highpass', endFrequency: 3400 });
+        noise(.16, (.13 + progress * .04) * sourceGain, 5200, { type: 'bandpass', endFrequency: 1500 });
+        noise(.2, (.07 + progress * .03) * sourceGain, 8200, { type: 'highpass', endFrequency: 3400 });
       } else if (result.emit.type === 'repair') {
-        tone(.07, .07 + progress * .025, 245, 150, 0, 'triangle');
-        noise(.08, .08 + progress * .035, 3100, { type: 'bandpass', endFrequency: 900 });
+        tone(.07, (.07 + progress * .025) * sourceGain, 245, 150, 0, 'triangle');
+        noise(.08, (.08 + progress * .035) * sourceGain, 3100, { type: 'bandpass', endFrequency: 900 });
       }
     });
   }
