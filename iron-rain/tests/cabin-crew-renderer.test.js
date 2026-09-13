@@ -22,7 +22,9 @@ test('physical cabin stations are gated through the external crew bridge', () =>
   assert.match(source, /ironRainEntry\?\.crewBridge/);
   assert.match(source, /bridge\.requestStation\(station\)/);
   assert.match(source, /bridge\.releaseStation\(station\)/);
-  assert.match(source, /if \(!result\?\.ready\) return false/);
+  assert.match(source, /if \(!result\?\.ready\) \{/);
+  assert.match(source, /pendingCrewStation = result\?\.pending \? station : null/);
+  assert.match(source, /return false/);
   assert.match(source, /crewStation:\s*activeCrewStation/);
   assert.doesNotMatch(source, /crew-mqtt-transport|crew-broadcast-transport/);
 });
