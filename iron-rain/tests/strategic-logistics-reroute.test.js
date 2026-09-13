@@ -112,3 +112,24 @@ test('dispatch current time prevents stale threat intel from becoming fresh agai
   assert.equal(events.some(event => event.type === 'convoy-rerouted'), false);
   assert.deepEqual(logistics.snapshot().convoys[0].path.map(leg => leg.routeId), ['A-D']);
 });
+
+test('delayed dispatch timestamp cannot revive stale threat intel after the logistics clock advanced', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [node('A', { fuel: 10 }), node('B'), node('D')],
+    routes: [
+      road('A-D', 'A', 'D', 150),
+      road('A-B', 'A', 'B', 100),
+      road('B-D', 'B', 'D', 100),
+    ],
+  });
+
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: .9, reportedAt: 100 }), true);
+  const current = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 }, now: 401, speed: 10 });
+  assert.equal(current.ok, true);
+  assert.deepEqual(logistics.snapshot().convoys[0].path.map(leg => leg.routeId), ['A-D']);
+
+  const delayed = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 }, now: 100, speed: 10 });
+  assert.equal(delayed.ok, true);
+  const delayedConvoy = logistics.snapshot().convoys.find(convoy => convoy.id === delayed.convoyId);
+  assert.deepEqual(delayedConvoy.path.map(leg => leg.routeId), ['A-D']);
+});
