@@ -7,6 +7,7 @@ import {
 } from './war-simulation-core.js';
 import { combatSustainmentSupply } from './combat-sustainment.js';
 import { localConvoyMaterializationFeed } from './local-missions.js';
+import { buildCapitalLayout } from './capital-city-layout.js';
 import { createStrategicHexMap, strategicOwnerAt } from './strategic-hex-map.js';
 import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
 
@@ -126,8 +127,7 @@ function refreshCombatReserveContext(state) {
     return;
   }
   state.warSimulation.combatReserveContext = ({ sectorId, team }) => {
-    const fieldReady = context => context?.territory?.owner === team && context.territory.contested === false &&
-      context.territory.structures?.some?.(type => type === 'outpost' || type === 'depot' || type === 'garage');
+    const fieldReady = context => context?.territory?.owner === team && context.territory.contested === false && context.territory.structures?.some?.(type => type === 'outpost' || type === 'depot' || type === 'garage');
     const direct = strategicMap.combatReserveContext(sectorId, team);
     if (fieldReady(direct)) return direct;
     if (!['ally', 'enemy'].includes(team) || typeof strategicMap.locate !== 'function') return null;
@@ -162,9 +162,7 @@ function syncCombatSustainment(state) {
       try { context = contextFor({ sectorId: sector.strategicSectorId, team }); } catch {}
       if (!context) continue;
       const supplyCap = combatSustainmentSupply({ ...context, team });
-      for (const base of sector.war.bases) {
-        if (base?.alive && base.team === team) base.supply = Math.min(Number(base.supply) || 0, supplyCap);
-      }
+      for (const base of sector.war.bases) if (base?.alive && base.team === team) base.supply = Math.min(Number(base.supply) || 0, supplyCap);
     }
   }
 }
@@ -175,10 +173,7 @@ function strategicAssetSnapshot(state) {
     if (!sector?.war || !sector.strategicSectorId) continue;
     for (const team of ['ally', 'enemy']) {
       const force = sector.war[team];
-      snapshot.set(`${sector.id}:${team}`, {
-        strength: Number(sector[team === 'ally' ? 'allyStrength' : 'enemyStrength']) || 0,
-        reinforcements: Number(force?.reinforcements) || 0,
-      });
+      snapshot.set(`${sector.id}:${team}`, { strength: Number(sector[team === 'ally' ? 'allyStrength' : 'enemyStrength']) || 0, reinforcements: Number(force?.reinforcements) || 0 });
     }
     for (const tank of sector.war.vehicles || []) snapshot.set(`tank:${tank.id}`, { alive: tank.alive !== false, claimed: tank.__strategicAssetClaimed === true });
   }
@@ -191,8 +186,7 @@ function reconcileStrategicAssets(state, before) {
     if (!sector?.war || !sector.strategicSectorId) continue;
     for (const team of ['ally', 'enemy']) {
       const key = team === 'ally' ? 'allyStrength' : 'enemyStrength';
-      const force = sector.war[team];
-      const previous = before.get(`${sector.id}:${team}`);
+      const force = sector.war[team], previous = before.get(`${sector.id}:${team}`);
       if (!previous || !force) continue;
       const reinforcementDelta = Math.max(0, (Number(force.reinforcements) || 0) - previous.reinforcements);
       if (reinforcementDelta <= 0) continue;
@@ -202,8 +196,7 @@ function reconcileStrategicAssets(state, before) {
       const accepted = Math.min(requested, available);
       if (accepted > 0) context?.claimAsset?.('troops', accepted);
       if (accepted < requested) {
-        const allowedDelta = reinforcementDelta * (accepted / requested);
-        const rollback = Math.max(0, reinforcementDelta - allowedDelta);
+        const allowedDelta = reinforcementDelta * (accepted / requested), rollback = Math.max(0, reinforcementDelta - allowedDelta);
         sector[key] = Math.max(previous.strength, (Number(sector[key]) || 0) - rollback);
         force.reinforcements = Math.max(previous.reinforcements, (Number(force.reinforcements) || 0) - rollback);
       }
@@ -211,22 +204,11 @@ function reconcileStrategicAssets(state, before) {
     for (const tank of sector.war.vehicles || []) {
       if (tank?.type !== 'tank') continue;
       const previous = before.get(`tank:${tank.id}`) || { alive: false, claimed: false };
-      if (tank.alive === false) {
-        if (previous.claimed) tank.__strategicAssetClaimed = false;
-        continue;
-      }
+      if (tank.alive === false) { if (previous.claimed) tank.__strategicAssetClaimed = false; continue; }
       if (previous.alive && previous.claimed && tank.__strategicAssetClaimed === true) continue;
       const context = stagingContext(state, sector.strategicSectorId, tank.team);
-      if (context?.claimAsset?.('tanks', 1)) {
-        tank.__strategicAssetClaimed = true;
-        tank.__strategicAssetOrigin = context.to || null;
-        continue;
-      }
-      tank.alive = false;
-      tank.hp = 0;
-      tank.flash = 0;
-      tank.__strategicAssetClaimed = false;
-      tank.replacementIn = Math.min(15, Math.max(1, Number(tank.replacementIn) || 15));
+      if (context?.claimAsset?.('tanks', 1)) { tank.__strategicAssetClaimed = true; tank.__strategicAssetOrigin = context.to || null; continue; }
+      tank.alive = false; tank.hp = 0; tank.flash = 0; tank.__strategicAssetClaimed = false; tank.replacementIn = Math.min(15, Math.max(1, Number(tank.replacementIn) || 15));
     }
   }
 }
@@ -264,13 +246,7 @@ function localStrategicRoads(snapshot, playerPosition) {
   return (snapshot?.routes || []).flatMap(route => {
     const from = nodes.get(route.from), to = nodes.get(route.to);
     if (!from || !to || distanceToSegment(playerPosition, from, to) > LOCAL_ROAD_RADIUS) return [];
-    return [Object.freeze({
-      id: route.id,
-      from: Object.freeze({ x: from.x, y: from.y }),
-      to: Object.freeze({ x: to.x, y: to.y }),
-      laneOffset: Math.max(0, Number(route.laneOffset) || 0),
-      open: route.open !== false,
-    })];
+    return [Object.freeze({ id: route.id, from: Object.freeze({ x: from.x, y: from.y }), to: Object.freeze({ x: to.x, y: to.y }), laneOffset: Math.max(0, Number(route.laneOffset) || 0), open: route.open !== false })];
   }).slice(0, 48);
 }
 
@@ -279,6 +255,29 @@ function capitalVisualLevel(structures = []) {
   if (structures.includes('garage')) return 3;
   if (structures.includes('depot') || structures.includes('bunker') || structures.includes('mortar')) return 2;
   return 1;
+}
+
+function capitalLayoutForNode(snapshot, node, structures) {
+  const nodes = new Map((snapshot?.nodes || []).filter(finitePoint).map(candidate => [candidate.id, candidate]));
+  const roadBearings = [];
+  for (const route of snapshot?.routes || []) {
+    const otherId = route.from === node.id ? route.to : route.to === node.id ? route.from : null;
+    const other = otherId ? nodes.get(otherId) : null;
+    if (!finitePoint(other)) continue;
+    roadBearings.push(Math.atan2(other.y - node.y, other.x - node.x));
+  }
+  return buildCapitalLayout({ id: node.id, x: node.x, y: node.y, roadBearings, structures, density: Math.min(18, 6 + structures.length * 2) });
+}
+
+function localCapitalRoads(layouts) {
+  return layouts.flatMap(({ node, layout }) => (layout.roads || []).flatMap(road => (road.points || []).slice(1).map((point, index) => Object.freeze({
+    id: `capital-street:${node.id}:${road.id}:${index}`,
+    from: Object.freeze({ x: road.points[index].x, y: road.points[index].y }),
+    to: Object.freeze({ x: point.x, y: point.y }),
+    laneOffset: 0,
+    open: true,
+    localCapitalRoad: true,
+  })))).slice(0, 96);
 }
 
 function stripStrategicCapitalVisuals(state) {
@@ -291,32 +290,38 @@ function stripStrategicCapitalVisuals(state) {
 
 function publishStrategicCapitals(state, snapshot) {
   const strategicMap = globalThis.ironRainStrategicMap;
-  if (!finitePoint(state?.robot) || typeof strategicMap?.locate !== 'function') return [];
-  const capitals = [];
+  if (!finitePoint(state?.robot) || typeof strategicMap?.locate !== 'function') return { capitals: [], roads: [] };
+  const capitals = [], layouts = [];
   for (const node of snapshot?.nodes || []) {
     if (!finitePoint(node) || Math.hypot(node.x - state.robot.x, node.y - state.robot.y) > LOCAL_CAPITAL_RADIUS) continue;
-    const located = strategicMap.locate(node);
-    const sector = located?.sector;
+    const located = strategicMap.locate(node), sector = located?.sector;
     if (!sector || Math.hypot(sector.x - node.x, sector.y - node.y) > 100) continue;
     const structures = Array.isArray(sector.structures) ? [...sector.structures] : [];
-    capitals.push(Object.freeze({
-      id: `strategic-capital:${node.id}`,
-      strategicSectorId: node.id,
-      x: node.x,
-      y: node.y,
-      team: node.team || null,
-      alive: node.alive !== false,
-      hp: node.alive === false ? 0 : 100,
-      maxHp: 100,
-      level: capitalVisualLevel(structures),
-      structures: Object.freeze(structures),
-      known: true,
-      __strategicCapitalVisual: true,
-    }));
+    const layout = capitalLayoutForNode(snapshot, node, structures);
+    layouts.push({ node, layout });
+    for (const placement of layout.structures || []) {
+      const root = placement.type === 'capitalHQ';
+      capitals.push(Object.freeze({
+        id: root ? `strategic-capital:${node.id}` : `strategic-capital:${node.id}:${placement.id}`,
+        strategicSectorId: node.id,
+        structureType: placement.type,
+        x: placement.x,
+        y: placement.y,
+        angle: placement.angle,
+        team: node.team || null,
+        alive: node.alive !== false,
+        hp: node.alive === false ? 0 : 100,
+        maxHp: 100,
+        level: root ? capitalVisualLevel(structures) : Math.max(1, Math.min(3, capitalVisualLevel([placement.type]))),
+        structures: root ? Object.freeze(structures) : Object.freeze([placement.type]),
+        known: true,
+        __strategicCapitalVisual: true,
+      }));
+    }
   }
   const host = (state.sectors || []).find(sector => Array.isArray(sector?.war?.bases));
   if (host && capitals.length) host.war.bases.push(...capitals);
-  return capitals;
+  return { capitals, roads: localCapitalRoads(layouts) };
 }
 
 function publishStrategicTraffic(state) {
@@ -327,19 +332,12 @@ function publishStrategicTraffic(state) {
   const logistics = strategicLogistics(state);
   if (!logistics) { state.warSimulation.strategicTraffic = []; state.warSimulation.strategicRoads = []; state.warSimulation.strategicCapitals = []; return; }
   const snapshot = logistics.snapshot();
-  state.warSimulation.strategicRoads = localStrategicRoads(snapshot, state.robot);
-  state.warSimulation.strategicCapitals = publishStrategicCapitals(state, snapshot);
+  const capitalProjection = publishStrategicCapitals(state, snapshot);
+  state.warSimulation.strategicRoads = [...localStrategicRoads(snapshot, state.robot), ...capitalProjection.roads].slice(0, 144);
+  state.warSimulation.strategicCapitals = capitalProjection.capitals;
   const own = playerTeam();
-  const observedEnemyIds = (snapshot.convoys || [])
-    .filter(convoy => convoy?.team !== own && convoyObservedLocally(state, convoy))
-    .map(convoy => convoy.id);
-  const materialized = localConvoyMaterializationFeed({
-    playerPosition: state.robot,
-    playerTeam: own,
-    convoys: snapshot.convoys || [],
-    observedEnemyIds,
-    localRadius: 9_000,
-  });
+  const observedEnemyIds = (snapshot.convoys || []).filter(convoy => convoy?.team !== own && convoyObservedLocally(state, convoy)).map(convoy => convoy.id);
+  const materialized = localConvoyMaterializationFeed({ playerPosition: state.robot, playerTeam: own, convoys: snapshot.convoys || [], observedEnemyIds, localRadius: 9_000 });
   state.warSimulation.strategicTraffic = materialized.slice(0, 40).map(convoy => Object.freeze({
     id: convoy.id,
     kind: convoy.kind || 'supply',
@@ -376,9 +374,7 @@ function dispatchHullState(state, armorBefore) {
   const armorAfter = Number(state?.robot?.armor);
   if (!Number.isFinite(armorBefore) || !Number.isFinite(armorAfter)) return;
   const damage = Math.max(0, armorBefore - armorAfter);
-  if (damage > 0) {
-    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {}
-  }
+  if (damage > 0) { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:mamute-impact', { detail: { damage, armor: armorAfter, intensity: Math.min(1, .25 + damage / 18), critical: armorAfter > 0 && armorAfter <= 30 } })); } catch {} }
   state.warSimulation ||= {};
   if (armorAfter <= 0 && !state.warSimulation.destroyedNotified) {
     state.warSimulation.destroyedNotified = true;
