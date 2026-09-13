@@ -18,7 +18,8 @@ test('live artillery fire submits the committed shot state through command autho
 test('replication reads the live ballistic readouts instead of adding another ballistic table', () => {
   assert.doesNotMatch(source, /from ['"]\.\/ballistics\.js['"]/);
   assert.doesNotMatch(source, /\bballistics\s*\(/);
-  assert.match(source, /const firing = text === 'FOGO!' \|\| text === 'EM VOO' \|\| text === 'CARREGANDO'/);
+  assert.match(source, /const firing = text === 'FOGO!' \|\| text === 'EM VOO'/);
+  assert.doesNotMatch(source, /const firing = [^;]*CARREGANDO/);
   assert.match(source, /if \(firing && fireArmed\) \{ fireArmed = false; emitLocalShot\(\); \}/);
 });
 
