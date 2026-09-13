@@ -186,6 +186,7 @@ export function createCabinView(canvas, options = {}) {
   const originalOnStation = options.onStation;
   const originalOnPointerUnlock = options.onPointerUnlock;
   const originalSceneAdd = THREE.Scene.prototype.add;
+  const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
 
   const crewBridge = () => globalThis.ironRainEntry?.crewBridge || null;
   const stationResultEvent = result => { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:station-gate', { detail: { ...result } })); } catch {} };
@@ -301,12 +302,12 @@ export function createCabinView(canvas, options = {}) {
       if (liveLoading) merged.loading = null;
       core.update(dt, merged);
       if (liveLoading) merged.loading = liveLoading;
-      const shake = Math.max(remoteRecoil * 2.4, remoteImpact * 4.2);
+      const shake = reducedMotion ? 0 : Math.max(remoteRecoil * 2.4, remoteImpact * 4.2);
       if (shake > .05) {
         const t = performance.now() * .055;
         canvas.style.transform = `translate(${Math.sin(t) * shake}px,${Math.cos(t * 1.37) * shake * .55}px)`;
-        canvas.style.filter = remoteImpact > .65 ? `brightness(${1 + remoteImpact * .16})` : '';
-      } else { canvas.style.transform = ''; canvas.style.filter = ''; }
+      } else { canvas.style.transform = ''; }
+      canvas.style.filter = remoteImpact > .65 ? `brightness(${1 + remoteImpact * .16})` : '';
       if (own(data, 'engine')) publishMaintenance(data.engine);
       if (own(data, 'crewRemotes')) updateRemoteCrew(data.crewRemotes, dt);
     },
