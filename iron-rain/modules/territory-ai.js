@@ -15,11 +15,14 @@ export function chooseTerritoryProject(node, context = {}) {
   const armorThreat = clamp01(context.armorThreat);
   const infantryThreat = clamp01(context.infantryThreat);
   const armorDemand = clamp01(context.armorDemand ?? context.friendlyArmorDeficit);
+  const criticalInfrastructure = ['depot', 'garage', 'factory', 'armorWorks'].some(type => has(node, type));
+  const protectCriticalInfrastructure = pressure > .42 && criticalInfrastructure && !has(node, 'bunker');
 
   const preference = [];
   if (!has(node, 'outpost')) preference.push('outpost');
+  if (protectCriticalInfrastructure) preference.push('bunker');
   if (!has(node, 'depot')) preference.push('depot');
-  if (pressure > .55 && !has(node, 'bunker')) preference.push('bunker');
+  if (pressure > .55 && !has(node, 'bunker') && !preference.includes('bunker')) preference.push('bunker');
   if (infantryThreat > .45 && !has(node, 'mortar')) preference.push('mortar');
   if ((armorThreat > .4 || node.securedFor > 520) && !has(node, 'garage')) preference.push('garage');
   if (node.securedFor > DEVELOPMENT_PROJECTS.factory.secureFor && !has(node, 'factory')) preference.push('factory');
@@ -34,13 +37,15 @@ export function chooseTerritoryProject(node, context = {}) {
     const check = canStartProject(node, type);
     if (check.ok) return Object.freeze({
       type,
-      reason: pressure > .55 && type === 'bunker'
-        ? 'front-pressure'
-        : infantryThreat > .45 && type === 'mortar'
-          ? 'infantry-threat'
-          : type === 'armorWorks'
-            ? 'armor-production-demand'
-            : 'development',
+      reason: type === 'bunker' && protectCriticalInfrastructure
+        ? 'logistics-defense'
+        : pressure > .55 && type === 'bunker'
+          ? 'front-pressure'
+          : infantryThreat > .45 && type === 'mortar'
+            ? 'infantry-threat'
+            : type === 'armorWorks'
+              ? 'armor-production-demand'
+              : 'development',
     });
   }
   return null;
