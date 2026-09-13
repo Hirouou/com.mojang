@@ -239,13 +239,14 @@ export function createWarAudio() {
       tone(profile.toneDuration, .12 * intensity, profile.toneFrequency, profile.toneEnd, 0, 'triangle');
     }); },
     fire() { safely(() => {
-      // Crack, pressure, hull rattles and a broad tail also read on small speakers.
+      // Crack, pressure and a broad tail stay intact; two delayed steel returns
+      // keep the hull readable while trimming transient Web Audio graph churn.
       noise(.16, 1.25, 6200, { endFrequency: 1300 });
       noise(1.65, 1.1, 1050, { endFrequency: 110 });
       tone(1.3, 1.1, 125, 43);
       tone(.36, .3, 290, 100, .025, 'triangle');
       noise(2.65, .55, 700, { delay: .12, endFrequency: 160 });
-      for (const delay of [.07, .16, .3, .48]) noise(.18, .24, 1900, { delay, type: 'bandpass', endFrequency: 600 });
+      for (const delay of [.08, .3]) noise(.2, .26, 1900, { delay, type: 'bandpass', endFrequency: 600 });
     }); },
     impact(feedback = null) { safely(() => {
       const intensity = clamp(Number(feedback?.intensity ?? .7), .15, 1);
