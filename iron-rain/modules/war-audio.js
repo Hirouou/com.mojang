@@ -11,11 +11,12 @@ export function createWarAudio() {
   // Device loss or denied playback must never escape into the game loop.
   const safely = fn => { try { return fn(); } catch { return undefined; } };
   const settle = result => result?.catch?.(() => {});
+  const documentHidden = () => globalThis.document?.visibilityState === 'hidden';
 
   function applyVolumes() {
     if (!context || !master) return;
     const t = context.currentTime;
-    master.gain.setTargetAtTime(muted || paused ? 0 : levels.master, t, .025);
+    master.gain.setTargetAtTime(muted || paused || documentHidden() ? 0 : levels.master, t, .025);
     effectsBus.gain.setTargetAtTime(levels.effects, t, .025);
     ambientBus.gain.setTargetAtTime(levels.ambient, t, .08);
   }
@@ -64,7 +65,7 @@ export function createWarAudio() {
           const limiter = context.createDynamicsCompressor();
           limiter.threshold.value = -10; limiter.knee.value = 10;
           limiter.ratio.value = 8; limiter.attack.value = .003; limiter.release.value = .24;
-          master.gain.value = muted || paused ? 0 : levels.master;
+          master.gain.value = muted || paused || documentHidden() ? 0 : levels.master;
           effectsBus.gain.value = levels.effects; ambientBus.gain.value = levels.ambient;
           effectsBus.connect(master); ambientBus.connect(master);
           master.connect(limiter); limiter.connect(context.destination);
@@ -96,7 +97,7 @@ export function createWarAudio() {
   }
 
   function canPlay() {
-    return context?.state === 'running' && effectsBus && !muted && !paused && levels.master > 0 && levels.effects > 0;
+    return context?.state === 'running' && effectsBus && !muted && !paused && !documentHidden() && levels.master > 0 && levels.effects > 0;
   }
 
   function track(source, nodes, stopTime) {
@@ -162,7 +163,9 @@ export function createWarAudio() {
   }
 
   const onMaintenanceFeedback = event => maintenance(event?.detail);
+  const onVisibilityChange = () => safely(applyVolumes);
   globalThis.addEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
+  globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
 
   function clearContext() {
     for (const voice of [...voices]) voice.cleanup();
@@ -267,6 +270,7 @@ export function createWarAudio() {
     }); },
     dispose() {
       globalThis.removeEventListener?.('iron-rain:maintenance-feedback', onMaintenanceFeedback);
+      globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
       safely(() => { for (const voice of [...voices]) safely(() => voice.source.stop()); });
       settle(safely(() => context?.close()));
       clearContext(); nextCrank = nextFoot = 0;
