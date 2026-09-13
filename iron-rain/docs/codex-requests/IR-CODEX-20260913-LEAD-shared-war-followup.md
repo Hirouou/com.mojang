@@ -1,6 +1,9 @@
 # Consolidação do servidor já publicado
-STATUS: READY
+STATUS: IN_PROGRESS
 PRIORITY: P1
+CLAIMED_HEAD: a5a4fdd
+CLAIMED_AT: 2026-09-13
+OWNER_ADDENDUM: após publicação confirmada, integrar reconhecimento real de soldados/aviões ao zoom do mapa, avanço territorial real, defesa antiaérea e combates aéreos.
 REQUESTER: OWNER (pedidos de integração, mobile, logística e continuidade)
 RETURN_TO: LEAD
 BRANCH: iron-rain-v6-1-continuation
@@ -22,3 +25,5 @@ Valores antes/depois de bytes por poll, cenários de intel bloqueado/liberado, d
 
 ## Fora desta missão
 VPS/compra/contas, reescrita artística da cabine, novo renderer, novas armas/regras. Melhorias visuais de estradas/construções já solicitadas pelo owner devem virar fatia P2 separada após essa consolidação, com referência existente e sem mudar autoridade. Não afirmar que esta missão garante que outros agentes nunca errem.
+
+Reserva: CODEX integra world/intel/UI; colaboração interna delimitada em server/frontline.mjs e server/air-war.mjs com testes. Não publicar outra autoridade concorrente.
