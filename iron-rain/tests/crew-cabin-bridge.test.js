@@ -91,6 +91,37 @@ test('crew cabin bridge fails closed when runtime returns a malformed sample col
   assert.deepEqual(calls, [[]]);
 });
 
+test('crew cabin bridge contains transient runtime frame failures and clears stale remotes', () => {
+  const calls = [];
+  let failAt = 'update';
+  const runtime = {
+    update() {
+      if (failAt === 'update') throw new Error('transport frame failed');
+      return { mode: 'guest', connected: true };
+    },
+    renderSamples() {
+      if (failAt === 'render') throw new Error('sample interpolation failed');
+      return [{ id: 'peer-b', pose: { x: 0, z: 2.4, yaw: 0, pitch: 0 } }];
+    },
+  };
+  const cabin = {
+    snapshot() { return { position: { x: 0, z: 2.4 }, yaw: 0, pitch: 0 }; },
+    updateRemoteCrew(samples, dt) { calls.push([samples, dt]); },
+  };
+  const bridge = createCrewCabinBridge({ runtime, cabin });
+
+  assert.deepEqual(bridge.update(.02, 1), { status: null, remoteCount: 0 });
+  assert.deepEqual(calls.at(-1), [[], .02]);
+
+  failAt = 'render';
+  assert.deepEqual(bridge.update(.03, 2), { status: null, remoteCount: 0 });
+  assert.deepEqual(calls.at(-1), [[], .03]);
+
+  failAt = null;
+  assert.deepEqual(bridge.update(.04, 3), { status: { mode: 'guest', connected: true }, remoteCount: 1 });
+  assert.equal(calls.at(-1)[0].length, 1, 'bridge should recover on the next healthy frame');
+});
+
 test('crew cabin bridge routes station ownership through the canonical runtime gate', () => {
   const calls = [];
   let owner = null;
