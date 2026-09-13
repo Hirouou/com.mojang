@@ -47,13 +47,20 @@ export function strategicFrontPressure({ sectors = [], width = 0, height = 0, ba
 /**
  * Build a continuous front path from sector pressure while retaining the
  * canonical control line anywhere the captured-sector evidence is incomplete.
+ * Supported samples are also clamped around that canonical line so one extreme
+ * or stale sector cannot visually pull a whole front band deep behind either
+ * faction's coherent territorial edge.
  */
-export function strategicFrontPath({ sectors = [], width = 0, height = 0, bands = 12, fallback = [] } = {}) {
+export function strategicFrontPath({ sectors = [], width = 0, height = 0, bands = 12, fallback = [], maxBend = 9_000 } = {}) {
   const pressure = strategicFrontPressure({ sectors, width, height, bands });
   if (!pressure.length) return Object.freeze([]);
-  return Object.freeze(pressure.map(sample => Object.freeze({
-    x: sample.supported ? sample.x : fallbackX(sample.y, fallback, width),
-    y: sample.y,
-    supported: sample.supported,
-  })));
+  const bend = Math.max(0, Number.isFinite(maxBend) ? maxBend : 9_000);
+  return Object.freeze(pressure.map(sample => {
+    const base = fallbackX(sample.y, fallback, width);
+    return Object.freeze({
+      x: sample.supported ? clamp(sample.x, base - bend, base + bend) : base,
+      y: sample.y,
+      supported: sample.supported,
+    });
+  }));
 }
