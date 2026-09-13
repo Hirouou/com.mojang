@@ -132,11 +132,14 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     const id = state.station;
     if (!id) return state;
     if (abandonedStations.has(id)) {
-      if (state.ready) releaseStationGate(runtime, id);
-      if (state.ready || state.reason !== 'available') {
+      if (state.ready) {
+        releaseStationGate(runtime, id);
         return Object.freeze({ ...state, ok: false, ready: false, pending: false, reason: 'claim-cancelled' });
       }
-      abandonedStations.delete(id);
+      if (state.reason === 'available' || state.reason === 'occupied') {
+        abandonedStations.delete(id);
+      }
+      return state;
     }
     if (state.ready || state.reason !== 'available') {
       pendingStations.delete(id);
