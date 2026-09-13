@@ -1,0 +1,165 @@
+name: Apply Iron Rain cabin runtime hotfix
+
+on:
+  push:
+    branches:
+      - iron-rain-v6-1-continuation
+    paths:
+      - .github/workflows/iron-rain-cabin-hotfix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: iron-rain-v6-1-continuation
+          fetch-depth: 0
+
+      - name: Patch dead cabin runtime
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('iron-rain')
+          game_path = root / 'game-v6.js'
+          game = game_path.read_text()
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, got {count}')
+              return text.replace(old, new, 1)
+
+          game = replace_once(
+              game,
+              "  const inside=()=>state?.view==='cabin'&&!cinematicActive(state)&&!cabinFailed;",
+              """  const inside=()=>!!cabin&&state?.view==='cabin'&&!cinematicActive(state)&&!cabinFailed;
+
+  let cabinRuntimeError=null;
+  function recoverCabinRuntime(error,phase='runtime'){
+    if(cabinFailed)return false;
+    cabinRuntimeError=error instanceof Error?error:new Error(String(error||'Falha desconhecida do interior 3D'));
+    console.error(`Interior 3D interrompido (${phase}):`,cabinRuntimeError);
+    cabinFailed=true;
+    try{cabin?.setActive?.(false);}catch{}
+    try{cabin?.releasePointer?.();}catch{}
+    if(state){state.station=null;state.view='field';}
+    app.classList.remove('inside','station-engaged');
+    $('cabinUi')?.classList.add('hidden');
+    $('bootStatus')?.classList.add('hidden');
+    try{syncControls();}catch{}
+    try{toast('Interior 3D reiniciado em modo externo. A partida continua jogável.','SISTEMAS',20);}catch{}
+    try{dispatchEvent(new CustomEvent('ironrain:cabin-runtime-failed',{detail:{phase,message:cabinRuntimeError.message}}));}catch{}
+    return false;
+  }""",
+              'inside readiness guard',
+          )
+
+          old_update = "    updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);updateWar(state,dt);updatePlayerHits();updateEffects(dt);updateWarMessages();updateRelocation();"
+          new_update = """    updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);
+    if(!state.warSimulation?.runtimeDisabled){
+      try{updateWar(state,dt);}
+      catch(error){
+        state.warSimulation||={};state.warSimulation.runtimeDisabled=true;
+        console.error('Simulação estratégica isolada após falha de runtime:',error);
+        try{toast('Simulação estratégica isolada após erro. O Mamute continua operacional.','SISTEMAS',12);}catch{}
+      }
+    }
+    updatePlayerHits();updateEffects(dt);updateWarMessages();updateRelocation();"""
+          game = replace_once(game, old_update, new_update, 'strategic runtime isolation')
+
+          old_cabin = "    cabin?.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});\n    const cabinPosition=cabin?.snapshot?.().position;"
+          new_cabin = """    if(cabin&&!cabinFailed){
+      try{cabin.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});}
+      catch(error){recoverCabinRuntime(error,'update');}
+    }
+    let cabinPosition=null;
+    if(cabin&&!cabinFailed){try{cabinPosition=cabin.snapshot?.().position||null;}catch(error){recoverCabinRuntime(error,'snapshot');}}"""
+          game = replace_once(game, old_cabin, new_cabin, 'cabin update guard')
+
+          game = replace_once(
+              game,
+              "    if(inside()&&cabin){cabin.render();return;}",
+              """    if(inside()&&cabin){
+      try{cabin.render();return;}
+      catch(error){recoverCabinRuntime(error,'render');}
+    }""",
+              'cabin render guard',
+          )
+
+          old_loop = "  function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop);}"
+          new_loop = """  $('cabinCanvas')?.addEventListener('webglcontextlost',event=>{event.preventDefault();recoverCabinRuntime(new Error('WebGL context lost'),'webgl-context-lost');});
+  function loop(now){
+    const dt=Math.min(.035,(now-last)/1000||0);last=now;
+    try{update(dt);}catch(error){console.error('Iron Rain update frame:',error);if(inside())recoverCabinRuntime(error,'frame-update');}
+    try{draw();}catch(error){console.error('Iron Rain draw frame:',error);if(inside())recoverCabinRuntime(error,'frame-draw');}
+    requestAnimationFrame(loop);
+  }"""
+          game = replace_once(game, old_loop, new_loop, 'animation frame survival')
+
+          old_init_catch = "    console.error('Interior 3D indisponível:',error);cabinFailed=true;state.view='field';syncControls();$('bootStatus').classList.add('hidden');toast('Interior 3D indisponível neste navegador. Controles externos disponíveis.','SISTEMAS',20);"
+          new_init_catch = "    recoverCabinRuntime(error,'initialization');"
+          game = replace_once(game, old_init_catch, new_init_catch, 'initialization recovery')
+
+          game_path.write_text(game)
+
+          bootstrap_path = root / 'bootstrap.js'
+          bootstrap = bootstrap_path.read_text()
+          bootstrap = replace_once(bootstrap, "const CLIENT_BUILD = '20260913-hidden-aim-panel';", "const CLIENT_BUILD = '20260913-cabin-runtime-recovery';", 'client build bump')
+          bootstrap = replace_once(bootstrap, "const EXPECTED_CACHE_SUFFIX = 'v7.29';", "const EXPECTED_CACHE_SUFFIX = 'v7.30';", 'bootstrap cache bump')
+          bootstrap_path.write_text(bootstrap)
+
+          sw_path = root / 'sw.js'
+          sw = sw_path.read_text()
+          sw = replace_once(sw, "const CACHE_NAME = `${CACHE_PREFIX}v7.29`;", "const CACHE_NAME = `${CACHE_PREFIX}v7.30`;", 'service worker cache bump')
+          sw_path.write_text(sw)
+
+          test_path = root / 'tests' / 'cabin-runtime-recovery.test.js'
+          test_path.write_text("""import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const game = fs.readFileSync(new URL('../game-v6.js', import.meta.url), 'utf8');
+
+test('cabin does not hide the field canvas before the renderer exists', () => {
+  assert.match(game, /const inside=\(\)=>!!cabin&&state\?\.view==='cabin'/);
+});
+
+test('cabin runtime failures fall back instead of killing the frame loop', () => {
+  assert.match(game, /recoverCabinRuntime\(error,'update'\)/);
+  assert.match(game, /recoverCabinRuntime\(error,'render'\)/);
+  assert.match(game, /webglcontextlost/);
+  assert.match(game, /try\{update\(dt\);\}catch\(error\)/);
+  assert.match(game, /try\{draw\(\);\}catch\(error\)/);
+  assert.match(game, /requestAnimationFrame\(loop\)/);
+});
+
+test('strategic simulation exceptions are isolated from cabin gameplay', () => {
+  assert.match(game, /warSimulation\?\.runtimeDisabled/);
+  assert.match(game, /Simulação estratégica isolada após falha de runtime/);
+});
+""")
+          PY
+
+      - name: Test Iron Rain
+        working-directory: iron-rain
+        run: npm test
+
+      - name: Commit hotfix
+        shell: bash
+        run: |
+          git config user.name "Iron Rain Runtime Hotfix"
+          git config user.email "actions@users.noreply.github.com"
+          git add iron-rain/game-v6.js iron-rain/bootstrap.js iron-rain/sw.js iron-rain/tests/cabin-runtime-recovery.test.js
+          git diff --cached --check
+          git commit -m "fix: recover cabin runtime without dead screen"
+          for attempt in 1 2 3; do
+            if git push origin HEAD:iron-rain-v6-1-continuation; then exit 0; fi
+            git pull --rebase origin iron-rain-v6-1-continuation
+          done
+          exit 1
