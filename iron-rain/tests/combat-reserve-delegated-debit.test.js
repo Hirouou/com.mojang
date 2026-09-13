@@ -38,10 +38,10 @@ test('live reserve context debits the exact accepted batch through the world ass
   });
 
   assert.equal(result.ready, true);
-  assert.equal(result.amount, 3);
+  assert.equal(result.amount, 2);
   assert.equal(result.debitDelegated, true);
-  assert.deepEqual(claims, [{ type: 'troops', count: 3 }]);
-  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 1, 'accepted live reserve must consume its physical staging stock');
+  assert.deepEqual(claims, [{ type: 'troops', count: 2 }]);
+  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 2, 'accepted live reserve must preserve the critical-node garrison');
 });
 
 test('live reserve context fails closed when the world asset reconciler rejects the debit', () => {
@@ -82,7 +82,7 @@ test('standalone reserve cycle still debits the exact staging inventory itself',
   });
 
   assert.equal(result.ready, true);
-  assert.equal(result.amount, 3);
-  assert.equal(result.remainingTroops, 1);
-  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 1);
+  assert.equal(result.amount, 2);
+  assert.equal(result.remainingTroops, 2);
+  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 2);
 });
