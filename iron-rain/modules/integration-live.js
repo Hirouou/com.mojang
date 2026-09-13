@@ -69,9 +69,15 @@ function liveShotPayload() {
   });
 }
 
+function canReplicateLocalShot(runtime) {
+  const status = runtime?.status?.();
+  if (!status || status.mode === 'offline') return true;
+  return runtime.stationOwner?.('aim') === status.localId;
+}
+
 function emitLocalShot() {
   const runtime = globalThis.ironRainEntry?.runtime;
-  if (!runtime?.emitEffect) return;
+  if (!runtime?.emitEffect || !canReplicateLocalShot(runtime)) return;
   const shot = liveShotPayload();
   runtime.emitEffect('fire', shot);
   runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell });
