@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { combatSustainmentSupply } from '../modules/combat-sustainment.js';
+import { INTEL_AGE_LIMITS } from '../modules/intel-knowledge.js';
 import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from '../modules/strategic-logistics.js';
 
 function theatre() {
@@ -28,7 +29,8 @@ test('combat sustainment reacts only to earned route threat while intel is usabl
   assert.ok(threatened < baseline, `known route danger should reduce tactical sustainment (${threatened} < ${baseline})`);
   assert.ok(threatened < .3, 'severe known route danger should stop a stocked line from reading as assault-ready supply');
 
-  logistics.step(301);
+  const staleAfter = INTEL_AGE_LIMITS.aging + 1;
+  for (let elapsed = 0; elapsed < staleAfter; elapsed += 60) logistics.step(Math.min(60, staleAfter - elapsed));
   assert.equal(logistics.snapshot().routes[0].knownThreat, 0, 'stale route intel must not remain tactical omniscience');
   assert.equal(supply(logistics), baseline, 'once intel is stale, combat AI should stop applying the old route threat');
 });
