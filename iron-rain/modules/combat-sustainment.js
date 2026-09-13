@@ -16,18 +16,18 @@ function knownNodeThreat(routes, nodeId) {
 }
 
 function knownPathThreat(strategicLogistics, team, from, to) {
-  if (!strategicLogistics || typeof strategicLogistics.route !== 'function' || typeof strategicLogistics.snapshot !== 'function') return 0;
+  if (!strategicLogistics || typeof strategicLogistics.route !== 'function' || typeof strategicLogistics.snapshot !== 'function') return 1;
   const origin = String(from ?? ''), destination = String(to ?? '');
-  if (!origin || !destination) return 0;
+  if (!origin || !destination) return 1;
   try {
     const routes = strategicLogistics.snapshot()?.routes;
-    if (!Array.isArray(routes)) return 0;
+    if (!Array.isArray(routes)) return 1;
     // A staging depot can be both the reserve origin and the tactical endpoint.
     // In that case there is no routed leg to inspect, but earned threat intel on
     // roads touching the node still means the position is under local pressure.
     if (origin === destination) return knownNodeThreat(routes, destination);
     const path = strategicLogistics.route(team, origin, destination);
-    if (!Array.isArray(path)) return 0;
+    if (!Array.isArray(path)) return 1;
     const threatByRoute = new Map(routes.map(route => [String(route?.id ?? ''), clamp(Number(route?.knownThreat) || 0, 0, 1)]));
     let highest = 0;
     for (const leg of path) {
@@ -36,7 +36,7 @@ function knownPathThreat(strategicLogistics, team, from, to) {
       highest = Math.max(highest, threatByRoute.get(routeId) || 0);
     }
     return highest;
-  } catch { return 0; }
+  } catch { return 1; }
 }
 
 /**
