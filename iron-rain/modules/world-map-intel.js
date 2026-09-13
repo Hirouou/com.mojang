@@ -19,7 +19,7 @@ function newestReport(current, candidate) {
   return Number(reportObservedAt(candidate)) > Number(reportObservedAt(current)) ? candidate : current;
 }
 
-/** Friendly radio sites expose their own front and neighboring front situation. */
+/** Friendly radio sites relay their own hex/front context and neighboring front presence. */
 export function radioVisibleHexIds(hexes, team) {
   if (!Array.isArray(hexes) || !['ally', 'enemy'].includes(team)) return Object.freeze([]);
   const visible = new Set();
@@ -35,6 +35,11 @@ export function radioVisibleHexIds(hexes, team) {
  * Strategic map snapshot: friendly controlled territory is known, but remote
  * front activity only carries detail when a friendly radio/recon source exists.
  * Enemy-side sectors never become an omniscient live minimap.
+ *
+ * Radio coverage is deliberately coarse: it may disclose that a neighboring
+ * front exists, but it does not turn every hostile sector inside that hex into
+ * a live ownership sensor. Exact hostile/contested sector state still requires
+ * local observation or a live coarse/sector report earned through recon/radio.
  *
  * When `now` is supplied, reports use the shared intel-age policy. Lost reports
  * no longer keep remote hostile control live forever; stale reports remain only
@@ -76,7 +81,10 @@ export function createWorldMapIntel({ hexes = [], team = 'ally', playerPosition 
       const staleSectorReport = Boolean(sectorReport) && sectorReportState === 'stale';
       hasLiveSectorReport ||= liveSectorReport;
       hasStaleSectorReport ||= staleSectorReport;
-      const sectorHasIntel = local || radio || liveReport || liveSectorReport;
+      // A radio net is a relay, not a magical sensor. Its coarse coverage can
+      // expose front presence at hex level, while exact remote hostile sector
+      // ownership remains unknown until a real observation/report exists.
+      const sectorHasIntel = local || liveReport || liveSectorReport;
       return Object.freeze({
         id: sector.id,
         name: sector.name,
