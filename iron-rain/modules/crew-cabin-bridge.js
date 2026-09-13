@@ -3,6 +3,8 @@ import { releaseStationGate, requestStationGate, stationGateMessage, stationGate
 
 const clampDelay = value => Math.max(0, Number.isFinite(value) ? value : .1);
 const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
+const runtimeLocalId = status => status?.localId ?? status?.session?.localId ?? null;
+const guestDisconnected = status => status?.mode === 'guest' && status?.connected === false;
 const stationDenial = (runtime, station) => {
   let status = null;
   try { status = runtime?.status?.() || null; } catch { status = null; }
@@ -26,6 +28,8 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   const delay = clampDelay(interpolationDelay);
   const pendingStations = new Set();
   const abandonedStations = new Set();
+  let lastRuntimeIdentity = null;
+  let hasRuntimeIdentity = false;
 
   function keepCabinOutsideUntilReady(result) {
     if (result?.ready) return result;
@@ -46,6 +50,20 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     abandonPendingStations();
     cabin?.updateRemoteCrew?.([], clampDt(dt));
     return Object.freeze({ status: null, remoteCount: 0 });
+  }
+
+  function rememberRuntimeIdentity(status) {
+    const localId = runtimeLocalId(status);
+    if (localId == null) return false;
+    const identity = String(localId);
+    if (!hasRuntimeIdentity) {
+      lastRuntimeIdentity = identity;
+      hasRuntimeIdentity = true;
+      return false;
+    }
+    if (identity === lastRuntimeIdentity) return false;
+    lastRuntimeIdentity = identity;
+    return true;
   }
 
   function reconcilePendingIntent(snapshot) {
@@ -75,6 +93,10 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     let remotes = [];
     try {
       status = at === undefined ? runtime.update(localPose) : runtime.update(localPose, at);
+      const identityChanged = rememberRuntimeIdentity(status);
+      if (guestDisconnected(status) || identityChanged) {
+        return failClosedFrame(dt);
+      }
       remotes = at === undefined
         ? runtime.renderSamples(undefined, delay)
         : runtime.renderSamples(at, delay);
@@ -90,6 +112,8 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     try { cabin?.leaveStation?.(); } catch {}
     abandonPendingStations();
     abandonedStations.clear();
+    hasRuntimeIdentity = false;
+    lastRuntimeIdentity = null;
     cabin?.updateRemoteCrew?.([], 0);
   }
 
