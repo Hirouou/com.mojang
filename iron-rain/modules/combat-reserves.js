@@ -159,7 +159,12 @@ export function combatReservePlanCycle({ strategicLogistics, territory, team, fr
   const logistics = withDeliveredTroops(combatLogisticsState({ territory, team, routeOpen }), strategicLogistics, to);
   const cycle = combatReserveCycle({ logistics, timer, fallbackUntil, tick, strength, resetIn });
   if (!cycle.ready || !hasOwn(logistics, 'availableTroops')) return Object.freeze({ origin, routeOpen, logistics, ...cycle });
-  if (typeof claimAsset === 'function') return Object.freeze({ origin, routeOpen, logistics, ...cycle, debitDelegated: true });
+  if (typeof claimAsset === 'function') {
+    let claimed = false;
+    try { claimed = claimAsset('troops', cycle.amount) === true; } catch {}
+    if (!claimed) return Object.freeze({ origin, routeOpen, logistics, ...cycle, ready: false, reason: 'troops', amount: 0, nextTimer: 0, debitDelegated: true });
+    return Object.freeze({ origin, routeOpen, logistics, ...cycle, debitDelegated: true });
+  }
   const remainingTroops = consumeDeliveredTroops(strategicLogistics, to, cycle.amount);
   if (remainingTroops === false) return Object.freeze({ origin, routeOpen, logistics, ...cycle, ready: false, reason: 'troops', amount: 0, nextTimer: 0, remainingTroops: combatDeliveredTroops(strategicLogistics, to) });
   return Object.freeze({ origin, routeOpen, logistics, ...cycle, remainingTroops });
