@@ -130,10 +130,10 @@ function canReplicateLocalShot(runtime) {
 }
 
 function emitLocalShot() {
-  if (suppressObservedFire) { suppressObservedFire = false; return; }
+  if (suppressObservedFire) { suppressObservedFire = false; return null; }
   const runtime = globalThis.ironRainEntry?.runtime;
-  if (!runtime?.issueCommand || !canReplicateLocalShot(runtime)) return;
-  runtime.issueCommand('fire', liveShotPayload());
+  if (!runtime?.issueCommand || !canReplicateLocalShot(runtime)) return null;
+  return runtime.issueCommand('fire', liveShotPayload());
 }
 
 function guestOwnsAim(runtime) {
@@ -157,7 +157,7 @@ function interceptGuestFire(event) {
   event.stopImmediatePropagation?.();
   const now = performance.now();
   if (now < guestFirePendingUntil) return true;
-  const result = runtime.issueCommand('fire', liveShotPayload());
+  const result = emitLocalShot();
   if (result?.pending) {
     guestFirePendingUntil = now + 1800;
     toast('DISPARO ENVIADO · aguardando autorização do Mamute.', 'PONTARIA');
