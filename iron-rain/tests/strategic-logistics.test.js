@@ -102,3 +102,20 @@ test('dispatch refuses vehicles or troops that do not exist at the origin', () =
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'origin-assets-insufficient');
 });
+
+test('malformed or extreme convoy speed cannot collapse road travel into instant delivery', () => {
+  const invalid = network();
+  const invalidSent = invalid.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', cargo: { materials: 10 }, speed: Infinity });
+  const invalidConvoy = invalid.snapshot().convoys.find(item => item.id === invalidSent.convoyId);
+  assert.equal(invalidConvoy.speed, 14);
+  invalid.step(1);
+  assert.equal(invalid.getNode('FRONT').stock.materials, 0);
+
+  const extreme = network();
+  const extremeSent = extreme.dispatch({ team: 'ally', from: 'HQ', to: 'FRONT', cargo: { materials: 10 }, speed: 1_000_000 });
+  const extremeConvoy = extreme.snapshot().convoys.find(item => item.id === extremeSent.convoyId);
+  assert.equal(extremeConvoy.speed, 120);
+  extreme.step(1);
+  assert.equal(extreme.getNode('FRONT').stock.materials, 0);
+  assert.equal(extreme.snapshot().convoys.find(item => item.id === extremeSent.convoyId).status, 'moving');
+});
