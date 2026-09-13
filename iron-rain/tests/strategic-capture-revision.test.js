@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTerritoryNode } from '../modules/territory-development.js';
+import { createTerritoryNode, territorySnapshot } from '../modules/territory-development.js';
 import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from '../modules/strategic-logistics.js';
 import { applyAuthoritativeSectorControl } from '../modules/strategic-capture-state.js';
 
@@ -24,6 +24,7 @@ test('newer authoritative sector revisions cannot be rolled back by delayed even
   assert.equal(captured.ok, true);
   assert.equal(captured.changed, true);
   assert.equal(captured.revision, 12);
+  assert.equal(captured.territory.controlRevision, 12);
   assert.equal(state.territoryNode.controlRevision, 12);
 
   const stale = applyAuthoritativeSectorControl({ ...state, owner: 'enemy', revision: 11 });
@@ -31,6 +32,18 @@ test('newer authoritative sector revisions cannot be rolled back by delayed even
   assert.equal(state.record.sector.owner, 'ally');
   assert.equal(state.territoryNode.owner, 'ally');
   assert.equal(state.logistics.getNode('HX-REV-S1').team, 'ally');
+});
+
+test('revisioned territory nodes preserve their ordering cursor in snapshots', () => {
+  const node = createTerritoryNode({ id: 'HX-REV-S2', owner: 'ally', revision: 27 });
+  node.contested = false;
+  const snapshot = territorySnapshot(node);
+  assert.equal(node.controlRevision, 27);
+  assert.equal(snapshot.controlRevision, 27);
+
+  const invalid = createTerritoryNode({ id: 'HX-REV-S3', owner: 'enemy', revision: -1 });
+  assert.equal(invalid.controlRevision, null);
+  assert.equal(territorySnapshot(invalid).controlRevision, null);
 });
 
 test('same revision is idempotent only for the same projected control state', () => {
