@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../modules/cabin-view.js', import.meta.url), 'utf8');
 
 test('crew cabin renders replicated hull impacts inside the live scene', () => {
-  assert.match(source, /function createHullImpactVisual\(scene\)/);
+  assert.match(source, /function createHullImpactVisual\(scene, \{ reducedMotion = false \} = \{\}\)/);
   assert.match(source, /hullImpactVisual\.kick\(feedback\.intensity\)/);
   assert.match(source, /hullImpactVisual\.update\(elapsed\)/);
   assert.match(source, /new THREE\.PointLight\('#ffc58d'/);
