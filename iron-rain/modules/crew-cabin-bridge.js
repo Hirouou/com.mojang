@@ -50,6 +50,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   }
 
   function clear() {
+    try { cabin?.leaveStation?.(); } catch {}
     pendingStations.clear();
     cabin?.updateRemoteCrew?.([], 0);
   }
