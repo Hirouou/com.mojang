@@ -2,8 +2,10 @@ import { installSpawnSelector, resolveSpawnChoice } from './spawn-selector.js';
 import { createWarAudio } from './war-audio.js';
 import { maintenanceEffectCadence } from './maintenance-effect-cadence.js';
 import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
+import { createArtilleryShotReplayGuard } from './artillery-shot-replay-guard.js';
 
 const audio = createWarAudio();
+const remoteShotReplayGuard = createArtilleryShotReplayGuard(64);
 let selector = null;
 let unsubscribeEffects = null;
 let lastRuntime = null;
@@ -30,8 +32,16 @@ function toast(message, source = 'TRIPULAÇÃO') {
   toast.timer = setTimeout(() => shell.classList.add('hidden'), 2800);
 }
 
+function remoteFireReplayKey(effect) {
+  const shotId = String(effect?.payload?.shotId || '').trim();
+  if (!shotId) return '';
+  const at = Number(effect?.payload?.at);
+  return Number.isFinite(at) ? `${shotId}@${at}` : shotId;
+}
+
 function applyRemoteEffect(effect) {
   if (!effect?.type) return;
+  if (effect.type === 'fire' && !remoteShotReplayGuard.accept(remoteFireReplayKey(effect))) return;
   try { dispatchEvent(new CustomEvent('ironrain:shared-crew-effect', { detail: { ...effect, remote: true } })); } catch {}
   if (effect.type === 'fire') { audio.fire(); toast('OUTRO TRIPULANTE DISPAROU · recuo e recarga sincronizados.', 'MAMUTE'); }
   else if (effect.type === 'reload') audio.load(effect.payload);
