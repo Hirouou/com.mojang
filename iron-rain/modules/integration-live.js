@@ -6,7 +6,6 @@ import { createArtilleryShotReplayGuard } from './artillery-shot-replay-guard.js
 
 const audio = createWarAudio();
 const remoteShotReplayGuard = createArtilleryShotReplayGuard(64);
-const remoteReloadReplayGuard = createArtilleryShotReplayGuard(64);
 let selector = null;
 let unsubscribeEffects = null;
 let lastRuntime = null;
@@ -40,17 +39,9 @@ function remoteFireReplayKey(effect) {
   return Number.isFinite(at) ? `${shotId}@${at}` : shotId;
 }
 
-function remoteReloadReplayKey(effect) {
-  const shotId = String(effect?.payload?.shotId || '').trim();
-  if (!shotId) return '';
-  const at = Number(effect?.payload?.at);
-  return Number.isFinite(at) ? `${shotId}@${at}` : shotId;
-}
-
 function applyRemoteEffect(effect) {
   if (!effect?.type) return;
   if (effect.type === 'fire' && !remoteShotReplayGuard.accept(remoteFireReplayKey(effect))) return;
-  if (effect.type === 'reload' && !remoteReloadReplayGuard.accept(remoteReloadReplayKey(effect))) return;
   try { dispatchEvent(new CustomEvent('ironrain:shared-crew-effect', { detail: { ...effect, remote: true } })); } catch {}
   if (effect.type === 'fire') { audio.fire(); toast('OUTRO TRIPULANTE DISPAROU · recuo e recarga sincronizados.', 'MAMUTE'); }
   else if (effect.type === 'reload') audio.load(effect.payload);
@@ -111,7 +102,7 @@ function emitLocalShot() {
   if (!runtime?.emitEffect || !canReplicateLocalShot(runtime)) return;
   const shot = liveShotPayload();
   runtime.emitEffect('fire', shot);
-  runtime.emitEffect('reload', { shotId: shot.shotId, at: shot.at, duration: 2.8, phase: 'extract', shell: shot.shell });
+  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell });
 }
 
 function bindFireState() {
