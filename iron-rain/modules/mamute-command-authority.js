@@ -78,12 +78,12 @@ export function createMamuteCommandAuthority({
     // that same packet later must not turn an earlier rejection into a live shot.
     if (type === 'fire') sequences.set(playerId, seq);
     const station = MAMUTE_COMMAND_STATION[type];
+    const shotId = type === 'fire' ? cleanId(command.payload?.shotId) : null;
     const owner = stationOwner(station);
     if (owner !== playerId) {
       rejected += 1;
-      return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null });
+      return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null, ...(shotId ? { shotId } : {}) });
     }
-    const shotId = type === 'fire' ? cleanId(command.payload?.shotId) : null;
     const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
     if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
