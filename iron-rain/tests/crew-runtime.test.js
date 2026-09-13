@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCrewRuntime } from '../modules/crew-runtime.js';
+import { createMamuteInventory } from '../modules/mamute-logistics.js';
 
 class FakeTransport {
   constructor({ room, onMessage }, bus) {
@@ -117,4 +118,41 @@ test('three crew can own different stations while shared Mamute commands remain 
     ['gunner', 'fire', 'aim'],
     ['loader', 'reload-shell', 'load'],
   ]);
+});
+
+test('host runtime consumes canonical artillery ammo before replicating accepted guest fire', () => {
+  const bus = [], clock = { value: 50 }, hostEffects = [], gunnerEffects = [];
+  const factory = options => new FakeTransport(options, bus);
+  const inventory = createMamuteInventory({
+    capacity: { HE: 2, SMOKE: 1, FRAG: 1 },
+    shells: { HE: 1, SMOKE: 1, FRAG: 1 },
+  });
+  const host = createCrewRuntime({
+    localId: 'driver',
+    now: () => clock.value,
+    transportFactory: factory,
+    fireInventory: () => inventory,
+  });
+  const gunner = createCrewRuntime({ localId: 'gunner', now: () => clock.value, transportFactory: factory });
+  host.subscribeEffects(effect => hostEffects.push(effect));
+  gunner.subscribeEffects(effect => gunnerEffects.push(effect));
+
+  assert.equal(host.host('M47-AMMO', 'allies').ok, true);
+  assert.equal(gunner.join('M47-AMMO', 'allies').ok, true);
+  assert.equal(gunner.claimStation('aim').pending, true);
+  assert.equal(host.stationOwner('aim'), 'gunner');
+
+  const first = gunner.issueCommand('fire', { shell: 'HE', shotId: 'runtime-ammo-1' });
+  assert.equal(first.ok, true);
+  assert.equal(first.pending, true);
+  assert.equal(inventory.shells.HE, 0);
+  assert.deepEqual(hostEffects.map(effect => effect.type), ['fire', 'reload']);
+  assert.deepEqual(gunnerEffects.map(effect => effect.type), ['fire', 'reload']);
+
+  const second = gunner.issueCommand('fire', { shell: 'HE', shotId: 'runtime-ammo-2' });
+  assert.equal(second.ok, true);
+  assert.equal(second.pending, true);
+  assert.equal(inventory.shells.HE, 0);
+  assert.equal(hostEffects.length, 2);
+  assert.equal(gunnerEffects.length, 2);
 });
