@@ -80,6 +80,14 @@ test('one large extinguishing step burns only until the fire is put out', () => 
   assert.equal(a.fire, 0); assert.equal(b.fire, 0);
 });
 
+test('drive permission fails closed when engine telemetry is incomplete or non-finite', () => {
+  assert.equal(engineCanDrive({ health: 100 }), false, 'missing fire state must not imply a safe engine');
+  assert.equal(engineCanDrive({ health: 100, fire: NaN }), false);
+  assert.equal(engineCanDrive({ health: 100, fire: Infinity }), false);
+  assert.equal(engineCanDrive({ health: Infinity, fire: 0 }), false);
+  assert.equal(engineCanDrive({ health: 100, fire: 0 }), true);
+});
+
 test('invalid numeric state cannot create NaN, negative health or unfinished infinite actions', () => {
   const engine = createEngine();
   engine.health = NaN; engine.fire = Infinity;
