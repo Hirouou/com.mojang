@@ -6,6 +6,7 @@ const freezeStock = stock => Object.freeze({
   ammo: Math.max(0, Number(stock?.ammo) || 0),
   fuel: Math.max(0, Number(stock?.fuel) || 0),
 });
+const validRevision = revision => Number.isSafeInteger(revision) && revision >= 0;
 
 /**
  * Apply a sector-control result that has already been accepted by shared/server
@@ -17,6 +18,11 @@ const freezeStock = stock => Object.freeze({
  * world/backend may reopen/rebuild routes after it publishes the new topology,
  * but the client must not keep an old faction route alive through a captured
  * endpoint in the meantime.
+ *
+ * `revision` is optional for the current local/legacy seam. Once an authority
+ * starts publishing revisions for a sector, that projection becomes revisioned:
+ * older events and unversioned replays fail closed instead of rolling territory
+ * and logistics back after a delayed network delivery.
  */
 export function applyAuthoritativeSectorControl({
   record,
@@ -24,6 +30,7 @@ export function applyAuthoritativeSectorControl({
   logistics,
   owner,
   contested = false,
+  revision,
 } = {}) {
   const sector = record?.sector;
   const id = String(sector?.id ?? '');
@@ -35,13 +42,30 @@ export function applyAuthoritativeSectorControl({
     return Object.freeze({ ok: false, changed: false, reason: 'projection-mismatch' });
   }
 
+  const hasRevision = revision !== undefined && revision !== null;
+  if (hasRevision && !validRevision(revision)) {
+    return Object.freeze({ ok: false, changed: false, reason: 'invalid-revision' });
+  }
+  const currentRevision = validRevision(territoryNode.controlRevision) ? territoryNode.controlRevision : null;
+  if (currentRevision !== null && !hasRevision) {
+    return Object.freeze({ ok: false, changed: false, reason: 'revision-required', revision: currentRevision });
+  }
+
   const visualOwner = team || (nextContested ? 'contested' : 'neutral');
   const changed = sector.owner !== visualOwner
     || territoryNode.owner !== team
     || Boolean(territoryNode.contested) !== nextContested
     || endpoint.team !== team;
 
+  if (currentRevision !== null && revision < currentRevision) {
+    return Object.freeze({ ok: false, changed: false, reason: 'stale-revision', revision: currentRevision });
+  }
+  if (currentRevision !== null && revision === currentRevision && changed) {
+    return Object.freeze({ ok: false, changed: false, reason: 'revision-conflict', revision: currentRevision });
+  }
+
   if (!changed) {
+    if (hasRevision) territoryNode.controlRevision = revision;
     return Object.freeze({
       ok: true,
       changed: false,
@@ -49,6 +73,7 @@ export function applyAuthoritativeSectorControl({
       id,
       owner: team,
       contested: nextContested,
+      ...(hasRevision ? { revision } : {}),
       cutRoutes: Object.freeze([]),
       territory: territorySnapshot(territoryNode),
     });
@@ -58,6 +83,7 @@ export function applyAuthoritativeSectorControl({
   sector.controlProgress = team && !nextContested ? 1 : 0;
   setTerritoryControl(territoryNode, team, { contested: nextContested, dt: 0 });
   endpoint.team = team;
+  if (hasRevision) territoryNode.controlRevision = revision;
 
   const cutRoutes = [];
   for (const route of logistics.snapshot?.().routes || []) {
@@ -72,6 +98,7 @@ export function applyAuthoritativeSectorControl({
     id,
     owner: team,
     contested: nextContested,
+    ...(hasRevision ? { revision } : {}),
     cutRoutes: Object.freeze(cutRoutes),
     sector: Object.freeze({ id, owner: sector.owner, controlProgress: sector.controlProgress }),
     territory: territorySnapshot(territoryNode),
