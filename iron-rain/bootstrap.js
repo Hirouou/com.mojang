@@ -50,7 +50,7 @@ function localPlayerId() {
 
 const localId = localPlayerId();
 const transportFactory = crewQa ? options => createCrewBroadcastTransport(options) : options => createCrewMqttTransport(options);
-const runtime = createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status) });
+const runtime = createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status), onCommandResult: handleMamuteCommandResult });
 
 function setNotice(title, copy = '') {
   const root = lobby?.element;
@@ -70,6 +70,14 @@ function showCrewToast(message, source = 'TRIPULAÇÃO') {
   clearTimeout(crewToastTimer);
   crewToastTimer = window.setTimeout(() => shell.classList.add('hidden'), 2600);
   return true;
+}
+
+function handleMamuteCommandResult(result, packet) {
+  if (!result || result.pending || result.ok || result.reason !== 'out-of-ammo') return;
+  const localResult = packet?.kind === 'mamute-command-result'
+    ? String(packet.target || '') === localId
+    : String(packet?.playerId || '') === localId;
+  if (localResult) showCrewToast('SEM MUNIÇÃO · disparo recusado pelo Mamute.', 'PAIOL');
 }
 
 async function refreshServiceWorker() {
