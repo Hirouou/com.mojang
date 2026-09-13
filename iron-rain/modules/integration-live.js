@@ -141,11 +141,36 @@ function guestOwnsAim(runtime) {
   return status?.mode === 'guest' && runtime.stationOwner?.('aim') === status.localId;
 }
 
-function currentFireBinding() {
+function currentAimBindings() {
   try {
     const saved = JSON.parse(localStorage.getItem('iron-rain-settings') || 'null');
-    return restoreBindings(saved?.bindings).fire;
-  } catch { return DEFAULT_BINDINGS.fire; }
+    return restoreBindings(saved?.bindings);
+  } catch { return DEFAULT_BINDINGS; }
+}
+
+function currentFireBinding() {
+  return currentAimBindings().fire;
+}
+
+function guestFirePending() {
+  return performance.now() < guestFirePendingUntil;
+}
+
+function pendingGuestAimPointer(event) {
+  if (!guestFirePending() || authoritativeFireReplay) return;
+  if (!event.target?.closest?.('#fireDeck')) return;
+  event.preventDefault?.();
+  event.stopImmediatePropagation?.();
+}
+
+function pendingGuestAimKey(event) {
+  if (!guestFirePending() || authoritativeFireReplay) return;
+  if (event.target?.matches?.('input,select,textarea,[contenteditable="true"]')) return;
+  const code = eventCode(event);
+  const bindings = currentAimBindings();
+  if (code !== bindings.fire && code !== bindings.chargeUp && code !== bindings.chargeDown) return;
+  event.preventDefault?.();
+  event.stopImmediatePropagation?.();
 }
 
 function interceptGuestFire(event) {
@@ -177,6 +202,10 @@ function interceptGuestFireKey(event) {
   interceptGuestFire(event);
 }
 
+addEventListener('pointerdown', pendingGuestAimPointer, true);
+addEventListener('pointermove', pendingGuestAimPointer, true);
+addEventListener('click', pendingGuestAimPointer, true);
+addEventListener('keydown', pendingGuestAimKey, true);
 addEventListener('click', interceptGuestFireClick, true);
 addEventListener('keydown', interceptGuestFireKey, true);
 
