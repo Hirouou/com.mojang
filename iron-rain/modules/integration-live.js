@@ -1,6 +1,7 @@
 import { installSpawnSelector, resolveSpawnChoice } from './spawn-selector.js';
 import { createWarAudio } from './war-audio.js';
 import { maintenanceEffectCadence } from './maintenance-effect-cadence.js';
+import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
 
 const audio = createWarAudio();
 let selector = null;
@@ -33,7 +34,11 @@ function applyRemoteEffect(effect) {
   try { dispatchEvent(new CustomEvent('ironrain:shared-crew-effect', { detail: { ...effect, remote: true } })); } catch {}
   if (effect.type === 'fire') { audio.fire(); toast('OUTRO TRIPULANTE DISPAROU · recuo e recarga sincronizados.', 'MAMUTE'); }
   else if (effect.type === 'reload') audio.load(effect.payload);
-  else if (effect.type === 'impact' || effect.type === 'critical') { audio.impact(effect.payload || effect); toast(effect.type === 'critical' ? 'ESTADO CRÍTICO · toda a tripulação recebeu o alerta.' : 'IMPACTO NO CASCO · sentido por toda a tripulação.', 'CASCO'); }
+  else if (effect.type === 'impact' || effect.type === 'critical') {
+    const feedback = remoteHullImpactFeedback(effect);
+    audio.impact(feedback || effect.payload || effect);
+    toast(effect.type === 'critical' ? 'ESTADO CRÍTICO · toda a tripulação recebeu o alerta.' : 'IMPACTO NO CASCO · sentido por toda a tripulação.', 'CASCO');
+  }
   else if (effect.type === 'repair') audio.load({ intensity: .45 });
   else if (effect.type === 'extinguisher') audio.load({ intensity: .35 });
 }
