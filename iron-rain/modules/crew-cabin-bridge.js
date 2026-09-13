@@ -32,11 +32,20 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     return result;
   }
 
+  function failClosedFrame(dt = 0) {
+    // A broken runtime frame means this client can no longer prove station
+    // ownership. Leave the local station before hiding remote presence so input
+    // and camera cannot remain attached to stale authority during reconnect.
+    try { cabin?.leaveStation?.(); } catch {}
+    pendingStations.clear();
+    cabin?.updateRemoteCrew?.([], clampDt(dt));
+    return Object.freeze({ status: null, remoteCount: 0 });
+  }
+
   function update(dt = 0, at) {
     const localPose = crewLocalPoseFromCabinSnapshot(cabin?.snapshot?.());
     if (!localPose || typeof runtime?.update !== 'function' || typeof runtime?.renderSamples !== 'function' || typeof cabin?.updateRemoteCrew !== 'function') {
-      cabin?.updateRemoteCrew?.([], clampDt(dt));
-      return Object.freeze({ status: null, remoteCount: 0 });
+      return failClosedFrame(dt);
     }
 
     let status = null;
@@ -47,8 +56,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
         ? runtime.renderSamples(undefined, delay)
         : runtime.renderSamples(at, delay);
     } catch {
-      cabin.updateRemoteCrew([], clampDt(dt));
-      return Object.freeze({ status: null, remoteCount: 0 });
+      return failClosedFrame(dt);
     }
     const list = Array.isArray(remotes) ? remotes : [];
     cabin.updateRemoteCrew(list, clampDt(dt));
