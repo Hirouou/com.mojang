@@ -3,6 +3,12 @@ import { FACTIONS, FACTION_INFO, normalizeFaction, factionInfo } from './faction
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const cleanRoom = value => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 16);
 
+/** A Mamute session owns one room + faction once it is authoritative/connected. */
+export function crewLobbySessionLocked(status = {}) {
+  const mode = String(status?.mode || 'offline');
+  return mode === 'host' || (mode === 'guest' && Boolean(status?.connected));
+}
+
 function ensureLobbyStyles() {
   if (document.getElementById('iron-rain-crew-lobby-style')) return;
   const style = document.createElement('style');
@@ -11,7 +17,7 @@ function ensureLobbyStyles() {
     .crew-lobby{position:fixed;inset:0;z-index:90;display:grid;place-items:center;min-height:0;padding:max(18px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;background:radial-gradient(circle at 50% 30%,#273129f2,#090d0bf8);color:#d9d2b1;font-family:ui-monospace,Consolas,monospace}
     .crew-lobby.hidden{display:none}.crew-lobby-card{width:min(560px,100%);max-height:calc(100dvh - 18px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:22px;border:1px solid #81785b;background:#111813f5;box-shadow:0 22px 90px #000c}.crew-lobby-card>small{letter-spacing:2px;color:#8e9a86;font-size:9px}.crew-lobby-card h2{margin:8px 0 6px;font-size:26px;letter-spacing:2px;color:#eadcaf}.crew-lobby-card p{margin:0 0 16px;color:#aeb7a4;font-size:10px;line-height:1.5}
     .crew-factions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}.crew-factions button{position:relative;min-height:66px;text-align:left;padding:10px 12px 10px 15px;overflow:hidden}.crew-factions button:before{content:'';position:absolute;inset:0 auto 0 0;width:4px;background:#566}.crew-factions button b,.crew-factions button small{position:relative;z-index:1;display:block}.crew-factions button b{margin-top:5px;font-size:15px;letter-spacing:1.5px}.crew-factions button small{font-size:7px;letter-spacing:1.2px;color:#a8b0a2}.crew-factions [data-crew-faction="allies"]{background:linear-gradient(90deg,#213750aa,#18221d);border-color:#527ca1}.crew-factions [data-crew-faction="allies"]:before{background:#628ebd}.crew-factions [data-crew-faction="axis"]{background:linear-gradient(90deg,#35442faa,#18221d);border-color:#6b7f59}.crew-factions [data-crew-faction="axis"]:before{background:#71885f}.crew-factions button.active{box-shadow:inset 0 0 0 2px #e6d49a,0 0 18px #0008;color:#fff0bd}.crew-factions button:not(.active){filter:saturate(.55);opacity:.72}
-    .crew-lobby-room{display:grid;grid-template-columns:1fr 1fr;gap:8px}.crew-lobby-room label{grid-column:1/-1;font-size:9px;letter-spacing:1px;color:#bdb58f}.crew-lobby-room input{box-sizing:border-box;width:100%;margin-top:6px;padding:13px 12px;border:1px solid #73795f;background:#080e0a;color:#f0dfad;font:700 17px ui-monospace,monospace;letter-spacing:2px;text-transform:uppercase}.crew-lobby button{min-height:46px;border:1px solid #727b61;background:#273124;color:#ddcf9f;font:700 10px ui-monospace,monospace;letter-spacing:1px}.crew-lobby button:disabled{opacity:.35}.crew-lobby button:active{transform:translateY(1px)}
+    .crew-lobby-room{display:grid;grid-template-columns:1fr 1fr;gap:8px}.crew-lobby-room label{grid-column:1/-1;font-size:9px;letter-spacing:1px;color:#bdb58f}.crew-lobby-room input{box-sizing:border-box;width:100%;margin-top:6px;padding:13px 12px;border:1px solid #73795f;background:#080e0a;color:#f0dfad;font:700 17px ui-monospace,monospace;letter-spacing:2px;text-transform:uppercase}.crew-lobby-room input[readonly]{border-color:#566253;color:#bbb18f;background:#0d130f}.crew-lobby button{min-height:46px;border:1px solid #727b61;background:#273124;color:#ddcf9f;font:700 10px ui-monospace,monospace;letter-spacing:1px}.crew-lobby button:disabled{opacity:.35}.crew-lobby button:active{transform:translateY(1px)}
     .crew-lobby-members{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0 8px}.crew-lobby-members div{min-height:48px;padding:8px;border-left:2px solid #8f7e51;background:#182118}.crew-lobby-members b,.crew-lobby-members span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.crew-lobby-members b{font-size:10px;color:#e0d3aa}.crew-lobby-members span{margin-top:6px;font-size:7px;color:#8e9a87}.crew-lobby-status{padding:8px 10px;background:#0a100c;border:1px solid #414b3b;color:#aebc9f;font-size:9px;letter-spacing:1px}.crew-lobby-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.crew-lobby-actions [data-crew-enter]{background:#4a442a;border-color:#a69055;color:#f2dca0}
 
     @media(max-width:720px) and (orientation:landscape){
@@ -99,17 +105,28 @@ export function createCrewLobbyUI({
   const faction = () => selectedFaction;
   const generateRoom = () => `M47-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
-  function setFaction(next) {
-    selectedFaction = normalizeFaction(next);
+  function syncSessionLock() {
+    const locked = crewLobbySessionLocked(latest);
+    const ready = Boolean(selectedFaction);
+    factionButtons.forEach(button => { button.disabled = locked; });
+    input.readOnly = locked;
+    input.setAttribute('aria-readonly', String(locked));
+    hostButton.disabled = locked || !ready;
+    joinButton.disabled = locked || !ready;
+    offlineButton.disabled = locked || !ready;
+    return locked;
+  }
+
+  function setFaction(next, { authoritative = false } = {}) {
+    const normalized = normalizeFaction(next);
+    if (!authoritative && crewLobbySessionLocked(latest) && selectedFaction && normalized !== selectedFaction) return selectedFaction;
+    selectedFaction = normalized;
     factionButtons.forEach(button => {
       const active = button.dataset.crewFaction === selectedFaction;
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
     });
-    const ready = Boolean(selectedFaction);
-    hostButton.disabled = !ready;
-    joinButton.disabled = !ready;
-    offlineButton.disabled = !ready;
+    syncSessionLock();
     if (!latest || latest.mode === 'offline') {
       const info = factionInfo(selectedFaction);
       status.textContent = info ? `${info.label} · PRONTO PARA ENTRAR` : 'ESCOLHA ALIADOS OU EIXO';
@@ -120,19 +137,20 @@ export function createCrewLobbyUI({
 
   factionButtons.forEach(button => button.addEventListener('click', () => setFaction(button.dataset.crewFaction)));
   hostButton.addEventListener('click', () => {
-    if (!selectedFaction) return;
+    if (crewLobbySessionLocked(latest) || !selectedFaction) return;
     if (!room()) input.value = generateRoom();
     onHost(room(), selectedFaction);
   });
-  joinButton.addEventListener('click', () => { if (selectedFaction && room()) onJoin(room(), selectedFaction); });
-  offlineButton.addEventListener('click', () => { if (selectedFaction) onOffline(selectedFaction); });
+  joinButton.addEventListener('click', () => { if (!crewLobbySessionLocked(latest) && selectedFaction && room()) onJoin(room(), selectedFaction); });
+  offlineButton.addEventListener('click', () => { if (!crewLobbySessionLocked(latest) && selectedFaction) onOffline(selectedFaction); });
   enter.addEventListener('click', () => { if (!enter.disabled) onEnterMamute(latest); });
-  input.addEventListener('input', () => { input.value = cleanRoom(input.value); });
+  input.addEventListener('input', () => { if (!crewLobbySessionLocked(latest)) input.value = cleanRoom(input.value); });
 
   function setStatus(next = {}) {
     latest = next;
-    if (next.faction) setFaction(next.faction);
+    if (next.faction) setFaction(next.faction, { authoritative: true });
     const connected = Boolean(next.connected || next.mode === 'host');
+    const locked = syncSessionLock();
     const count = Math.max(1, Number(next.count) || 1), capacity = Math.max(1, Number(next.capacity) || 3);
     const mode = next.mode === 'host' ? 'HOST' : next.mode === 'guest' ? 'TRIPULANTE' : 'OFFLINE';
     const transport = next.transport && next.transport !== 'none' ? ` · ${String(next.transport).toUpperCase()}` : '';
@@ -146,12 +164,19 @@ export function createCrewLobbyUI({
     const denied = next.lastEvent?.startsWith?.('denied:');
     shell.querySelector('[data-crew-copy]').textContent = denied
       ? (next.lastEvent === 'denied:faction-mismatch' ? 'Esse Mamute pertence ao outro lado da guerra.' : 'Mamute cheio ou entrada recusada.')
-      : `${info?.label || 'FAÇÃO'} · até 3 tripulantes no mesmo Mamute. Cada posto físico pertence a uma pessoa por vez.`;
+      : locked
+        ? `${info?.label || 'FAÇÃO'} · sessão travada neste Mamute. Facção e código não podem mudar enquanto a tripulação estiver conectada.`
+        : `${info?.label || 'FAÇÃO'} · até 3 tripulantes no mesmo Mamute. Cada posto físico pertence a uma pessoa por vez.`;
     return latest;
   }
 
   return Object.freeze({
-    show() { shell.classList.remove('hidden'); if (!selectedFaction) factionButtons[0]?.focus({ preventScroll: true }); else input.focus({ preventScroll: true }); },
+    show() {
+      shell.classList.remove('hidden');
+      if (crewLobbySessionLocked(latest)) enter.focus({ preventScroll: true });
+      else if (!selectedFaction) factionButtons[0]?.focus({ preventScroll: true });
+      else input.focus({ preventScroll: true });
+    },
     hide() { shell.classList.add('hidden'); input.blur(); },
     setStatus,
     setFaction,
