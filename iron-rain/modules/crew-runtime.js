@@ -23,6 +23,7 @@ export function createCrewRuntime({
   let localEffectSeq = 0;
   let lastCommandResultSeq = -1;
   const seenEffects = new Map();
+  const commandResultListeners = new Set();
   const effectListeners = new Set();
 
   const session = createCrewSession({ localId: id, now, send: packet => transport?.send?.(packet) });
@@ -38,7 +39,11 @@ export function createCrewRuntime({
     const status = session.status();
     return Boolean(status.room) && Number(packet?.protocol) === CREW_PROTOCOL && String(packet?.room || '') === status.room && packet?.faction === status.faction && cleanId(packet?.sender) !== id;
   };
-  const notifyCommandResult = (result, packet) => { try { onCommandResult(result, packet); } catch {} return result; };
+  const notifyCommandResult = (result, packet) => {
+    try { onCommandResult(result, packet); } catch {}
+    for (const listener of [...commandResultListeners]) try { listener(result, packet); } catch {}
+    return result;
+  };
   const notifyEffect = (event, packet) => {
     try { onEffect(event, packet); } catch {}
     for (const listener of [...effectListeners]) try { listener(event, packet); } catch {}
@@ -210,6 +215,7 @@ export function createCrewRuntime({
 
   return Object.freeze({
     host: (room, faction) => connect('host', room, faction), join: (room, faction) => connect('guest', room, faction), disconnect, update, claimStation, releaseStation, issueCommand, emitEffect, emitMamuteState,
+    subscribeCommandResults(listener) { if (typeof listener !== 'function') return () => {}; commandResultListeners.add(listener); return () => commandResultListeners.delete(listener); },
     subscribeEffects(listener) { if (typeof listener !== 'function') return () => {}; effectListeners.add(listener); return () => effectListeners.delete(listener); },
     canUseStation: station => session.canUseStation(station), stationOwner: station => session.stationOwner(station), stationSnapshot: session.stationSnapshot, receive: acceptTransportPacket,
     renderSamples: (at = now(), delay = .1) => session.renderSamples(at, delay), status: () => lastStatus || publish(), sessionStatus: session.status, commandSnapshot: commandAuthority.snapshot,
