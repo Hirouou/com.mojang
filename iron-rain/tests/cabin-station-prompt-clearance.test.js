@@ -58,6 +58,18 @@ test('driver prompt follows the visible controls as well as the aisle focus poin
   assert.equal(movement.focus()?.id, 'drive');
 });
 
+test('driver prompt cannot use an aisle focus while another machine hides the controls', () => {
+  const movement = createCabinMovement();
+  const from = { x: -1.5, z: -1.2 };
+  const aisleFocus = { x: -.7, z: -2.4 };
+  const driverControls = { x: -1.57, z: -2.68 };
+
+  assert.equal(canReachCabinPoint(from.x, from.z, aisleFocus.x, aisleFocus.z, .08), true, 'the remote aisle focus is geometrically reachable');
+  assert.equal(canSeeCabinPoint(from.x, from.z, driverControls.x, driverControls.z), false, 'the aiming console blocks sight to the driver controls');
+  assert.equal(movement.setPose({ ...from, yaw: faceTarget(from, driverControls) }), true);
+  assert.notEqual(movement.focus()?.id, 'drive', 'reachable empty floor must not activate controls hidden behind machinery');
+});
+
 test('station-facing prompt cannot borrow a reachable aisle point through other machinery', () => {
   const movement = createCabinMovement();
   const from = { x: -1.55, z: 2.05 };
