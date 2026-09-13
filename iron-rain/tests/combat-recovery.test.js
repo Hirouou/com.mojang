@@ -57,6 +57,15 @@ test('staging formations do not counter-attack until morale, suppression, ammo a
   assert.equal(combatRecoveryPhase(base), null, 'ready formation can return to the existing tactical selector');
 });
 
+test('active assaults stop when logistics or composure fall below offensive readiness', () => {
+  const base = { phase: 'assault', strength: 55, morale: .7, suppression: .2, ammo: .8, supply: .8 };
+  assert.equal(combatRecoveryPhase({ ...base, ammo: .31 }), 'wait_support', 'assault pauses when ammunition falls below the offensive band');
+  assert.equal(combatRecoveryPhase({ ...base, supply: .29 }), 'wait_support', 'assault pauses when local supply falls below the offensive band');
+  assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'assault falls back to cover when morale slips');
+  assert.equal(combatRecoveryPhase({ ...base, suppression: .56 }), 'hold', 'assault falls back to cover when suppression rises');
+  assert.equal(combatRecoveryPhase(base), null, 'ready assault remains under the existing tactical selector');
+});
+
 test('combat break precedence still forces retreat when supply is also exhausted', () => {
   assert.equal(combatRecoveryPhase({ phase: 'assault', strength: 55, morale: .2, suppression: .2, ammo: .8, supply: .1 }), 'retreat');
 });
