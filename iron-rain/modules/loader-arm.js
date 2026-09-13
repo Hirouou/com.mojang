@@ -42,15 +42,18 @@ export function loaderArmPose(cycle) {
 
   if (phase === 'extract') {
     const t = p / .22;
-    // Reach into the carousel and positively clamp the chosen round. The
-    // renderer must not show the round in the claw during the empty approach,
-    // otherwise it looks duplicated beside the magazine before pickup.
+    // Reach the carousel first, then close the claw around the round. Keeping
+    // those motions staged makes the live loader read as a physical pickup
+    // instead of a shell appearing in an already-owned claw during approach.
+    const reach = clamp01(t / .62);
+    const clamp = clamp01((t - .46) / .28);
     baseYaw = mix(-.72, -.28, t);
     shoulder = mix(-.42, -.78, t);
     elbow = mix(1.08, .62, t);
-    claw = mix(.18, .03, Math.min(1, t * 1.7));
-    extension = mix(0, .34, t);
-    shellVisible = t >= .55;
+    claw = mix(.18, .03, clamp);
+    extension = mix(0, .34, reach);
+    gripping = t >= .74;
+    shellVisible = gripping;
   } else if (phase === 'rotate') {
     const t = (p - .22) / .40;
     // Pull clear first, then swing toward the breech. The small shoulder arc
