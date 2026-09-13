@@ -85,14 +85,15 @@ export function createMamuteCommandAuthority({
       return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null, ...(shotId ? { shotId } : {}) });
     }
     const shotKey = type === 'fire' ? fireShotKey(playerId, command.payload) : null;
+    const inventory = type === 'fire' ? currentFireInventory() : null;
+    const shell = type === 'fire' ? command.payload?.shell : null;
     if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
       rejected += 1;
-      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId });
+      const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
     }
 
-    const inventory = type === 'fire' ? currentFireInventory() : null;
-    const shell = type === 'fire' ? command.payload?.shell : null;
     let shellReserved = false;
     if (inventory) {
       if (!canFireShell(inventory, shell)) {
