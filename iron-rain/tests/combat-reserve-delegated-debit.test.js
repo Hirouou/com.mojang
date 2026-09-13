@@ -15,15 +15,21 @@ function graph() {
 
 const territory = { owner: 'ally', contested: false, structures: ['outpost', 'depot'] };
 
-test('live reserve context delegates physical debit to the world asset reconciler', () => {
+test('live reserve context debits the exact accepted batch through the world asset reconciler', () => {
   const strategicLogistics = graph();
-  let claims = 0;
+  const claims = [];
   const result = combatReservePlanCycle({
     strategicLogistics,
     territory,
     team: 'ally',
     to: 'ALLY-FRONT',
-    claimAsset: () => { claims += 1; return true; },
+    claimAsset: (type, count) => {
+      claims.push({ type, count });
+      const front = strategicLogistics.getNode('ALLY-FRONT');
+      if (type !== 'troops' || front.assets.troops < count) return false;
+      front.assets.troops -= count;
+      return true;
+    },
     timer: 0,
     fallbackUntil: 0,
     tick: 1,
@@ -34,8 +40,31 @@ test('live reserve context delegates physical debit to the world asset reconcile
   assert.equal(result.ready, true);
   assert.equal(result.amount, 3);
   assert.equal(result.debitDelegated, true);
-  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 4, 'plan cycle must not pre-debit a live context');
-  assert.equal(claims, 0, 'claimAsset remains owned by the world reconciliation step');
+  assert.deepEqual(claims, [{ type: 'troops', count: 3 }]);
+  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 1, 'accepted live reserve must consume its physical staging stock');
+});
+
+test('live reserve context fails closed when the world asset reconciler rejects the debit', () => {
+  const strategicLogistics = graph();
+  const result = combatReservePlanCycle({
+    strategicLogistics,
+    territory,
+    team: 'ally',
+    to: 'ALLY-FRONT',
+    claimAsset: () => false,
+    timer: 0,
+    fallbackUntil: 0,
+    tick: 1,
+    strength: 80,
+    resetIn: 47,
+  });
+
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, 'troops');
+  assert.equal(result.amount, 0);
+  assert.equal(result.nextTimer, 0);
+  assert.equal(result.debitDelegated, true);
+  assert.equal(strategicLogistics.getNode('ALLY-FRONT').assets.troops, 4);
 });
 
 test('standalone reserve cycle still debits the exact staging inventory itself', () => {
