@@ -4,6 +4,7 @@ import { maintenanceEffectCadence } from './maintenance-effect-cadence.js';
 import { remoteMaintenanceFeedback } from './remote-maintenance-feedback.js';
 import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
 import { createArtilleryShotReplayGuard } from './artillery-shot-replay-guard.js';
+import { DEFAULT_BINDINGS, eventCode, restoreBindings } from './key-bindings.js';
 
 const audio = createWarAudio();
 const remoteShotReplayGuard = createArtilleryShotReplayGuard(64);
@@ -13,6 +14,9 @@ let lastRuntime = null;
 let fireObserver = null;
 let observedFireButton = null;
 let fireArmed = true;
+let suppressObservedFire = false;
+let authoritativeFireReplay = false;
+let guestFirePendingUntil = 0;
 let shotSerial = 0;
 const shotSession = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 let destroyedOpen = false;
@@ -51,10 +55,25 @@ function showRemoteMaintenance(kind, progress) {
   try { dispatchEvent(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
 }
 
+function replayAuthoritativeLocalFire(effect) {
+  const fire = document.getElementById('fireBtn');
+  guestFirePendingUntil = 0;
+  if (!fire || fire.disabled) return false;
+  authoritativeFireReplay = true;
+  suppressObservedFire = true;
+  try {
+    fire.click();
+    return true;
+  } finally {
+    authoritativeFireReplay = false;
+  }
+}
+
 function applyRemoteEffect(effect) {
   if (!effect?.type) return;
   if (effect.type === 'fire' && !remoteShotReplayGuard.accept(remoteFireReplayKey(effect))) return;
-  if ((effect.type === 'fire' || effect.type === 'reload') && effectFromLocalShooter(effect)) return;
+  if (effect.type === 'fire' && effectFromLocalShooter(effect)) { replayAuthoritativeLocalFire(effect); return; }
+  if (effect.type === 'reload' && effectFromLocalShooter(effect)) return;
   try { dispatchEvent(new CustomEvent('ironrain:shared-crew-effect', { detail: { ...effect, remote: true } })); } catch {}
   if (effect.type === 'fire') { audio.fire(); toast('OUTRO TRIPULANTE DISPAROU · recuo e recarga sincronizados.', 'MAMUTE'); }
   else if (effect.type === 'reload') audio.load(effect.payload);
@@ -111,10 +130,55 @@ function canReplicateLocalShot(runtime) {
 }
 
 function emitLocalShot() {
+  if (suppressObservedFire) { suppressObservedFire = false; return; }
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.issueCommand || !canReplicateLocalShot(runtime)) return;
   runtime.issueCommand('fire', liveShotPayload());
 }
+
+function guestOwnsAim(runtime) {
+  const status = runtime?.status?.();
+  return status?.mode === 'guest' && runtime.stationOwner?.('aim') === status.localId;
+}
+
+function currentFireBinding() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('iron-rain-settings') || 'null');
+    return restoreBindings(saved?.bindings).fire;
+  } catch { return DEFAULT_BINDINGS.fire; }
+}
+
+function interceptGuestFire(event) {
+  if (authoritativeFireReplay) return false;
+  const runtime = globalThis.ironRainEntry?.runtime;
+  const fire = document.getElementById('fireBtn');
+  if (!runtime?.issueCommand || !fire || fire.disabled || !guestOwnsAim(runtime)) return false;
+  event.preventDefault?.();
+  event.stopImmediatePropagation?.();
+  const now = performance.now();
+  if (now < guestFirePendingUntil) return true;
+  const result = runtime.issueCommand('fire', liveShotPayload());
+  if (result?.pending) {
+    guestFirePendingUntil = now + 1800;
+    toast('DISPARO ENVIADO · aguardando autorização do Mamute.', 'PONTARIA');
+  }
+  return true;
+}
+
+function interceptGuestFireClick(event) {
+  if (!event.target?.closest?.('#fireBtn')) return;
+  interceptGuestFire(event);
+}
+
+function interceptGuestFireKey(event) {
+  if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target?.matches?.('input,select,textarea,[contenteditable="true"]')) return;
+  if (eventCode(event) !== currentFireBinding()) return;
+  interceptGuestFire(event);
+}
+
+addEventListener('click', interceptGuestFireClick, true);
+addEventListener('keydown', interceptGuestFireKey, true);
 
 function bindFireState() {
   const fire = document.getElementById('fireBtn');
