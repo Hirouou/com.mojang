@@ -1,4 +1,5 @@
 import { assessIntelAge } from './intel-knowledge.js';
+import { CAPITAL_ROAD_RULES, buildStrategicRoadGeometry, distanceToRoadGeometry, sampleRoadGeometry } from './capital-city-layout.js';
 
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const stockKeys = Object.freeze(['materials', 'ammo', 'fuel']);
@@ -49,9 +50,47 @@ function creditAssets(assets, manifest) { for (const key of LOGISTICS_ASSET_KEYS
 export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   const nodeMap = new Map(nodes.map(node => [node.id, node]));
   const routeMap = new Map(routes.map(route => [route.id, route]));
+  const routeGeometryMap = new Map();
   const convoys = new Map();
   let serial = 0;
   let intelNow = 0;
+
+  function routeGeometry(routeId) {
+    const id = String(routeId ?? '');
+    if (routeGeometryMap.has(id)) return routeGeometryMap.get(id);
+    const item = routeMap.get(id);
+    if (!item) return null;
+    const fromNode = nodeMap.get(item.from), toNode = nodeMap.get(item.to);
+    if (!fromNode || !toNode) return null;
+    const geometry = buildStrategicRoadGeometry({ id: item.id, from: fromNode, to: toNode });
+    routeGeometryMap.set(id, geometry);
+    return geometry;
+  }
+
+  function roadBearings(nodeId) {
+    const id = String(nodeId ?? ''), node = nodeMap.get(id), values = [];
+    if (!node) return Object.freeze(values);
+    for (const item of routeMap.values()) {
+      if (item.from !== id && item.to !== id) continue;
+      const other = nodeMap.get(item.from === id ? item.to : item.from);
+      if (!other) continue;
+      values.push(Math.atan2(other.y - node.y, other.x - node.x));
+    }
+    return Object.freeze(values);
+  }
+
+  function roadSpeedMultiplier(position) {
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return 1;
+    let best = Infinity;
+    for (const item of routeMap.values()) {
+      const geometry = routeGeometry(item.id);
+      if (!geometry) continue;
+      best = Math.min(best, distanceToRoadGeometry(geometry, position));
+    }
+    if (best <= CAPITAL_ROAD_RULES.primaryWidth * .5) return CAPITAL_ROAD_RULES.roadSpeedMultiplier;
+    if (best <= CAPITAL_ROAD_RULES.primaryWidth * .5 + CAPITAL_ROAD_RULES.shoulderWidth) return CAPITAL_ROAD_RULES.shoulderSpeedMultiplier;
+    return 1;
+  }
 
   function adjacency(team) {
     const graph = new Map();
@@ -173,15 +212,14 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   function convoyPosition(convoy) {
     const leg = convoy.path[convoy.leg];
     if (!leg) return null;
-    const fromNode = nodeMap.get(leg.from), toNode = nodeMap.get(leg.to);
-    if (!fromNode || !toNode) return null;
-    const dx = toNode.x - fromNode.x, dy = toNode.y - fromNode.y;
-    const geometryLength = Math.hypot(dx, dy);
+    const geometry = routeGeometry(leg.routeId);
+    if (!geometry) return null;
     const q = clamp(convoy.legProgress / Math.max(1, leg.distance), 0, 1);
-    const laneOffset = Math.max(0, Number(leg.laneOffset) || 0);
-    const nx = geometryLength > 1e-6 ? -dy / geometryLength : 0;
-    const ny = geometryLength > 1e-6 ? dx / geometryLength : 0;
-    return Object.freeze({ x: fromNode.x + dx * q + nx * laneOffset, y: fromNode.y + dy * q + ny * laneOffset, heading: Math.atan2(dy, dx), routeId: leg.routeId, laneDirection: leg.laneDirection || 'forward', laneOffset });
+    const forward = routeMap.get(leg.routeId)?.from === leg.from;
+    const sampled = sampleRoadGeometry(geometry, forward ? q : 1 - q, { laneOffset: leg.laneOffset, laneDirection: forward ? 'forward' : 'return' });
+    if (!sampled) return null;
+    const heading = forward ? sampled.heading : Math.atan2(-Math.sin(sampled.heading), -Math.cos(sampled.heading));
+    return Object.freeze({ ...sampled, heading, routeId: leg.routeId, laneDirection: leg.laneDirection || (forward ? 'forward' : 'return'), laneOffset: Math.max(0, Number(leg.laneOffset) || 0) });
   }
 
   function step(dt, { damageByConvoy = {} } = {}) {
@@ -262,10 +300,10 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   function snapshot() {
     return Object.freeze({
       nodes: Object.freeze([...nodeMap.values()].map(node => Object.freeze({ ...node, stock: Object.freeze({ ...node.stock }), assets: Object.freeze({ ...node.assets }) }))),
-      routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({ ...route, knownThreat: knownRouteThreat(route), threatIntel: route.threatIntel ? Object.freeze({ ...route.threatIntel }) : null }))),
+      routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({ ...route, geometry: routeGeometry(route.id), knownThreat: knownRouteThreat(route), threatIntel: route.threatIntel ? Object.freeze({ ...route.threatIntel }) : null }))),
       convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({ ...convoy, position: convoyPosition(convoy), cargo: Object.freeze({ ...convoy.cargo }), assets: Object.freeze({ ...convoy.assets }), path: Object.freeze(convoy.path.map(step => Object.freeze({ ...step }))) }))),
     });
   }
 
-  return Object.freeze({ dispatch, step, route, setRouteOpen, reportRouteThreat, snapshot, getNode: id => nodeMap.get(String(id)) || null });
+  return Object.freeze({ dispatch, step, route, routeGeometry, roadBearings, roadSpeedMultiplier, setRouteOpen, reportRouteThreat, snapshot, getNode: id => nodeMap.get(String(id)) || null });
 }
