@@ -10,10 +10,20 @@ test('replicated hull impacts preserve canonical local damage scaling', () => {
   assert.ok(tank.lowThump > rifle.lowThump);
 });
 
-test('critical replicated impact is always full presentation intensity', () => {
+test('critical replicated impact promotes every perceptible hull channel', () => {
+  const light = remoteHullImpactFeedback({ type: 'impact', payload: { damage: 1, kind: 'rifle', intensity: .1 } });
   const result = remoteHullImpactFeedback({ type: 'critical', payload: { damage: 1, kind: 'rifle', intensity: .1 } });
   assert.equal(result.intensity, 1);
   assert.equal(result.active, true);
+  assert.equal(result.label, 'IMPACTO PESADO NO CASCO');
+  assert.ok(result.duration > light.duration);
+  assert.ok(result.cameraShake > light.cameraShake);
+  assert.ok(result.hullFlash > light.hullFlash);
+  assert.ok(result.dustKick > light.dustKick);
+  assert.ok(result.lampFlicker > light.lampFlicker);
+  assert.ok(result.metalRattle > light.metalRattle);
+  assert.ok(result.lowThump > light.lowThump);
+  assert.ok(result.sharpCrack > light.sharpCrack);
 });
 
 test('valid transmitted intensity is retained while malformed events fail closed', () => {
