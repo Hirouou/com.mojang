@@ -89,6 +89,23 @@ test('guest request remains pending until host authority grants ownership', () =
   assert.equal(stationGateMessage(result), 'AGUARDANDO CONFIRMAÇÃO DO POSTO');
 });
 
+test('disconnected guest rejects stale local station ownership', () => {
+  const runtime = fakeRuntime({ mode: 'guest', connected: false, localId: 'guest-1', owner: 'guest-1' });
+  const state = stationGateState(runtime, 'aim');
+  assert.deepEqual(state, {
+    ok: false,
+    ready: false,
+    pending: false,
+    reason: 'not-connected',
+    station: 'aim',
+    owner: null,
+  });
+  const request = requestStationGate(runtime, 'aim');
+  assert.equal(request.ready, false);
+  assert.equal(request.reason, 'not-connected');
+  assert.equal(stationGateMessage(request), 'TRIPULAÇÃO DESCONECTADA');
+});
+
 test('occupied, disconnected or faction-mismatched stations fail closed with player-facing reasons', () => {
   const occupied = fakeRuntime({ owner: 'other-player' });
   const occupiedResult = requestStationGate(occupied, 'radio');
