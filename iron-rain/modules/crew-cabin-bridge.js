@@ -51,9 +51,15 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     return releaseStationGate(runtime, station);
   }
 
+  function leaveCabinStation(snapshot) {
+    if (typeof cabin?.leaveStation === 'function') {
+      try { return cabin.leaveStation() !== false; } catch { return false; }
+    }
+    return releaseSnapshotStation(snapshot);
+  }
+
   function failClosedFrame(dt = 0, snapshot = null) {
-    releaseSnapshotStation(snapshot);
-    try { cabin?.leaveStation?.(); } catch {}
+    leaveCabinStation(snapshot);
     abandonPendingStations();
     cabin?.updateRemoteCrew?.([], clampDt(dt));
     return Object.freeze({ status: null, remoteCount: 0 });
@@ -118,8 +124,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   function clear() {
     let snapshot = null;
     try { snapshot = cabin?.snapshot?.() || null; } catch { snapshot = null; }
-    releaseSnapshotStation(snapshot);
-    try { cabin?.leaveStation?.(); } catch {}
+    leaveCabinStation(snapshot);
     abandonPendingStations();
     abandonedStations.clear();
     hasRuntimeIdentity = false;
