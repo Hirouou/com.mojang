@@ -60,7 +60,9 @@ export function applyAuthoritativeSectorControl({
 
   const visualOwner = nextContested ? 'contested' : team || 'neutral';
   const endpointTeam = nextContested ? null : team;
+  const expectedProgress = team && !nextContested ? 1 : 0;
   const changed = sector.owner !== visualOwner
+    || Number(sector.controlProgress) !== expectedProgress
     || territoryNode.owner !== team
     || Boolean(territoryNode.contested) !== nextContested
     || endpoint.team !== endpointTeam;
@@ -88,7 +90,7 @@ export function applyAuthoritativeSectorControl({
   }
 
   sector.owner = visualOwner;
-  sector.controlProgress = team && !nextContested ? 1 : 0;
+  sector.controlProgress = expectedProgress;
   setTerritoryControl(territoryNode, team, { contested: nextContested, dt: 0 });
   endpoint.team = endpointTeam;
   if (hasRevision) territoryNode.controlRevision = revision;
