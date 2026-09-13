@@ -31,6 +31,14 @@ test('cleared trench does not trigger immediate assault when morale is below off
   assert.ok(sector.war.ally.advance <= 0, `unexpected advance ${sector.war.ally.advance}`);
 });
 
+test('recovered regroup holds before exploiting a cleared trench', () => {
+  const { sector, state } = front();
+  Object.assign(sector.war.ally, { phase: 'regroup', phaseTime: 5, advance: 0 });
+  updateWar(state, 1);
+  assert.equal(sector.war.ally.phase, 'hold');
+  assert.ok(sector.war.ally.advance <= 0, `unexpected regroup advance ${sector.war.ally.advance}`);
+});
+
 test('ready formation still exploits a cleared trench immediately', () => {
   const { sector, state } = front();
   updateWar(state, 1);
