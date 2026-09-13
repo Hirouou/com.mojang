@@ -24,7 +24,11 @@ test('visible viewport is shared by app, lobby and renderer resize flow', () => 
 
 test('PWA cache contract carries the viewport hotfix', () => {
   assert.match(bootstrap, /mobile-viewport-hotfix\.css/);
-  assert.match(bootstrap, /EXPECTED_CACHE_SUFFIX = 'v7\.28'/);
-  assert.match(sw, /CACHE_NAME = `\$\{CACHE_PREFIX\}v7\.28`/);
   assert.match(sw, /\.\/mobile-viewport-hotfix\.css/);
+
+  const bootstrapCache = bootstrap.match(/EXPECTED_CACHE_SUFFIX = '(v\d+\.\d+)'/);
+  const workerCache = sw.match(/CACHE_NAME = `\$\{CACHE_PREFIX\}(v\d+\.\d+)`/);
+  assert.ok(bootstrapCache?.[1], 'bootstrap must declare the expected PWA cache revision');
+  assert.ok(workerCache?.[1], 'service worker must declare the active PWA cache revision');
+  assert.equal(workerCache[1], bootstrapCache[1], 'bootstrap and service worker cache revisions must stay aligned');
 });
