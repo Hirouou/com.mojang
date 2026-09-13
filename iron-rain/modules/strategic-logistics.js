@@ -76,6 +76,9 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   }
 
   function route(team, from, to, { now = intelNow } = {}) {
+    const routeNow = Number(now);
+    if (Number.isFinite(routeNow)) intelNow = Math.max(intelNow, routeNow);
+    const effectiveNow = intelNow;
     if (from === to) return Object.freeze([]);
     const graph = adjacency(team), frontier = [{ id: from, cost: 0, path: [] }], best = new Map([[from, 0]]);
     while (frontier.length) {
@@ -83,7 +86,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       const current = frontier.shift();
       if (current.id === to) return Object.freeze(current.path.map(step => Object.freeze(step)));
       for (const edge of graph.get(current.id) || []) {
-        const nextCost = current.cost + routeCost(edge.route, now);
+        const nextCost = current.cost + routeCost(edge.route, effectiveNow);
         if ((best.get(edge.node) ?? Infinity) <= nextCost) continue;
         best.set(edge.node, nextCost);
         frontier.push({ id: edge.node, cost: nextCost, path: [...current.path, { routeId: edge.route.id, from: current.id, to: edge.node, distance: edge.route.distance }] });
