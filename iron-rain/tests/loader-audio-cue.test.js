@@ -24,7 +24,13 @@ test('does not retrigger while the loader remains in the same phase', () => {
   assert.equal(loaderAudioCue('rotate', cycle('rotate', .5)), null);
   assert.equal(loaderAudioCue('lock', cycle('lock', .98)), null);
   assert.equal(loaderAudioCue('idle', null), null);
-  assert.equal(loaderAudioCue('ram', cycle('lock', 1, true)), null);
+});
+
+test('keeps the final lock contact when a long frame completes the cycle', () => {
+  const cue = loaderAudioCue('ram', cycle('lock', 1, true));
+  assert.equal(cue.phase, 'lock');
+  assert.equal(cue.cue, 'lock');
+  assert.equal(loaderAudioCue('lock', cycle('lock', 1, true)), null);
 });
 
 test('mechanical flags remain derived from loader-arm instead of a second clock', () => {
