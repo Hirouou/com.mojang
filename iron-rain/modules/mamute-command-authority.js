@@ -31,7 +31,7 @@ export function createMamuteCommandAuthority({
   fireInventory = null,
 } = {}) {
   const sequences = new Map();
-  const acceptedFireShots = new Set();
+  const acceptedFireShots = new Map();
   const acceptedFireOrder = [];
   let accepted = 0, rejected = 0;
 
@@ -40,9 +40,9 @@ export function createMamuteCommandAuthority({
     return shotId ? `${playerId}:${shotId}` : null;
   }
 
-  function rememberFireShot(key) {
+  function rememberFireShot(key, shell) {
     if (!key) return;
-    acceptedFireShots.add(key);
+    acceptedFireShots.set(key, shell ?? null);
     acceptedFireOrder.push(key);
     while (acceptedFireOrder.length > FIRE_REPLAY_WINDOW) acceptedFireShots.delete(acceptedFireOrder.shift());
   }
@@ -90,8 +90,9 @@ export function createMamuteCommandAuthority({
     if (shotKey && acceptedFireShots.has(shotKey)) {
       sequences.set(playerId, seq);
       rejected += 1;
-      const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
-      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
+      const acceptedShell = acceptedFireShots.get(shotKey);
+      const ammoRemaining = inventory ? remainingShells(inventory, acceptedShell) : undefined;
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner, shotId, ...(inventory ? { shell: acceptedShell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
     }
 
     let shellReserved = false;
@@ -118,7 +119,7 @@ export function createMamuteCommandAuthority({
       return Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
     }
 
-    if (shotKey) rememberFireShot(shotKey);
+    if (shotKey) rememberFireShot(shotKey, shell);
     sequences.set(playerId, seq); accepted += 1;
     const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
     return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
