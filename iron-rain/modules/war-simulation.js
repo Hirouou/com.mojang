@@ -14,6 +14,7 @@ const finitePoint = point => point && Number.isFinite(point.x) && Number.isFinit
 const playerTeam = () => globalThis.ironRainEntry?.faction === 'axis' ? 'enemy' : 'ally';
 const frontDistance = point => finitePoint(point) ? Math.abs(point.x - controlLineX(point.y)) : Infinity;
 const LEGACY_GAME_SECTORS = new Set(['FALCON', 'BIRCH', 'CINDER', 'DAGGER', 'ECHO', 'FROST', 'LINHA 07']);
+const COMBAT_RESERVE_REAR_STEPS = Object.freeze([9_000, 12_000, 15_500, 19_000, 24_000]);
 
 function isLiveGameState(state) {
   if (state?.warSimulation?.strategicIntegration === true) return true;
@@ -116,9 +117,34 @@ function refreshCombatReserveContext(state) {
   if (!isLiveGameState(state)) return;
   state.warSimulation ||= {};
   const strategicMap = globalThis.ironRainStrategicMap;
-  state.warSimulation.combatReserveContext = typeof strategicMap?.combatReserveContext === 'function'
-    ? ({ sectorId, team }) => strategicMap.combatReserveContext(sectorId, team)
-    : null;
+  if (typeof strategicMap?.combatReserveContext !== 'function') {
+    state.warSimulation.combatReserveContext = null;
+    return;
+  }
+  state.warSimulation.combatReserveContext = ({ sectorId, team }) => {
+    const fieldReady = context => context?.territory?.owner === team && context.territory.contested === false &&
+      context.territory.structures?.some?.(type => type === 'outpost' || type === 'depot' || type === 'garage');
+    const direct = strategicMap.combatReserveContext(sectorId, team);
+    if (fieldReady(direct)) return direct;
+    if (!['ally', 'enemy'].includes(team) || typeof strategicMap.locate !== 'function') return null;
+
+    const front = state.sectors?.find(candidate => candidate.strategicSectorId === sectorId);
+    if (!front) return null;
+    const center = front.war ? getFrontGeometry(front).center : front;
+    const direction = team === 'ally' ? -1 : 1;
+    // Front sectors are deliberately contested/neutral on the strategic map.
+    // Walk only toward that faction's rear and let the canonical map choose the
+    // actual sector; combat-reserves still delegates route reachability to the
+    // shared strategic-logistics graph before admitting a single replacement.
+    for (const metres of COMBAT_RESERVE_REAR_STEPS) {
+      const located = strategicMap.locate({ x: center.x + direction * metres, y: center.y });
+      const staging = located?.sector;
+      if (!staging || staging.owner !== team) continue;
+      const context = strategicMap.combatReserveContext(staging.id, team);
+      if (fieldReady(context)) return context;
+    }
+    return null;
+  };
 }
 
 function routeInsideFriendly(from, to, team) {
