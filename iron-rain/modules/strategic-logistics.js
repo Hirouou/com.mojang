@@ -25,13 +25,14 @@ export function createLogisticsNode({ id, team, x = 0, y = 0, stock = {}, assets
   };
 }
 
-export function createSupplyRoute({ id, team, from, to, distance = 1_000 } = {}) {
+export function createSupplyRoute({ id, team, from, to, distance = 1_000, laneOffset = 3.2 } = {}) {
   return {
     id: String(id ?? `${from}-${to}`),
     team: team === 'ally' || team === 'enemy' ? team : null,
     from: String(from ?? ''),
     to: String(to ?? ''),
     distance: Math.max(1, Number(distance) || 1_000),
+    laneOffset: Math.max(0, Number(laneOffset) || 0),
     open: true,
     threat: 0,
     threatIntel: null,
@@ -58,14 +59,11 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       if (!route.open || route.team !== team) continue;
       const fromNode = nodeMap.get(route.from), toNode = nodeMap.get(route.to);
       if (!fromNode?.alive || !toNode?.alive) continue;
-      // Ownership changes are authoritative at the node. Even if a stale route
-      // has not been explicitly closed yet, supply must never path through a
-      // captured/neutral endpoint for the previous faction.
       if (fromNode.team !== team || toNode.team !== team) continue;
       if (!graph.has(route.from)) graph.set(route.from, []);
       if (!graph.has(route.to)) graph.set(route.to, []);
-      graph.get(route.from).push({ node: route.to, route });
-      graph.get(route.to).push({ node: route.from, route: { ...route, from: route.to, to: route.from } });
+      graph.get(route.from).push({ node: route.to, route, laneDirection: 'forward' });
+      graph.get(route.to).push({ node: route.from, route, laneDirection: 'return' });
     }
     return graph;
   }
@@ -95,7 +93,14 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         const nextCost = current.cost + routeCost(edge.route, effectiveNow);
         if ((best.get(edge.node) ?? Infinity) <= nextCost) continue;
         best.set(edge.node, nextCost);
-        frontier.push({ id: edge.node, cost: nextCost, path: [...current.path, { routeId: edge.route.id, from: current.id, to: edge.node, distance: edge.route.distance }] });
+        frontier.push({ id: edge.node, cost: nextCost, path: [...current.path, {
+          routeId: edge.route.id,
+          from: current.id,
+          to: edge.node,
+          distance: edge.route.distance,
+          laneDirection: edge.laneDirection,
+          laneOffset: edge.route.laneOffset,
+        }] });
       }
     }
     return null;
@@ -109,8 +114,6 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return Object.freeze({ ok: false, reason: 'invalid-endpoint' });
     if (!canPay(origin.stock, load)) return Object.freeze({ ok: false, reason: 'origin-stock-insufficient' });
     if (!canPayAssets(origin.assets, manifest)) return Object.freeze({ ok: false, reason: 'origin-assets-insufficient' });
-    // Dispatch time is monotonic. A delayed caller must not rewind threat intel
-    // and make an already-stale observation influence routing again.
     const path = route(team, origin.id, destination.id, { now: intelNow });
     if (!path) return Object.freeze({ ok: false, reason: 'route-cut' });
     debit(origin.stock, load);
@@ -126,8 +129,6 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       path: [...path],
       leg: 0,
       legProgress: 0,
-      // Malformed or unbounded speeds must never collapse physical travel into
-      // an instant delivery. Keep gameplay speeds finite and bounded.
       speed: safeConvoySpeed(speed),
       hp: 100,
       status: path.length ? 'moving' : 'arrived',
@@ -144,35 +145,14 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     if (!leg) return true;
     const stored = routeMap.get(leg.routeId);
     const fromNode = nodeMap.get(leg.from), toNode = nodeMap.get(leg.to);
-    return Boolean(
-      stored?.open
-      && stored.team === convoy.team
-      && fromNode?.alive
-      && toNode?.alive
-      && fromNode.team === convoy.team
-      && toNode.team === convoy.team
-    );
+    return Boolean(stored?.open && stored.team === convoy.team && fromNode?.alive && toNode?.alive && fromNode.team === convoy.team && toNode.team === convoy.team);
   }
 
   function routeTransitionEvent(type, convoy) {
     const leg = convoy.path[convoy.leg] || null;
-    return {
-      type,
-      convoyId: convoy.id,
-      team: convoy.team,
-      to: convoy.to,
-      kind: convoy.kind,
-      routeId: leg?.routeId ?? null,
-      fromNode: leg?.from ?? null,
-      toNode: leg?.to ?? null,
-    };
+    return { type, convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind, routeId: leg?.routeId ?? null, fromNode: leg?.from ?? null, toNode: leg?.to ?? null };
   }
 
-  // A convoy may only choose a detour while physically sitting on a route node.
-  // If a road closes after it already entered that leg, it stays blocked there
-  // rather than teleporting back to the junction to obtain a new path. The same
-  // physical rule applies to threat-aware replanning: open roads may be avoided
-  // only before the convoy commits to their segment.
   function rerouteFromCurrentNode(convoy) {
     const currentLeg = convoy.path[convoy.leg] || null;
     if (!currentLeg || convoy.legProgress > 1e-6) return null;
@@ -183,26 +163,25 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     convoy.path = [...prefix, ...detour];
     convoy.legProgress = 0;
     const nextLeg = convoy.path[convoy.leg] || null;
-    return {
-      previousRouteId,
-      routeId: nextLeg?.routeId ?? null,
-      fromNode: nextLeg?.from ?? currentLeg.from,
-      toNode: nextLeg?.to ?? null,
-    };
+    return { previousRouteId, routeId: nextLeg?.routeId ?? null, fromNode: nextLeg?.from ?? currentLeg.from, toNode: nextLeg?.to ?? null };
   }
 
   function rerouteEvent(convoy, change) {
-    return {
-      type: 'convoy-rerouted',
-      convoyId: convoy.id,
-      team: convoy.team,
-      to: convoy.to,
-      kind: convoy.kind,
-      previousRouteId: change.previousRouteId,
-      routeId: change.routeId,
-      fromNode: change.fromNode,
-      toNode: change.toNode,
-    };
+    return { type: 'convoy-rerouted', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind, previousRouteId: change.previousRouteId, routeId: change.routeId, fromNode: change.fromNode, toNode: change.toNode };
+  }
+
+  function convoyPosition(convoy) {
+    const leg = convoy.path[convoy.leg];
+    if (!leg) return null;
+    const fromNode = nodeMap.get(leg.from), toNode = nodeMap.get(leg.to);
+    if (!fromNode || !toNode) return null;
+    const dx = toNode.x - fromNode.x, dy = toNode.y - fromNode.y;
+    const geometryLength = Math.hypot(dx, dy);
+    const q = clamp(convoy.legProgress / Math.max(1, leg.distance), 0, 1);
+    const laneOffset = Math.max(0, Number(leg.laneOffset) || 0);
+    const nx = geometryLength > 1e-6 ? -dy / geometryLength : 0;
+    const ny = geometryLength > 1e-6 ? dx / geometryLength : 0;
+    return Object.freeze({ x: fromNode.x + dx * q + nx * laneOffset, y: fromNode.y + dy * q + ny * laneOffset, heading: Math.atan2(dy, dx), routeId: leg.routeId, laneDirection: leg.laneDirection || 'forward', laneOffset });
   }
 
   function step(dt, { damageByConvoy = {} } = {}) {
@@ -213,10 +192,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       convoy.hp = clamp(convoy.hp - Math.max(0, Number(damageByConvoy[convoy.id]) || 0), 0, 100);
       if (convoy.hp <= 0) {
         convoy.status = 'destroyed';
-        events.push({
-          type: 'convoy-destroyed', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind,
-          lostCargo: { ...convoy.cargo }, lostAssets: { ...convoy.assets },
-        });
+        events.push({ type: 'convoy-destroyed', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind, lostCargo: { ...convoy.cargo }, lostAssets: { ...convoy.assets } });
         continue;
       }
       const previousStatus = convoy.status;
@@ -234,9 +210,7 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         if (previousStatus === 'blocked') events.push(routeTransitionEvent('convoy-resumed', convoy));
       }
       convoy.status = 'moving';
-      if (previousStatus === 'blocked' && !events.some(event => event.type === 'convoy-resumed' && event.convoyId === convoy.id)) {
-        events.push(routeTransitionEvent('convoy-resumed', convoy));
-      }
+      if (previousStatus === 'blocked' && !events.some(event => event.type === 'convoy-resumed' && event.convoyId === convoy.id)) events.push(routeTransitionEvent('convoy-resumed', convoy));
       let travel = convoy.speed * elapsed;
       while (travel > 0 && convoy.leg < convoy.path.length) {
         if (convoy.legProgress <= 1e-6) {
@@ -249,29 +223,17 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         if (convoy.legProgress >= leg.distance - 1e-6) { convoy.leg += 1; convoy.legProgress = 0; }
         if (convoy.leg < convoy.path.length && !routeStillOpen(convoy)) {
           const reroute = rerouteFromCurrentNode(convoy);
-          if (reroute) {
-            events.push(rerouteEvent(convoy, reroute));
-            continue;
-          }
-          convoy.status = 'blocked';
-          events.push(routeTransitionEvent('convoy-blocked', convoy));
-          break;
+          if (reroute) { events.push(rerouteEvent(convoy, reroute)); continue; }
+          convoy.status = 'blocked'; events.push(routeTransitionEvent('convoy-blocked', convoy)); break;
         }
       }
       if (convoy.leg >= convoy.path.length) {
         const destination = nodeMap.get(convoy.to);
         if (destination?.alive && destination.team === convoy.team) {
-          credit(destination.stock, convoy.cargo);
-          creditAssets(destination.assets, convoy.assets);
-          convoy.status = 'arrived';
-          events.push({
-            type: 'convoy-arrived', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind,
-            cargo: { ...convoy.cargo }, assets: { ...convoy.assets },
-          });
+          credit(destination.stock, convoy.cargo); creditAssets(destination.assets, convoy.assets); convoy.status = 'arrived';
+          events.push({ type: 'convoy-arrived', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind, cargo: { ...convoy.cargo }, assets: { ...convoy.assets } });
         } else {
-          const wasBlocked = convoy.status === 'blocked';
-          convoy.status = 'blocked';
-          if (!wasBlocked) events.push(routeTransitionEvent('convoy-blocked', convoy));
+          const wasBlocked = convoy.status === 'blocked'; convoy.status = 'blocked'; if (!wasBlocked) events.push(routeTransitionEvent('convoy-blocked', convoy));
         }
       }
     }
@@ -282,8 +244,6 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     const item = routeMap.get(String(routeId));
     if (!item) return false;
     item.open = Boolean(open);
-    // `threat` is authoritative simulation state only. Routing deliberately does
-    // not consume it until the owning faction has received a valid report.
     if (Number.isFinite(threat)) item.threat = clamp(threat, 0, 1);
     return true;
   }
@@ -301,22 +261,9 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
 
   function snapshot() {
     return Object.freeze({
-      nodes: Object.freeze([...nodeMap.values()].map(node => Object.freeze({
-        ...node,
-        stock: Object.freeze({ ...node.stock }),
-        assets: Object.freeze({ ...node.assets }),
-      }))),
-      routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({
-        ...route,
-        knownThreat: knownRouteThreat(route),
-        threatIntel: route.threatIntel ? Object.freeze({ ...route.threatIntel }) : null,
-      }))),
-      convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({
-        ...convoy,
-        cargo: Object.freeze({ ...convoy.cargo }),
-        assets: Object.freeze({ ...convoy.assets }),
-        path: Object.freeze(convoy.path.map(step => Object.freeze({ ...step }))),
-      }))),
+      nodes: Object.freeze([...nodeMap.values()].map(node => Object.freeze({ ...node, stock: Object.freeze({ ...node.stock }), assets: Object.freeze({ ...node.assets }) }))),
+      routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({ ...route, knownThreat: knownRouteThreat(route), threatIntel: route.threatIntel ? Object.freeze({ ...route.threatIntel }) : null }))),
+      convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({ ...convoy, position: convoyPosition(convoy), cargo: Object.freeze({ ...convoy.cargo }), assets: Object.freeze({ ...convoy.assets }), path: Object.freeze(convoy.path.map(step => Object.freeze({ ...step }))) }))),
     });
   }
 
