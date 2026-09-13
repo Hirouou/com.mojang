@@ -79,10 +79,12 @@ test('first operator gesture resumes an interrupted mobile AudioContext without 
 test('hidden-page gestures never attempt autoplay recovery', async t => {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
+  const contexts = [];
   const listeners = new Map();
 
   class AudioContext {
     state = 'running'; currentTime = 1; sampleRate = 8000; destination = {}; resumeCalls = 0;
+    constructor() { contexts.push(this); }
     createGain() { return node('gain'); }
     createDynamicsCompressor() { return node('compressor'); }
     createOscillator() { return node('oscillator'); }
@@ -111,16 +113,15 @@ test('hidden-page gestures never attempt autoplay recovery', async t => {
   });
 
   audio.wake();
-  const ctx = audio.getStatus();
+  const ctx = contexts[0];
+  assert.equal(contexts.length, 1);
   assert.equal(ctx.state, 'running');
 
+  ctx.state = 'interrupted';
   globalThis.document.visibilityState = 'hidden';
-  const liveContext = globalThis.window.AudioContext;
-  // Reach the instance through the observable status transition: hide first,
-  // then leave the real context interrupted before dispatching the gesture.
-  // No new AudioContext may be created by this path.
-  const before = liveContext;
   listeners.get('pointerdown')?.({ pointerType: 'touch' });
   await Promise.resolve();
-  assert.equal(globalThis.window.AudioContext, before);
+  assert.equal(ctx.resumeCalls, 0, 'hidden pages must not attempt gesture-based autoplay recovery');
+  assert.equal(ctx.state, 'interrupted');
+  assert.equal(contexts.length, 1, 'hidden gestures must not rebuild the audio context');
 });
