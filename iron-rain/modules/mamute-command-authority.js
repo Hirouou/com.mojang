@@ -21,8 +21,9 @@ const FIRE_REPLAY_WINDOW = 128;
  * This is the boundary that lets one crew member drive while another aims/fires
  * without either client being allowed to issue commands from the other's post.
  *
- * When fireInventory is supplied, accepted fire commands also consume exactly
- * one shell from the canonical Mamute inventory after apply() accepts the shot.
+ * When fireInventory is supplied, fire reserves exactly one shell from the
+ * canonical Mamute inventory before apply() can commit the shot. Rejected shots
+ * restore that reservation so an accepted shot cannot exist without ammo.
  */
 export function createMamuteCommandAuthority({
   stationOwner = () => null,
@@ -50,6 +51,14 @@ export function createMamuteCommandAuthority({
     try { return typeof fireInventory === 'function' ? fireInventory() : fireInventory; } catch { return null; }
   }
 
+  function restoreShell(inventory, shell) {
+    if (!inventory?.shells || typeof inventory.shells[shell] !== 'number') return;
+    const capacity = Number(inventory.capacity?.[shell]);
+    inventory.shells[shell] = Number.isFinite(capacity)
+      ? Math.min(capacity, inventory.shells[shell] + 1)
+      : inventory.shells[shell] + 1;
+  }
+
   function receive(command) {
     const playerId = cleanId(command?.playerId ?? command?.sender);
     const type = cleanType(command?.type);
@@ -74,19 +83,27 @@ export function createMamuteCommandAuthority({
 
     const inventory = type === 'fire' ? currentFireInventory() : null;
     const shell = type === 'fire' ? command.payload?.shell : null;
-    if (inventory && !canFireShell(inventory, shell)) {
-      rejected += 1;
-      return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null });
+    let shellReserved = false;
+    if (inventory) {
+      if (!canFireShell(inventory, shell)) {
+        rejected += 1;
+        return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null });
+      }
+      shellReserved = consumeShell(inventory, shell, 1);
+      if (!shellReserved) {
+        rejected += 1;
+        return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null });
+      }
     }
 
     let applied = false;
     try { applied = apply(Object.freeze({ playerId, seq, type, station, payload: command.payload ?? null })) !== false; } catch { applied = false; }
-    if (!applied) { rejected += 1; return Object.freeze({ ok: false, reason: 'command-rejected', station, owner }); }
-
-    if (inventory && !consumeShell(inventory, shell, 1)) {
+    if (!applied) {
+      if (shellReserved) restoreShell(inventory, shell);
       rejected += 1;
-      return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null });
+      return Object.freeze({ ok: false, reason: 'command-rejected', station, owner });
     }
+
     if (shotKey) rememberFireShot(shotKey);
     sequences.set(playerId, seq); accepted += 1;
     const ammoRemaining = inventory ? inventory.shells?.[shell] : undefined;
