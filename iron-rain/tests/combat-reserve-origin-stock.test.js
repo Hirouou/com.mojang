@@ -34,3 +34,25 @@ test('reserve origin fails closed when every canonical depot is empty', () => {
 
   assert.equal(combatReserveOrigin({ strategicLogistics: logistics, team: 'enemy', to: 'front' }), null);
 });
+
+test('reserve origin accepts a stocked depot already used as the staging destination', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [
+      createLogisticsNode({ id: 'staging', team: 'ally', kind: 'depot', assets: { troops: 3 } }),
+    ],
+    routes: [],
+  });
+
+  assert.equal(combatReserveOrigin({ strategicLogistics: logistics, team: 'ally', to: 'staging' }), 'staging');
+});
+
+test('reserve origin does not treat an empty local depot as a stocked zero-hop source', () => {
+  const logistics = createStrategicLogistics({
+    nodes: [
+      createLogisticsNode({ id: 'staging', team: 'enemy', kind: 'depot', assets: { troops: 0 } }),
+    ],
+    routes: [],
+  });
+
+  assert.equal(combatReserveOrigin({ strategicLogistics: logistics, team: 'enemy', to: 'staging' }), null);
+});
