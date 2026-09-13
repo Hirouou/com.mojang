@@ -528,7 +528,9 @@ export function createCabinView(canvas, { onStation = () => {}, onWheelDelta = (
   function interact(){
     if(!active||latest.paused)return null;const hit=movement.focus();if(!hit)return null;
     if(hit.id==='extinguisher'||hit.id==='engine'){onService({type:hit.id});return hit.id;}
-    station=hit.id;stationEase=.6;clearPointer();unlockPointer();onStation(station);return station;
+    station=hit.id;stationEase=.6;clearPointer();unlockPointer();
+    if(onStation(station)===false){station=null;stationEase=0;return null;}
+    return station;
   }
   function leaveStation(){station=null;stationEase=0;clearPointer();unlockPointer();}
   function getWheelBounds(){
