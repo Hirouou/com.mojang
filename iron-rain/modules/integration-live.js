@@ -1,6 +1,7 @@
 import { installSpawnSelector, resolveSpawnChoice } from './spawn-selector.js';
 import { createWarAudio } from './war-audio.js';
 import { maintenanceEffectCadence } from './maintenance-effect-cadence.js';
+import { remoteMaintenanceFeedback } from './remote-maintenance-feedback.js';
 import { remoteHullImpactFeedback } from './remote-hull-impact-feedback.js';
 import { createArtilleryShotReplayGuard } from './artillery-shot-replay-guard.js';
 
@@ -44,7 +45,8 @@ function effectFromLocalShooter(effect) {
 }
 
 function showRemoteMaintenance(kind, progress) {
-  const detail = { active: true, kind, progress, remote: true };
+  const detail = remoteMaintenanceFeedback(kind, progress);
+  if (!detail) return;
   audio.maintenance(detail);
   try { dispatchEvent(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
 }
