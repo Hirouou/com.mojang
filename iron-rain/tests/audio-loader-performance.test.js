@@ -74,3 +74,26 @@ test('loader semantic intensity scales the same bounded contact without extra vo
   assert.deepEqual(gains, [.06, .17]);
   assert.equal(ctx.bufferAllocations, 1);
 });
+
+test('loader semantic contacts use distinct short frequency contours at the same voice budget', t => {
+  const { audio, contexts } = fixture(t);
+  audio.wake();
+  const ctx = contexts[0];
+  const contours = [];
+
+  for (const cue of ['clamp', 'swing', 'ram', 'lock']) {
+    const base = ctx.nodes.length;
+    audio.load({ cue, intensity: .7 });
+    const nodes = ctx.nodes.slice(base);
+    const voices = nodes.filter(node => node.started && node.stopped !== undefined);
+    const filter = nodes.find(node => node.kind === 'filter');
+    const oscillator = nodes.find(node => node.kind === 'oscillator' && node.started);
+    assert.equal(voices.length, 2, `${cue} keeps one noise plus one tone`);
+    assert.ok(voices.every(node => node.stopped <= ctx.currentTime + .14), `${cue} remains a short transient`);
+    assert.ok(filter && oscillator, `${cue} retains the compact filtered-noise + tone shape`);
+    contours.push(`${filter.frequency.value}:${oscillator.frequency.value}`);
+  }
+
+  assert.equal(new Set(contours).size, 4, 'clamp, swing, ram and lock should not collapse to one timbre');
+  assert.equal(ctx.bufferAllocations, 1, 'all semantic contacts keep sharing the same noise buffer');
+});
