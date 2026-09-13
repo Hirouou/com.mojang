@@ -106,7 +106,8 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
 
   const supplied = supplyValue >= COMBAT_RECOVERY_THRESHOLDS.supply;
   if (!supplied && SUPPLY_GATED_PHASES.has(phase)) {
-    const withdrawalPressure = ammoValue < COMBAT_RECOVERY_THRESHOLDS.ammo ||
+    const withdrawalPressure = phase === 'assault' ||
+      ammoValue < COMBAT_RECOVERY_THRESHOLDS.ammo ||
       moraleValue < COMBAT_RECOVERY_THRESHOLDS.morale ||
       suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression;
     return withdrawalPressure ? 'retreat' : 'wait_support';
