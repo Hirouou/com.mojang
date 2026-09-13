@@ -65,6 +65,15 @@ test('shaken and heavily suppressed formations withdraw before a hard break even
   assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', suppression: .65 }), 'hold', 'reduced suppression alone removes the combined withdrawal trigger');
 });
 
+test('depleted and heavily suppressed formations abandon the line before hard break', () => {
+  const base = { strength: 27.9, morale: .6, suppression: .66, ammo: .8, supply: .8 };
+  for (const phase of ['hold', 'suppress', 'wait_support', 'assault']) {
+    assert.equal(combatRecoveryPhase({ phase, ...base }), 'retreat', `${phase} withdraws under combined attrition and suppression`);
+  }
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', strength: 28 }), 'hold', 'recovery-strength line may still hold while pinned');
+  assert.equal(combatRecoveryPhase({ ...base, phase: 'hold', suppression: .65 }), 'hold', 'suppression recovery removes the early attrition withdrawal');
+});
+
 test('staging formations do not counter-attack until morale, suppression, ammo and supply are all ready', () => {
   const base = { phase: 'hold', strength: 55, morale: .7, suppression: .2, ammo: .8, supply: .8 };
   assert.equal(combatRecoveryPhase({ ...base, morale: .37 }), 'hold', 'shaken formation stays in cover');
