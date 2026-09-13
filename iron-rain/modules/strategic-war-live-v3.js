@@ -2,6 +2,7 @@ import { createStrategicHexMap, hexControl, neighboringHexIds } from './strategi
 import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, stepTerritoryDevelopment, territorySnapshot, DEVELOPMENT_PROJECTS } from './territory-development.js';
 import { chooseTerritoryProject, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
 import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from './strategic-logistics.js';
+import { strategicFrontPath } from './strategic-front-pressure.js';
 import { THEATRE_SIZE, lineSnapshot } from './theatre-control.js';
 
 const COLOR = Object.freeze({
@@ -336,7 +337,13 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
   }
 
   function drawFront() {
-    const line = lineSnapshot();
+    const fallback = lineSnapshot();
+    const line = strategicFrontPath({
+      sectors: [...theatre.records.values()].map(({ sector }) => sector),
+      width: THEATRE_SIZE.w,
+      height: THEATRE_SIZE.h,
+      fallback,
+    });
     ctx.save();
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#c7a65e22'; ctx.lineWidth = Math.max(8, scaled(10_500));
