@@ -30,9 +30,19 @@ test('critical replicated impact promotes every perceptible hull channel', () =>
 test('replicated intensity can strengthen but never mute canonical hull feedback', () => {
   const canonical = hullImpactFeedback({ damage: 20, kind: 'tank', inside: true });
   const muted = remoteHullImpactFeedback({ type: 'impact', payload: { damage: 20, kind: 'tank', intensity: .05 } });
+  const light = hullImpactFeedback({ damage: 1, kind: 'rifle', inside: true });
   const boosted = remoteHullImpactFeedback({ type: 'impact', payload: { damage: 1, kind: 'rifle', intensity: .95 } });
   assert.equal(muted.intensity, canonical.intensity);
   assert.equal(boosted.intensity, .95);
+  assert.equal(boosted.label, 'IMPACTO PESADO NO CASCO');
+  assert.ok(boosted.duration > light.duration);
+  assert.ok(boosted.cameraShake > light.cameraShake);
+  assert.ok(boosted.hullFlash > light.hullFlash);
+  assert.ok(boosted.dustKick > light.dustKick);
+  assert.ok(boosted.lampFlicker > light.lampFlicker);
+  assert.ok(boosted.metalRattle > light.metalRattle);
+  assert.ok(boosted.lowThump > light.lowThump);
+  assert.ok(boosted.sharpCrack > light.sharpCrack);
 });
 
 test('malformed events fail closed while transmitted intensity remains bounded', () => {
