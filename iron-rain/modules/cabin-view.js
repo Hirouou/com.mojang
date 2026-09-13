@@ -179,6 +179,7 @@ export function createCabinView(canvas, options = {}) {
   let scene = null;
   let view = null;
   let activeCrewStation = null;
+  let pendingCrewStation = null;
   let enteringCrewStation = null;
   let remoteLoading = null;
   let remoteRecoil = 0;
@@ -212,7 +213,11 @@ export function createCabinView(canvas, options = {}) {
     ...options,
     onStation(station) {
       const result = requestCrewStation(station);
-      if (!result?.ready) return false;
+      if (!result?.ready) {
+        pendingCrewStation = result?.pending ? station : null;
+        return false;
+      }
+      pendingCrewStation = null;
       activeCrewStation = station; enteringCrewStation = station;
       try { return originalOnStation?.(station); } finally { enteringCrewStation = null; }
     },
@@ -254,6 +259,14 @@ export function createCabinView(canvas, options = {}) {
   }
   globalThis.addEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
 
+  function cancelPendingCrewStation() {
+    if (!pendingCrewStation) return true;
+    const station = pendingCrewStation;
+    if (!releaseCrewStation(station)) return false;
+    pendingCrewStation = null;
+    return true;
+  }
+
   function leaveCrewStation() {
     if (activeCrewStation && enteringCrewStation !== activeCrewStation) {
       if (!releaseCrewStation(activeCrewStation)) return false;
@@ -263,8 +276,9 @@ export function createCabinView(canvas, options = {}) {
   }
 
   function onVisibilityChange() {
-    if (globalThis.document?.visibilityState !== 'hidden' || !activeCrewStation) return;
-    leaveCrewStation();
+    if (globalThis.document?.visibilityState !== 'hidden') return;
+    cancelPendingCrewStation();
+    if (activeCrewStation) leaveCrewStation();
   }
   globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
 
@@ -320,15 +334,17 @@ export function createCabinView(canvas, options = {}) {
     updateRemoteCrew,
     crewStation() { return activeCrewStation; },
     reset() {
+      if (pendingCrewStation) releaseCrewStation(pendingCrewStation);
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
-      activeCrewStation = enteringCrewStation = null; remoteLoading = null; remoteRecoil = remoteImpact = 0;
+      activeCrewStation = pendingCrewStation = enteringCrewStation = null; remoteLoading = null; remoteRecoil = remoteImpact = 0;
       canvas.style.transform = ''; canvas.style.filter = '';
       hullImpactVisual.reset(); loaderVisual.update(null); clearMaintenance(); core.reset(); crewVisuals.clear();
     },
-    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, crew: crewVisuals.snapshot(), loader: loaderVisual.snapshot(), hullImpact: hullImpactVisual.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
+    snapshot() { return { ...core.snapshot(), crewStation: activeCrewStation, pendingCrewStation, crew: crewVisuals.snapshot(), loader: loaderVisual.snapshot(), hullImpact: hullImpactVisual.snapshot(), remoteLoading: remoteLoading ? { ...remoteLoading } : null }; },
     dispose() {
+      if (pendingCrewStation) releaseCrewStation(pendingCrewStation);
       if (activeCrewStation) releaseCrewStation(activeCrewStation);
-      activeCrewStation = enteringCrewStation = null;
+      activeCrewStation = pendingCrewStation = enteringCrewStation = null;
       globalThis.removeEventListener?.('ironrain:shared-crew-effect', onSharedCrewEffect);
       globalThis.document?.removeEventListener?.('visibilitychange', onVisibilityChange);
       canvas.style.transform = ''; canvas.style.filter = '';
