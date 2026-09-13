@@ -29,40 +29,41 @@ function dueCycle({ strategicLogistics, territory, team = 'ally', to = `${team}-
   });
 }
 
-test('accepted reserve cycle consumes the delivered troop from canonical staging inventory', () => {
+test('accepted reserve cycle consumes only deployable staging troops', () => {
   const { front, strategicLogistics, territory } = makeFront('ally', 2);
   const result = dueCycle({ strategicLogistics, territory });
 
   assert.equal(result.ready, true);
   assert.equal(result.amount, 1);
   assert.equal(result.logistics.availableTroops, 2);
+  assert.equal(result.logistics.deployableTroops, 1);
   assert.equal(result.remainingTroops, 1);
   assert.equal(front.assets.troops, 1);
 });
 
-test('delivered troops cannot be reused by later due reserve cycles', () => {
-  const { front, strategicLogistics, territory } = makeFront('ally', 1);
+test('the last staging defender cannot be reused by later due reserve cycles', () => {
+  const { front, strategicLogistics, territory } = makeFront('ally', 2);
 
   const first = dueCycle({ strategicLogistics, territory });
   assert.equal(first.ready, true);
   assert.equal(first.amount, 1);
-  assert.equal(front.assets.troops, 0);
+  assert.equal(front.assets.troops, 1);
 
   const second = dueCycle({ strategicLogistics, territory });
   assert.equal(second.ready, false);
   assert.equal(second.reason, 'troops');
   assert.equal(second.amount, 0);
   assert.equal(second.nextTimer, 0);
-  assert.equal(front.assets.troops, 0);
+  assert.equal(front.assets.troops, 1);
 });
 
-test('physical reserve consumption stays symmetric between factions', () => {
+test('physical reserve garrison stays symmetric between factions', () => {
   for (const team of ['ally', 'enemy']) {
-    const { front, strategicLogistics, territory } = makeFront(team, 1);
+    const { front, strategicLogistics, territory } = makeFront(team, 2);
     const result = dueCycle({ strategicLogistics, territory, team });
     assert.equal(result.ready, true, team);
     assert.equal(result.amount, 1, team);
-    assert.equal(result.remainingTroops, 0, team);
-    assert.equal(front.assets.troops, 0, team);
+    assert.equal(result.remainingTroops, 1, team);
+    assert.equal(front.assets.troops, 1, team);
   }
 });
