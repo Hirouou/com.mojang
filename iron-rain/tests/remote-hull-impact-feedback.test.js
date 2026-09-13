@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { hullImpactFeedback } from '../modules/cabin-hit-feedback.js';
 import { remoteHullImpactFeedback } from '../modules/remote-hull-impact-feedback.js';
 
 test('replicated hull impacts preserve canonical local damage scaling', () => {
@@ -26,7 +27,15 @@ test('critical replicated impact promotes every perceptible hull channel', () =>
   assert.ok(result.sharpCrack > light.sharpCrack);
 });
 
-test('valid transmitted intensity is retained while malformed events fail closed', () => {
-  assert.equal(remoteHullImpactFeedback({ type: 'impact', payload: { intensity: .42 } }).intensity, .42);
+test('replicated intensity can strengthen but never mute canonical hull feedback', () => {
+  const canonical = hullImpactFeedback({ damage: 20, kind: 'tank', inside: true });
+  const muted = remoteHullImpactFeedback({ type: 'impact', payload: { damage: 20, kind: 'tank', intensity: .05 } });
+  const boosted = remoteHullImpactFeedback({ type: 'impact', payload: { damage: 1, kind: 'rifle', intensity: .95 } });
+  assert.equal(muted.intensity, canonical.intensity);
+  assert.equal(boosted.intensity, .95);
+});
+
+test('malformed events fail closed while transmitted intensity remains bounded', () => {
+  assert.equal(remoteHullImpactFeedback({ type: 'impact', payload: { intensity: 4 } }).intensity, 1);
   assert.equal(remoteHullImpactFeedback({ type: 'repair', payload: { intensity: 1 } }), null);
 });
