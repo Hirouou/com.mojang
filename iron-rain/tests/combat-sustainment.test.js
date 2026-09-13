@@ -19,11 +19,13 @@ const territory = Object.freeze({ owner: 'ally', contested: false, structures: [
 
 test('combat sustainment follows canonical route and field stock without creating supply', () => {
   const healthy = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80 }), territory, team: 'ally', to: 'field' });
-  const scarce = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 0 }), territory, team: 'ally', to: 'field' });
+  const low = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 1 }), territory, team: 'ally', to: 'field' });
+  const empty = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 0 }), territory, team: 'ally', to: 'field' });
   const cut = combatSustainmentSupply({ strategicLogistics: graph({ ammo: 80, connected: false }), territory, team: 'ally', to: 'field' });
 
   assert.ok(healthy > .6 && healthy <= 1, `expected healthy sustainment, got ${healthy}`);
-  assert.ok(scarce < .3, `expected scarce ammo to fall below recovery band, got ${scarce}`);
+  assert.ok(low > .08 && low < .3, `expected low-but-present ammo to remain scarce, got ${low}`);
+  assert.equal(empty, .08, 'empty field ammunition must fail closed even when the road and outpost are healthy');
   assert.equal(cut, .08);
   assert.equal(combatSustainmentSupply({ strategicLogistics: graph(), territory, team: 'enemy', to: 'field' }), .08);
 });
