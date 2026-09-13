@@ -164,7 +164,10 @@ export function createCabinMovement() {
         const targetX = Number.isFinite(s.focusX) ? s.focusX : s.x;
         const targetZ = Number.isFinite(s.focusZ) ? s.focusZ : s.z;
         const dx = targetX - position.x, dz = targetZ - position.z, distance = Math.hypot(dx, dz);
-        return { ...s, distance, facing: (dx * fx + dz * fz) / Math.max(.01, distance), reachable: canReachCabinPoint(position.x, position.z, targetX, targetZ) };
+        // Standing exactly on the operator-side anchor must not make the prompt
+        // disappear just because a zero-length vector has no facing direction.
+        const facing = distance <= .05 ? 1 : (dx * fx + dz * fz) / distance;
+        return { ...s, distance, facing, reachable: canReachCabinPoint(position.x, position.z, targetX, targetZ) };
       }).filter(s => s.reachable && s.distance <= s.radius && s.facing > .34).sort((a, b) => b.facing - a.facing || a.distance - b.distance)[0] || null;
     },
     reset() { position.x = 0; position.z = 2.4; yaw = 0; pitch = -.08; travelled = 0; },
