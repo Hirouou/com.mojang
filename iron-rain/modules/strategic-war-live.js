@@ -1,5 +1,6 @@
 import './integration-live.js';
 import { installMobileUXReview } from './mobile-ux-review.js';
+import { createTheatreMamuteSnapshotCycle } from './theatre-mamute-snapshot.js';
 import { installStrategicWarLive as installCanonicalStrategicWarLive } from './strategic-war-live-v3.js';
 
 /**
@@ -18,10 +19,12 @@ export function installStrategicWarLive(options = {}) {
   // v3 owns the canonical theatre/logistics instance. Preserve its read-only
   // reserve bridge before this façade replaces the global map surface.
   const combatReserveContext = globalThis.ironRainStrategicMap?.combatReserveContext;
+  const mamuteSnapshots = createTheatreMamuteSnapshotCycle();
   const mobileUx = installMobileUXReview(document);
   globalThis.ironRainStrategicMap = Object.freeze({
     locate: point => base.locate?.(point) || null,
     combatReserveContext: (sectorId, team) => combatReserveContext?.(sectorId, team) || null,
+    mamuteSnapshot: options => mamuteSnapshots.build(options),
     open: () => base.open?.(),
     close: () => base.close?.(),
     mobileUx,
@@ -31,6 +34,7 @@ export function installStrategicWarLive(options = {}) {
     ...base,
     mobileUx,
     destroy() {
+      mamuteSnapshots.reset();
       base.destroy?.();
       if (globalThis.ironRainStrategicMap?.mobileUx === mobileUx) delete globalThis.ironRainStrategicMap;
     },

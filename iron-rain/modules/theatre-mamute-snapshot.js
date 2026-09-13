@@ -46,3 +46,33 @@ export function buildTheatreMamuteSnapshot({
     mapContacts,
   });
 }
+
+/**
+ * Stateful live-orchestration seam for repeated theatre snapshots.
+ * Retention history is simulation-side only and resets whenever focus changes.
+ */
+export function createTheatreMamuteSnapshotCycle() {
+  let focusId = null;
+  let previousNearbyIds = Object.freeze([]);
+
+  function reset() {
+    focusId = null;
+    previousNearbyIds = Object.freeze([]);
+  }
+
+  function build(options = {}) {
+    const requestedFocusId = typeof options.focusId === 'string' ? options.focusId.trim() : '';
+    const history = requestedFocusId && requestedFocusId === focusId ? previousNearbyIds : [];
+    const snapshot = buildTheatreMamuteSnapshot({ ...options, previousNearbyIds: history });
+    if (!snapshot) {
+      reset();
+      return null;
+    }
+
+    focusId = snapshot.focus.id;
+    previousNearbyIds = Object.freeze(snapshot.nearby.map(record => record?.id).filter(Boolean));
+    return snapshot;
+  }
+
+  return Object.freeze({ build, reset });
+}
