@@ -28,6 +28,35 @@ export function localMissionFeed({
   }).map(mission => Object.freeze({ ...mission, distance: dist(playerPosition, mission) })));
 }
 
+/**
+ * Nearby strategic convoys are candidates for tactical materialization. Friendly
+ * traffic can be materialized from the canonical logistics snapshot; hostile
+ * traffic requires an explicit earned observation id so this seam cannot turn
+ * the distant simulation into an omniscient local sensor.
+ */
+export function localConvoyMaterializationFeed({
+  playerPosition,
+  playerTeam = 'ally',
+  convoys = [],
+  observedEnemyIds = [],
+  localRadius = 4_500,
+} = {}) {
+  if (!playerPosition || !['ally', 'enemy'].includes(playerTeam)) return Object.freeze([]);
+  const observed = new Set(observedEnemyIds || []);
+  const radius = Math.max(250, Number(localRadius) || 4_500);
+  return Object.freeze((convoys || []).filter(convoy => {
+    if (!convoy?.id || !convoy.position) return false;
+    if (!['moving', 'blocked'].includes(convoy.status)) return false;
+    if (!Number.isFinite(convoy.position.x) || !Number.isFinite(convoy.position.y)) return false;
+    if (dist(playerPosition, convoy.position) > radius) return false;
+    return convoy.team === playerTeam || observed.has(convoy.id);
+  }).sort((a, b) => dist(playerPosition, a.position) - dist(playerPosition, b.position)).map(convoy => Object.freeze({
+    ...convoy,
+    position: Object.freeze({ ...convoy.position }),
+    distance: dist(playerPosition, convoy.position),
+  })));
+}
+
 /** A local fire request cannot ask a Mamute to shoot beyond its physical range. */
 export function missionInWeaponRange(mission, position, maxRange) {
   if (!mission || !position || !Number.isFinite(maxRange) || maxRange <= 0) return false;
