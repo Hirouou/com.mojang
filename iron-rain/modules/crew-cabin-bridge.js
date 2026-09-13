@@ -45,7 +45,14 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     pendingStations.clear();
   }
 
-  function failClosedFrame(dt = 0) {
+  function releaseSnapshotStation(snapshot) {
+    const station = typeof snapshot?.station === 'string' ? snapshot.station : null;
+    if (!station) return false;
+    return releaseStationGate(runtime, station);
+  }
+
+  function failClosedFrame(dt = 0, snapshot = null) {
+    releaseSnapshotStation(snapshot);
     try { cabin?.leaveStation?.(); } catch {}
     abandonPendingStations();
     cabin?.updateRemoteCrew?.([], clampDt(dt));
@@ -86,7 +93,7 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     reconcilePendingIntent(snapshot);
     const localPose = crewLocalPoseFromCabinSnapshot(snapshot);
     if (!localPose || typeof runtime?.update !== 'function' || typeof runtime?.renderSamples !== 'function' || typeof cabin?.updateRemoteCrew !== 'function') {
-      return failClosedFrame(dt);
+      return failClosedFrame(dt, snapshot);
     }
 
     let status = null;
@@ -95,13 +102,13 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
       status = at === undefined ? runtime.update(localPose) : runtime.update(localPose, at);
       const identityChanged = rememberRuntimeIdentity(status);
       if (guestDisconnected(status) || identityChanged) {
-        return failClosedFrame(dt);
+        return failClosedFrame(dt, snapshot);
       }
       remotes = at === undefined
         ? runtime.renderSamples(undefined, delay)
         : runtime.renderSamples(at, delay);
     } catch {
-      return failClosedFrame(dt);
+      return failClosedFrame(dt, snapshot);
     }
     const list = Array.isArray(remotes) ? remotes : [];
     cabin.updateRemoteCrew(list, clampDt(dt));
@@ -109,6 +116,9 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   }
 
   function clear() {
+    let snapshot = null;
+    try { snapshot = cabin?.snapshot?.() || null; } catch { snapshot = null; }
+    releaseSnapshotStation(snapshot);
     try { cabin?.leaveStation?.(); } catch {}
     abandonPendingStations();
     abandonedStations.clear();
