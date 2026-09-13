@@ -47,6 +47,18 @@ export function canOccupyCabin(x, z, radius = .21) {
   if (x < CABIN_BOUNDS.minX + radius || x > CABIN_BOUNDS.maxX - radius || z < CABIN_BOUNDS.minZ + radius || z > CABIN_BOUNDS.maxZ - radius) return false;
   return !CABIN_OBSTACLES.some(b => circleHitsBox(x, z, radius, b));
 }
+/** Direct collision-safe reach for station interaction; prevents use through machinery/walls. */
+export function canReachCabinPoint(fromX, fromZ, toX, toZ, radius = .21) {
+  if (![fromX, fromZ, toX, toZ, radius].every(Number.isFinite) || radius < 0) return false;
+  if (!canOccupyCabin(fromX, fromZ, radius) || !canOccupyCabin(toX, toZ, radius)) return false;
+  const distance = Math.hypot(toX - fromX, toZ - fromZ);
+  const steps = Math.max(1, Math.ceil(distance / .08));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (!canOccupyCabin(fromX + (toX - fromX) * t, fromZ + (toZ - fromZ) * t, radius)) return false;
+  }
+  return true;
+}
 /** Physical compartment for a valid crew position, independent of rendering. */
 export function cabinSectionAt(x, z) {
   if (!canOccupyCabin(x, z)) return null;
@@ -152,8 +164,8 @@ export function createCabinMovement() {
         const targetX = Number.isFinite(s.focusX) ? s.focusX : s.x;
         const targetZ = Number.isFinite(s.focusZ) ? s.focusZ : s.z;
         const dx = targetX - position.x, dz = targetZ - position.z, distance = Math.hypot(dx, dz);
-        return { ...s, distance, facing: (dx * fx + dz * fz) / Math.max(.01, distance) };
-      }).filter(s => s.distance <= s.radius && s.facing > .34).sort((a, b) => b.facing - a.facing || a.distance - b.distance)[0] || null;
+        return { ...s, distance, facing: (dx * fx + dz * fz) / Math.max(.01, distance), reachable: canReachCabinPoint(position.x, position.z, targetX, targetZ) };
+      }).filter(s => s.reachable && s.distance <= s.radius && s.facing > .34).sort((a, b) => b.facing - a.facing || a.distance - b.distance)[0] || null;
     },
     reset() { position.x = 0; position.z = 2.4; yaw = 0; pitch = -.08; travelled = 0; },
     crewPose() { return cabinCrewPose({ x: position.x, z: position.z, yaw, pitch }); },
