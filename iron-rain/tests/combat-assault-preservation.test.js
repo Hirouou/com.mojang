@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COMBAT_RECOVERY_THRESHOLDS, combatRecoveryPhase } from '../modules/combat-recovery.js';
+import { COMBAT_OFFENSIVE_THRESHOLDS, COMBAT_RECOVERY_THRESHOLDS, combatRecoveryPhase } from '../modules/combat-recovery.js';
 
 const assault = {
   phase: 'assault',
@@ -22,4 +22,34 @@ test('recovery-strength formation can keep using the existing tactical selector'
 test('the same depleted strength keeps a composed defensive line in cover instead of counter-attacking', () => {
   const depleted = COMBAT_RECOVERY_THRESHOLDS.strength - .1;
   assert.equal(combatRecoveryPhase({ ...assault, phase: 'hold', strength: depleted }), 'hold');
+});
+
+test('active assault withdraws when offensive ammunition or supply readiness is lost', () => {
+  const strength = COMBAT_RECOVERY_THRESHOLDS.strength + 12;
+  assert.equal(combatRecoveryPhase({
+    ...assault,
+    strength,
+    ammo: COMBAT_OFFENSIVE_THRESHOLDS.ammo - .01
+  }), 'retreat');
+  assert.equal(combatRecoveryPhase({
+    ...assault,
+    strength,
+    supply: COMBAT_OFFENSIVE_THRESHOLDS.supply - .01
+  }), 'retreat');
+});
+
+test('defensive line waits for support when the same offensive logistics band is missed', () => {
+  const strength = COMBAT_RECOVERY_THRESHOLDS.strength + 12;
+  assert.equal(combatRecoveryPhase({
+    ...assault,
+    phase: 'hold',
+    strength,
+    ammo: COMBAT_OFFENSIVE_THRESHOLDS.ammo - .01
+  }), 'wait_support');
+  assert.equal(combatRecoveryPhase({
+    ...assault,
+    phase: 'hold',
+    strength,
+    supply: COMBAT_OFFENSIVE_THRESHOLDS.supply - .01
+  }), 'wait_support');
 });
