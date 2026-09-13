@@ -122,24 +122,35 @@ function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
   }
   group.visible = false;
   let energy = 0;
+  let flashEnergy = 0;
+  let dustEnergy = 0;
+  let flickerEnergy = 0;
   let age = 1;
 
-  function kick(intensity) {
-    energy = Math.max(energy, clamp01(intensity));
+  function kick(feedback) {
+    const intensity = clamp01(feedback?.intensity ?? feedback);
+    energy = Math.max(energy, intensity);
+    flashEnergy = Math.max(flashEnergy, clamp01(feedback?.hullFlash ?? intensity));
+    dustEnergy = Math.max(dustEnergy, clamp01(feedback?.dustKick ?? intensity));
+    flickerEnergy = Math.max(flickerEnergy, clamp01(feedback?.lampFlicker ?? 0));
     age = 0;
-    group.visible = energy > .01;
+    group.visible = energy > .01 || dustEnergy > .01;
   }
 
   function update(dt) {
     const step = Math.min(.1, Math.max(0, Number(dt) || 0));
     age += step;
     energy = Math.max(0, energy - step * 1.85);
+    flashEnergy = Math.max(0, flashEnergy - step * 2.6);
+    dustEnergy = Math.max(0, dustEnergy - step * 1.65);
+    flickerEnergy = Math.max(0, flickerEnergy - step * 3.4);
     const motionAge = reducedMotion ? 0 : age;
     const burst = reducedMotion ? 0 : Math.max(0, 1 - age * 2.2);
-    flash.intensity = energy * 6.2;
-    dustMaterial.opacity = Math.min(.62, energy * .68);
+    const flicker = reducedMotion ? flickerEnergy * 1.6 : flickerEnergy * (1.3 + Math.abs(Math.sin(age * 83)) * 2.2);
+    flash.intensity = flashEnergy * 17 + flicker;
+    dustMaterial.opacity = Math.min(.68, dustEnergy * .72);
     shardMaterial.opacity = Math.min(.82, energy * .9);
-    shardMaterial.emissiveIntensity = energy * .42;
+    shardMaterial.emissiveIntensity = flashEnergy * 1.15;
     particles.forEach((particle, i) => {
       const seed = particle.userData.seed;
       const spread = .16 + (i % 5) * .08;
@@ -155,14 +166,20 @@ function createHullImpactVisual(scene, { reducedMotion = false } = {}) {
       );
       particle.scale.setScalar(reducedMotion ? .82 : .55 + burst * (.8 + (i % 4) * .16));
     });
-    group.visible = energy > .015;
+    group.visible = energy > .015 || dustEnergy > .015;
   }
 
   return {
     kick,
     update,
-    reset() { energy = 0; age = 1; flash.intensity = 0; dustMaterial.opacity = shardMaterial.opacity = 0; group.visible = false; },
-    snapshot() { return { active: group.visible, intensity: energy }; },
+    reset() {
+      energy = flashEnergy = dustEnergy = flickerEnergy = 0;
+      age = 1;
+      flash.intensity = 0;
+      dustMaterial.opacity = shardMaterial.opacity = 0;
+      group.visible = false;
+    },
+    snapshot() { return { active: group.visible, intensity: energy, flash: flashEnergy, dust: dustEnergy, flicker: flickerEnergy }; },
     dispose() {
       scene.remove(group);
       scene.remove(flash);
@@ -251,7 +268,7 @@ export function createCabinView(canvas, options = {}) {
   function applyHullImpact(feedback) {
     if (!feedback?.active) return;
     remoteImpact = Math.max(remoteImpact, feedback.intensity);
-    hullImpactVisual.kick(feedback.intensity);
+    hullImpactVisual.kick(feedback);
   }
 
   function onLocalHullImpact(event) {
