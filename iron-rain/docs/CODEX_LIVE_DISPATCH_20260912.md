@@ -1,105 +1,129 @@
 # IRON RAIN — CODEX LIVE DISPATCH — 2026-09-12
 
-This file is the live coordination board while the Codex P0 multiplayer mission is running. Read it together with `GITHUB_HANDOFF.md`, `ACTIVE_USER_DIRECTIVES_20260912.md`, `MULTI_AGENT_CONTROL.md`, `POST_CODEX_ROUTING_20260912.md`, `AGENT_LOG.md` and the active Codex request.
+This file is the live coordination board while the Codex P0 multiplayer mission is running. Read it together with `GITHUB_HANDOFF.md`, `ACTIVE_USER_DIRECTIVES_20260912.md`, `MULTI_AGENT_CONTROL.md`, `LEAD_SPRINT_20260912.md`, `POST_CODEX_ROUTING_20260912.md`, `AGENT_LOG.md` and the active Codex requests.
 
-## Active gate
+## OWNER OVERRIDE — 21:32 BRT
+Iron Rain is ONLINE-FIRST and SERVER-AUTHORITATIVE. No player/browser owns the persistent war. Any older `host creates room`, `host + guests` or `single-player fallback` language is legacy transport wording only and must not define the final architecture.
 
-Codex owns the current real multiplayer transport/integration audit in `docs/codex-requests/IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md` while its status is `IN_PROGRESS`.
+The server/backend owns the theatre and persistent Mamute state. ALIADOS and EIXO share the same theatre in different faction-bound Mamutes. A Mamute may have 0–3 connected crew and still remains an entity of the war. Leaving the vehicle/game never resets the theatre.
 
-No other agent may build a competing transport, signaling layer, lobby stack or alternate crew authority while this gate is active. Agents must continue independent work and prepare contracts that consume the Codex result instead of guessing it.
+The next meaningful combat checkpoint is now explicit: player A in an ALIADOS Mamute and player B in an EIXO Mamute, same persistent theatre; A fires, shared authority validates command/station/ammo and resolves impact/damage exactly once, then both clients receive the same result.
 
-## What Codex must prove before LEAD accepts P0
+## OVERNIGHT EXECUTION GATE — ALL AGENTS
+Every scheduled execution must now aim for a LARGE INTEGRATED SLICE, not a micro-helper. A cycle counts as complete only if it produces either:
+- a player-visible/testable change on the live path; OR
+- a structural integration directly required for persistent server authority / multi-Mamute combat.
 
-Evidence should be browser/device based whenever the environment allows. The acceptance matrix is:
+Tests and helpers are supporting work, not the headline result. Once a foundation exists, the next cycle should consume it. If a hotspot is occupied, take an adjacent high-impact integration instead of waiting. Record concrete blockers only when they are real and reproducible.
 
-1. PC -> PC: host creates a Mamute session and another PC joins without raw SDP/manual signaling.
-2. PC -> phone/mobile viewport: same path remains usable and single-player still works when multiplayer is unused.
-3. Capacity: 1, 2 and 3 occupants work; the 4th occupant is rejected cleanly.
-4. Faction lock: an EIXO player cannot enter an ALIADOS Mamute and vice versa.
-5. Same war: choosing ALIADOS/EIXO changes faction membership, not the theatre instance.
-6. Station exclusivity: two peers can operate different stations simultaneously, but two peers cannot own the same physical station.
-7. Disconnect: station ownership and visual presence release after leave/timeout.
-8. Reconnect: a returning peer can rejoin without duplicating avatar, seat or station authority.
-9. Pose/presence: remote crew pose reaches the existing `crew-session` / `crew-replication` / visual chain; remote packets never drive local camera/input.
-10. Shared Mamute state: shot/reload/impact/maintenance events have one authoritative outcome and do not double-fire per client.
-11. Compatibility: desktop mouse path and current mobile physical 3D AIM controls remain intact; mobile must not resurrect duplicate lower azimuth/elevation UI.
-12. Public-test statement: Codex must explicitly say whether a real friend on another device can test now; if not, identify the exact blocker and minimal next infrastructure step.
+### FP VISUALS + AUDIO — HIGH URGENCY
+The owner explicitly reports that visual progress is not perceptible enough. Overnight visual cycles must change the rendered/audio experience, not only add tests/contracts.
+Priority order:
+1. consume the existing loader arm in the real cabin renderer and remove the magical/legacy reload presentation;
+2. integrate shared hull-hit feedback visibly/audibly in the cabin: shake + light/dust/metal + crack/thump/rattle scaled by damage;
+3. show extinguisher spray/foam and mechanical repair feedback/progress in the real interior;
+4. fix floating/misaligned props and improve industrial depth/readability without replacing the cabin renderer;
+5. preserve mobile physical 3D AIM controls, compact CARGA/DISPARAR and desktop behavior.
 
-Failures in items 1–7 remain P0. Do not hide them under map/content expansion.
+A visual cycle that only adds a presentation test without changing the rendered path is incomplete unless it fixes a P0 regression blocking the build.
 
-## While Codex is still IN_PROGRESS — allowed preparation by agents
+## Active gates
+
+### Codex P0 transport / multiplayer
+Codex owns the real cross-device transport/integration audit in `docs/codex-requests/IR-CODEX-20260912-1608-LEAD-real-multiplayer-transport.md` while `IN_PROGRESS`.
+
+No other agent may build a competing transport/signaling/lobby stack or alternate network authority. Agents may prepare/consume independent seams and integrate visible systems around it.
+
+### Codex P0 persistent world authority
+`docs/codex-requests/IR-CODEX-20260912-1620-LEAD-persistent-war-authority.md` is the persistent-server/backend half of the same P0 direction. It must not recommend player-host world authority.
+
+## What must be proven before LEAD calls multiplayer/server direction ready
+
+### Phase 1 — same Mamute / crew
+1. PC -> PC real transport without raw SDP/manual signaling.
+2. PC -> phone/mobile on the same supported path.
+3. 1, 2 and 3 occupants work; 4th occupant is rejected.
+4. Faction lock: opposite faction cannot enter the same Mamute.
+5. Station exclusivity: different stations simultaneous; same station rejected.
+6. Disconnect releases station/presence; reconnect does not duplicate avatar/seat/authority.
+7. Remote pose reaches existing runtime/replication/visual chain; packets never move local camera/input.
+8. Shared Mamute fire/reload/impact/maintenance has one authoritative outcome and does not double-fire per client.
+
+### Phase 2 — persistent theatre / opposing Mamutes
+9. ALIADOS and EIXO clients connect to the SAME theatre id.
+10. Each faction can have its own Mamute in that theatre; creating a Mamute never creates a new war.
+11. Mamute identity/state survives crew disconnect.
+12. A fire command is validated by shared authority, consumes ammo exactly once and produces one projectile/outcome.
+13. Target Mamute damage/impact is resolved once and both clients receive the same result.
+14. Disconnecting all crew does not reset territory/Mamutes/theatre snapshot.
+15. Reconnect reconstructs a consistent persistent snapshot.
+16. Public-test statement: clearly say whether a real friend can test cross-device now; otherwise name the exact backend/infrastructure blocker.
+
+Failures in Phase 1 or absence of a concrete Phase 2 authority path remain P0.
+
+## While Codex transport is still IN_PROGRESS — routing by workstream
 
 ### FP SYSTEMS
-- Do not touch Codex-owned transport/signaling hotspots unless fixing a clearly isolated regression.
-- Prepare consumers for one canonical crew runtime only.
-- Preserve compact local pose -> runtime/session -> renderer sample chain.
-- Prepare station claim/release UI states, but do not invent a second authority layer.
+- Keep one canonical crew runtime/bridge only.
+- Harden presence/station cleanup on leave/error/reconnect.
+- Prepare consumers for server-assigned theatre/Mamute identity; do not put network code in cabin renderer/controls.
+- Do not resurrect an offline/single-player cabin path; one-player means one connected crew member.
 
 ### FP VISUALS + AUDIO
-- Continue independent loader arm, repair/extinguisher and hull-hit feedback work.
-- Remote players must remain one low-poly body each, maximum two remotes visible inside one Mamute.
-- Do not tune subjective lighting/audio without real screenshots/device QA.
+- Execute the high-urgency visible list above.
+- Remote players remain one low-poly body each, maximum two remotes visible inside one Mamute.
+- Shared impacts/reload/maintenance must be presentation of canonical events, never alternate authority.
 
 ### WORLD WAR
-Prepare the shared-theatre model independently of network transport:
-- mandatory first choice: `ALIADOS` blue / `EIXO` green;
-- one canonical war shared by both factions;
-- large hex regions containing smaller capturable sectors;
-- coherent roughly split opening front, not random deep enemy pockets;
-- region ownership resolves only when its internal sectors resolve;
-- multiple Mamutes are independent entities inside that same theatre, never cloned wars.
-
-Each Mamute record must be able to carry at least: stable vehicle/session id, faction, strategic position/sector, crew occupancy/count, current deployment state and shared finite ammunition reference/state. Do not make the crew host the owner of the global war.
+- One canonical persistent theatre shared by both factions.
+- Large hex regions + internal sectors; coherent front; neutral/disputed corridor.
+- Multiple Mamutes are independent faction-bound entities in the same theatre.
+- Each Mamute record carries stable id, faction, strategic region/sector, crew occupancy, deployment state, finite ammo/health reference/state.
+- Build toward serializable snapshot + event/command seams; `persistent-war-clock.js` remains scheduler only.
+- No regular force deployment behind enemy lines except explicit raid/recon/partisan/infiltration.
 
 ### COMBAT AI
-- Derive normal force placement from coherent territory/front ownership.
-- Keep both factions on symmetric AI/logistics/construction/reinforcement rules.
-- Behind-line enemies require explicit recon/raid/partisan/infiltration behavior.
+- Consume canonical territory/logistics/intel in the live simulation.
+- Same rules for both factions.
+- No magical reserves/construction/ammo.
+- Prepare target/engagement results to consume authoritative Mamute/world events rather than local client truth.
 
 ### ARTILLERY
-- Preserve physical 3D AIM controls on mobile.
-- Keep only compact `CARGA +/-` and `DISPARAR` at right on touch AIM station.
-- Prepare station-gated aim/load/fire calls so a single authoritative action can replicate without duplicate shots/reloads.
+- Preserve mobile physical 3D AIM.
+- Keep compact CARGA +/- and DISPARAR on touch.
+- One station-gated aim/load/fire chain only.
+- Fire must be representable as a server command with dedupe/idempotency and finite-ammo consumption.
+- Prepare a cross-faction Mamute-vs-Mamute test path without duplicating local/remote shots.
 
-## Automatic routing the moment Codex returns
+## Automatic routing when Codex returns
+Every agent checks both Codex requests before choosing the next task.
 
-Every agent must check the active Codex request before selecting its next task.
+If transport returns `DONE`:
+1. LEAD/FP SYSTEMS consumes returned adapter/API and runs the Phase 1 matrix on the real game path.
+2. WORLD WAR/Persistent authority immediately binds the transport to one shared theatre and persistent Mamute identities.
+3. ARTILLERY wires canonical fire command/result flow to shared authority.
+4. FP VISUALS + AUDIO makes remote/impact/reload/maintenance results perceptible from those canonical events.
+5. WORLD WAR exposes faction-eligible Mamutes in the same theatre/map.
+6. COMBAT AI consumes the same territory/logistics/world state.
+7. LEAD runs the Phase 2 opposing-Mamute checkpoint.
 
-If status becomes `DONE`:
-1. LEAD/FP SYSTEMS consumes the returned adapter/API and performs the acceptance matrix above in the real game path.
-2. FP SYSTEMS finishes host/join + station claim/release + disconnect/reconnect integration.
-3. FP VISUALS + AUDIO validates remote bodies and shared interior feedback, then fixes only evidence-backed visual problems.
-4. WORLD WAR connects faction -> eligible Mamute -> session selection to the canonical theatre and begins player-visible large-hex/internal-sector map integration.
-5. WORLD WAR introduces multiple faction-bound Mamutes in the SAME theatre: new players may join an eligible existing Mamute or create a new Mamute for their faction.
-6. COMBAT AI consumes the coherent territory model for frontline placement and local battle materialization.
-7. ARTILLERY gates physical stations through multiplayer authority and verifies one shared ammo/reload/fire outcome.
+If transport returns `BLOCKED`:
+1. LEAD records the exact blocker.
+2. No agent invents random competing transport.
+3. Persistent-authority request must recommend the minimum backend/service that solves the blocker while preserving GitHub Pages client and no secret in browser.
+4. Visuals/World War/Combat AI/Artillery continue large independent integrated slices.
 
-If status becomes `BLOCKED`:
-1. LEAD records the exact blocker, not a generic "multiplayer failed" note.
-2. No agent invents a new transport blindly.
-3. FP SYSTEMS prepares only the minimum seam required by Codex's recommended next option.
-4. WORLD WAR / Combat AI / Artillery / Visuals continue independent work that does not assume the missing transport exists.
-
-## New-player / new-Mamute product flow after P0 transport is accepted
-
-Target entry flow:
-
-`ABRIR JOGO -> ESCOLHER FACÇÃO -> VER GUERRA/MAPA -> ESCOLHER MAMUTE ELEGÍVEL ou CRIAR NOVO MAMUTE -> ENTRAR NA TRIPULAÇÃO -> ESCOLHER/OCUPAR POSTO`
+## Target player flow
+`ABRIR JOGO -> CONECTAR AO SERVIDOR/THEATRE -> ESCOLHER FACÇÃO -> VER GUERRA/MAPA -> ESCOLHER MAMUTE ELEGÍVEL ou CRIAR NOVO MAMUTE NA MESMA GUERRA -> ENTRAR -> OCUPAR POSTO`
 
 Rules:
-- ALIADOS and EIXO remain in the same persistent theatre.
-- A Mamute belongs to exactly one faction at a time.
-- Maximum 3 crew inside one Mamute.
-- A new Mamute is another vehicle in the same war, not a new copy of the war.
-- Multiple Mamutes from both factions may coexist on different sectors/fronts.
-- A player may not join an opposing-faction Mamute.
-- Vehicle position must correspond to a real strategic sector/region, not an arbitrary detached lobby location.
-- Disconnecting the last crew member must not reset territorial war state.
-
-## Next meaningful player-visible checkpoint
-
-One player on PC selects ALIADOS, creates a Mamute, and enters it. A second player on another PC or phone selects ALIADOS, sees that Mamute on the same war, joins it, sees the host inside, and takes another station. A third may join; a fourth cannot. An EIXO player sees the same strategic war but cannot enter the ALIADOS Mamute; they can create/join an EIXO Mamute elsewhere on the same map. Multiple Mamutes appear as faction-bound vehicles attached to sectors of a coherent large-region/internal-sector front.
+- ALIADOS and EIXO share one persistent theatre.
+- Mamute belongs to one faction.
+- Maximum 3 crew per Mamute.
+- New Mamute = new vehicle in existing war, never a new war instance.
+- Opposite faction cannot enter that Mamute but can occupy/create its own vehicle in the same theatre.
+- Strategic position corresponds to a real region/sector.
+- Zero crew does not erase or pause the war.
 
 ## User relay rule
-
-The project owner must not need to copy Codex output between agents. Codex writes its result to GitHub; agents consume it from GitHub and route work from this file plus `POST_CODEX_ROUTING_20260912.md`.
+The owner must not relay Codex output manually. Codex writes to GitHub; all agents consume the result from the shared docs/requests and continue automatically.
