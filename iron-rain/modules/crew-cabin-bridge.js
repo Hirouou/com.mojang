@@ -33,10 +33,17 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
       return Object.freeze({ status: null, remoteCount: 0 });
     }
 
-    const status = at === undefined ? runtime.update(localPose) : runtime.update(localPose, at);
-    const remotes = at === undefined
-      ? runtime.renderSamples(undefined, delay)
-      : runtime.renderSamples(at, delay);
+    let status = null;
+    let remotes = [];
+    try {
+      status = at === undefined ? runtime.update(localPose) : runtime.update(localPose, at);
+      remotes = at === undefined
+        ? runtime.renderSamples(undefined, delay)
+        : runtime.renderSamples(at, delay);
+    } catch {
+      cabin.updateRemoteCrew([], clampDt(dt));
+      return Object.freeze({ status: null, remoteCount: 0 });
+    }
     const list = Array.isArray(remotes) ? remotes : [];
     cabin.updateRemoteCrew(list, clampDt(dt));
     return Object.freeze({ status, remoteCount: list.length });
