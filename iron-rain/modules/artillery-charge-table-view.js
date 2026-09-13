@@ -3,6 +3,11 @@ import { artilleryCrankNotebookRows } from './artillery-crank-guide.js';
 const ARC_LABELS = Object.freeze({ low: 'BAIXO', high: 'ALTO', single: 'ÚNICO' });
 const arcLabel = kind => ARC_LABELS[kind] || String(kind ?? '').toUpperCase();
 const number = value => Math.round(value).toLocaleString('pt-BR');
+const crankLabel = cue => {
+  if (!cue) return '';
+  if (cue.direction === 'hold') return ' · ELEVAÇÃO ALINHADA';
+  return ` · MANIVELA ${cue.movementLabel}`;
+};
 
 /**
  * Presentation-only rows for the paper CARGAS table.
@@ -24,7 +29,7 @@ export function artilleryChargeTableRows(range, currentCharge, currentElevation)
       apex: arc.apex,
       tof: arc.tof,
       crankCue: arc.crankCue,
-      displayLabel: `${arcLabel(arc.kind)} ${arc.elevation.toFixed(1)}° · A ${number(arc.apex)} m · ${arc.tof.toFixed(1)} s${arc.crankCue ? ` · MANIVELA ${arc.crankCue.movementLabel}` : ''}`,
+      displayLabel: `${arcLabel(arc.kind)} ${arc.elevation.toFixed(1)}° · A ${number(arc.apex)} m · ${arc.tof.toFixed(1)} s${crankLabel(arc.crankCue)}`,
     }))),
   })));
 }
