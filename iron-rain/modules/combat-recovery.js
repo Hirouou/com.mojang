@@ -76,8 +76,11 @@ export function combatRecoveryState({ strength, morale, suppression, ammo, suppl
  * unknown local supply waits for support while it still has enough composure to
  * hold. If that same supply failure is paired with empty magazines, weak morale
  * or heavy suppression, the formation withdraws before crossing the hard break
- * threshold. Offensive phases also require a modest readiness band, preventing
- * tired or pinned squads from launching or sustaining attacks.
+ * threshold. A formation that is both shaken and heavily suppressed also
+ * withdraws early even with supply available, instead of unrealistically
+ * sitting in the assault/hold loop until one hard-break threshold is crossed.
+ * Offensive phases also require a modest readiness band, preventing tired or
+ * pinned squads from launching or sustaining attacks.
  */
 export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo, supply } = {}) {
   const recovery = combatRecoveryState({ strength, morale, suppression, ammo, supply });
@@ -89,6 +92,10 @@ export function combatRecoveryPhase({ phase, strength, morale, suppression, ammo
   const ammoValue = finiteOr(ammo, 0);
   const moraleValue = finiteOr(morale, 0);
   const suppressionValue = finiteOr(suppression, 1);
+  const cohesionWithdrawal = moraleValue < COMBAT_RECOVERY_THRESHOLDS.morale &&
+    suppressionValue > COMBAT_RECOVERY_THRESHOLDS.suppression;
+  if (cohesionWithdrawal && SUPPLY_GATED_PHASES.has(phase)) return 'retreat';
+
   const supplied = supplyValue >= COMBAT_RECOVERY_THRESHOLDS.supply;
   if (!supplied && SUPPLY_GATED_PHASES.has(phase)) {
     const withdrawalPressure = ammoValue < COMBAT_RECOVERY_THRESHOLDS.ammo ||
