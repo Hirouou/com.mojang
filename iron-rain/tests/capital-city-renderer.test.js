@@ -90,6 +90,8 @@ test('capital draw/collection does not mutate simulation state', () => {
 
 test('battlefield renderer tolerates strategic system not initialized yet', () => {
   const ctx = mockContext();
+  assert.deepEqual(collectCapitalLayouts({}), []);
+  assert.doesNotThrow(() => drawCapitalCities(ctx, {}, frame));
   assert.doesNotThrow(() => drawWarInfrastructure(ctx, {}, frame));
   assert.doesNotThrow(() => drawWarInfrastructure(ctx, { sectors: [] }, frame));
 });
