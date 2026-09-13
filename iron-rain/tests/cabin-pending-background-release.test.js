@@ -13,11 +13,15 @@ test('pending crew station claims are tracked and cancelled when the app backgro
   assert.match(cancel[1], /releaseCrewStation\(station\)/);
   assert.match(cancel[1], /pendingCrewStation = null/);
 
+  const release = source.match(/function releaseCrewStationsForBackground\(\) \{([\s\S]*?)\n  \}/);
+  assert.ok(release, 'shared background release boundary must remain explicit');
+  assert.match(release[1], /cancelPendingCrewStation\(\)/);
+  assert.match(release[1], /if \(activeCrewStation\) leaveCrewStation\(\)/);
+
   const visibility = source.match(/function onVisibilityChange\(\) \{([\s\S]*?)\n  \}/);
   assert.ok(visibility, 'visibilitychange boundary must remain explicit');
   assert.match(visibility[1], /visibilityState !== 'hidden'/);
-  assert.match(visibility[1], /cancelPendingCrewStation\(\)/);
-  assert.match(visibility[1], /if \(activeCrewStation\) leaveCrewStation\(\)/);
+  assert.match(visibility[1], /releaseCrewStationsForBackground\(\)/);
 });
 
 test('reset and dispose cannot strand a pending station claim', () => {
