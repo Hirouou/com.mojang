@@ -9,7 +9,7 @@ function graph() {
   return createStrategicLogistics({
     nodes: [
       createLogisticsNode({ id: 'rear', team: 'ally' }),
-      createLogisticsNode({ id: 'front', team: 'ally' }),
+      createLogisticsNode({ id: 'front', team: 'ally', assets: { troops: 2 } }),
     ],
     routes: [createSupplyRoute({ id: 'rear-front', team: 'ally', from: 'rear', to: 'front' })],
   });
