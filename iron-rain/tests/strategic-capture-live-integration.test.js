@@ -13,7 +13,7 @@ test('live strategic renderer consumes authoritative sector-control projection',
   assert.match(liveSource, /logistics: theatre\.logistics/);
   assert.match(liveSource, /applyAuthoritativeSectorControl\(\{/);
   assert.match(liveSource, /owner,\s*contested,\s*revision,/s);
-  assert.match(liveSource, /window\.ironRainStrategicMap = Object\.freeze\(\{ locate, combatReserveContext, applySectorControl,/);
+  assert.match(liveSource, /window\.ironRainStrategicMap = Object\.freeze\(\{ locate, combatReserveContext, claimAsset, assetCount, applySectorControl,/);
 });
 
 test('authoritative sector updates immediately feed panels and the same live front', () => {
@@ -21,8 +21,12 @@ test('authoritative sector updates immediately feed panels and the same live fro
   assert.match(liveSource, /strategicFrontPath\(\{\s*sectors: \[\.\.\.theatre\.records\.values\(\)\]\.map\(\(\{ sector \}\) => sector\)/s);
 });
 
-test('canonical strategic facade keeps the authoritative sector-control seam', () => {
+test('canonical strategic facade keeps capture and finite asset authority seams', () => {
   assert.match(facadeSource, /const applySectorControl = globalThis\.ironRainStrategicMap\?\.applySectorControl;/);
+  assert.match(facadeSource, /const claimAsset = globalThis\.ironRainStrategicMap\?\.claimAsset;/);
+  assert.match(facadeSource, /const assetCount = globalThis\.ironRainStrategicMap\?\.assetCount;/);
   assert.match(facadeSource, /applySectorControl: update => applySectorControl\?\.\(update\)/);
+  assert.match(facadeSource, /claimAsset: \(sectorId, team, type, count = 1\) => claimAsset\?\.\(sectorId, team, type, count\)/);
+  assert.match(facadeSource, /assetCount: \(sectorId, team, type\) => assetCount\?\.\(sectorId, team, type\)/);
   assert.doesNotMatch(facadeSource, /createStrategicHexMap|strategicFrontPath|createStrategicLogistics/);
 });
