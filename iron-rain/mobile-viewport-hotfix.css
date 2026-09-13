@@ -1,6 +1,7 @@
 /* Iron Rain owner hotfix — 2026-09-13
-   Keep the AIM controls bound to the real visible viewport on iPhone/Safari/PWA.
-   This loads after mobile-station-ui.css and intentionally only overrides layout. */
+   Keep the mobile/PWA viewport bound to the visible browser area.
+   AIM on coarse pointers is manipulated on the physical 3D cabin controls;
+   this stylesheet must not recreate azimuth/elevation handwheels in the HUD. */
 
 :root{
   --ir-viewport-w:100vw;
@@ -40,8 +41,6 @@ html body .crew-lobby-card{
 
 @media (pointer:coarse), (hover:none){
   .inside.station-engaged .fire-deck[data-station="aim"]{
-    --aim-dial-size:clamp(116px,17vw,148px);
-    --aim-side:calc(10px + var(--safeL,0px));
     --aim-right:calc(10px + var(--safeR,0px));
     --aim-bottom:calc(10px + var(--safeB,0px));
     position:fixed!important;
@@ -58,84 +57,36 @@ html body .crew-lobby-card{
     z-index:42!important;
   }
 
-  /* Safari is unreliable when fixed children live under display:contents.
-     Anchor the two real control containers instead, then make each dial local. */
+  /* Mobile AIM belongs to the physical 3D wheels rendered in cabinCanvas.
+     Hide the legacy DOM wheel/readout containers so the lower viewport stays
+     clear and there is never a second pair of touch handwheels over the cabin. */
   .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box,
   .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box{
-    display:block!important;
-    position:absolute!important;
-    top:auto!important;
-    bottom:var(--aim-bottom)!important;
-    width:var(--aim-dial-size)!important;
-    height:var(--aim-dial-size)!important;
-    min-width:0!important;min-height:0!important;
-    margin:0!important;padding:0!important;
-    overflow:visible!important;
-    background:transparent!important;border:0!important;box-shadow:none!important;
+    display:none!important;
     pointer-events:none!important;
-    transform:none!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box:not(.elevation-box){
-    left:var(--aim-side)!important;right:auto!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box{
-    left:auto!important;right:var(--aim-right)!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box>label,
-  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box>small:not(#rangeReadout){display:none!important;}
-
-  .inside.station-engaged .fire-deck[data-station="aim"] #azWheel,
-  .inside.station-engaged .fire-deck[data-station="aim"] #elWheel,
-  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box .handwheel{
-    position:absolute!important;
-    inset:0!important;
-    left:0!important;top:0!important;right:0!important;bottom:0!important;
-    width:100%!important;height:100%!important;
-    min-width:0!important;min-height:0!important;
-    margin:0!important;
-    transform:none!important;
-    pointer-events:auto!important;
-    touch-action:none!important;
-    z-index:46!important;
   }
 
-  /* Keep the actual wheel-arm rotation intact; only the wheel shell itself loses
-     inherited layout transforms. */
-  .inside.station-engaged .fire-deck[data-station="aim"] #azArm,
-  .inside.station-engaged .fire-deck[data-station="aim"] #elArm{
-    transform-origin:0 50%!important;
-  }
-
-  .inside.station-engaged .fire-deck[data-station="aim"] #rangeReadout{
-    position:fixed!important;
-    left:50%!important;right:auto!important;
-    top:auto!important;bottom:var(--aim-bottom)!important;
-    transform:translateX(-50%)!important;
-    width:clamp(184px,27vw,246px)!important;
-    min-height:66px!important;
-    margin:0!important;
-    z-index:47!important;
-  }
-
-  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{
-    position:fixed!important;
-    left:auto!important;right:var(--aim-right)!important;
-    top:auto!important;
-    bottom:calc(var(--aim-bottom) + var(--aim-dial-size) + 8px)!important;
-    width:min(128px,var(--aim-dial-size))!important;
-    height:44px!important;
-    margin:0!important;padding:0!important;
-    pointer-events:auto!important;
-    z-index:48!important;
-  }
+  /* Owner mobile layout: compact CARGA at the right, DISPARAR directly below.
+     The middle of the viewport remains unobstructed for the physical controls. */
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
     position:fixed!important;
     left:auto!important;right:var(--aim-right)!important;
     top:auto!important;
-    bottom:calc(var(--aim-bottom) + var(--aim-dial-size) + 60px)!important;
-    width:min(128px,var(--aim-dial-size))!important;
+    bottom:calc(var(--aim-bottom) + 54px)!important;
+    width:128px!important;
     height:58px!important;
     margin:0!important;
+    pointer-events:auto!important;
+    z-index:48!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{
+    position:fixed!important;
+    left:auto!important;right:var(--aim-right)!important;
+    top:auto!important;
+    bottom:var(--aim-bottom)!important;
+    width:128px!important;
+    height:44px!important;
+    margin:0!important;padding:0!important;
     pointer-events:auto!important;
     z-index:48!important;
   }
@@ -154,36 +105,23 @@ html body .crew-lobby-card{
 
 @media (pointer:coarse) and (orientation:landscape) and (max-height:430px){
   .inside.station-engaged .fire-deck[data-station="aim"]{
-    --aim-dial-size:clamp(108px,15.5vw,132px);
-    --aim-side:calc(8px + var(--safeL,0px));
     --aim-right:calc(8px + var(--safeR,0px));
     --aim-bottom:calc(8px + var(--safeB,0px));
   }
-  .inside.station-engaged .fire-deck[data-station="aim"] #rangeReadout{
-    width:clamp(174px,25vw,220px)!important;
-    min-height:62px!important;
-  }
   .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions,
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
-    width:min(116px,var(--aim-dial-size))!important;
+    width:116px!important;
   }
 }
 
 @media (pointer:coarse) and (orientation:portrait){
   .inside.station-engaged .fire-deck[data-station="aim"]{
-    --aim-dial-size:clamp(104px,29vw,138px);
+    --aim-right:calc(8px + var(--safeR,0px));
+    --aim-bottom:calc(10px + var(--safeB,0px));
   }
-  .inside.station-engaged .fire-deck[data-station="aim"] #rangeReadout{
-    bottom:calc(var(--aim-bottom) + var(--aim-dial-size) + 18px)!important;
-    width:min(68vw,246px)!important;
-  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions,
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
-    top:calc(82px + var(--safeT,0px))!important;
-    bottom:auto!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{
-    top:calc(148px + var(--safeT,0px))!important;
-    bottom:auto!important;
+    width:min(124px,31vw)!important;
   }
 }
 
