@@ -21,6 +21,14 @@ test('maintenance overlay exposes perceptible foam and repair vfx with safe fall
   assert.match(source, /vfx\.className = 'ir-maintenance-vfx'/);
 });
 
+test('mobile landscape keeps local maintenance motion but stops large compositor loops', () => {
+  assert.match(source, /@media\(max-width:900px\) and \(orientation:landscape\)/);
+  assert.match(source, /\.ir-maintenance-vfx\.extinguish:after,\.ir-maintenance-vfx\.repair:after\{animation:none\}/);
+  assert.match(source, /\.ir-maintenance-vfx\.extinguish \.foam\{[^}]*animation-duration:\.26s/);
+  assert.match(source, /\.ir-maintenance-vfx\.repair \.tool\{left:72%;top:58%\}/);
+  assert.match(source, /\.ir-maintenance-vfx\.repair \.spark\{left:74%;top:61%\}/);
+});
+
 test('maintenance overlay identifies replicated work without calling it local', () => {
   assert.match(source, /source\.textContent = detail\.remote \? 'OUTRO TRIPULANTE' : 'MANUTENÇÃO LOCAL'/);
 });
