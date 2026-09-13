@@ -129,3 +129,8 @@ test('occupied, disconnected or faction-mismatched stations fail closed with pla
   assert.equal(invalid.reason, 'invalid-station');
   assert.equal(invalid.ready, false);
 });
+
+test('station cancellation and release failures keep actionable player-facing messages', () => {
+  assert.equal(stationGateMessage({ reason: 'claim-cancelled' }), 'SOLICITAÇÃO DO POSTO CANCELADA');
+  assert.equal(stationGateMessage({ reason: 'release-failed' }), 'NÃO FOI POSSÍVEL LIBERAR O POSTO');
+});
