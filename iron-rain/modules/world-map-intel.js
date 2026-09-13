@@ -6,6 +6,7 @@ const dist = (a, b) => Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y
 const hasFriendlyRadio = (hex, team) => (hex?.sectors || []).some(sector => sector.owner === team && (sector.radio || (sector.structures || []).includes('radio')));
 
 const reportObservedAt = report => report?.reportedAt ?? report?.time;
+const sectorReportKey = (hexId, sectorId) => `${hexId}:${sectorId}`;
 
 function reportIntelState(report, now) {
   if (!Number.isFinite(Number(now))) return 'fresh';
@@ -48,7 +49,8 @@ export function createWorldMapIntel({ hexes = [], team = 'ally', playerPosition 
   for (const report of reports || []) {
     if (!report?.hexId) continue;
     if (report.sectorId) {
-      reportsBySector.set(report.sectorId, newestReport(reportsBySector.get(report.sectorId), report));
+      const key = sectorReportKey(report.hexId, report.sectorId);
+      reportsBySector.set(key, newestReport(reportsBySector.get(key), report));
       continue;
     }
     reportsByHex.set(report.hexId, newestReport(reportsByHex.get(report.hexId), report));
@@ -67,11 +69,11 @@ export function createWorldMapIntel({ hexes = [], team = 'ally', playerPosition 
     let hasLiveSectorReport = false;
     let hasStaleSectorReport = false;
     const sectors = hex.sectors.map(sector => {
-      const sectorReport = reportsBySector.get(sector.id) || null;
-      if (sectorReport?.hexId === hex.id) newestSectorReport = newestReport(newestSectorReport, sectorReport);
-      const sectorReportState = sectorReport?.hexId === hex.id ? reportIntelState(sectorReport, now) : 'lost';
-      const liveSectorReport = Boolean(sectorReport) && sectorReport.hexId === hex.id && (sectorReportState === 'fresh' || sectorReportState === 'aging');
-      const staleSectorReport = Boolean(sectorReport) && sectorReport.hexId === hex.id && sectorReportState === 'stale';
+      const sectorReport = reportsBySector.get(sectorReportKey(hex.id, sector.id)) || null;
+      if (sectorReport) newestSectorReport = newestReport(newestSectorReport, sectorReport);
+      const sectorReportState = sectorReport ? reportIntelState(sectorReport, now) : 'lost';
+      const liveSectorReport = Boolean(sectorReport) && (sectorReportState === 'fresh' || sectorReportState === 'aging');
+      const staleSectorReport = Boolean(sectorReport) && sectorReportState === 'stale';
       hasLiveSectorReport ||= liveSectorReport;
       hasStaleSectorReport ||= staleSectorReport;
       const sectorHasIntel = local || radio || liveReport || liveSectorReport;

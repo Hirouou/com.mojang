@@ -41,3 +41,32 @@ test('coarse hex recon preserves whole-hex reported disclosure', () => {
   assert.equal(intel.sectors.find(sector => sector.id === 'ENEMY-A')?.owner, 'reported-hostile-or-contested');
   assert.equal(intel.sectors.find(sector => sector.id === 'ENEMY-B')?.owner, 'reported-hostile-or-contested');
 });
+
+test('sector reports stay isolated when different hexes reuse a sector id', () => {
+  const siblingHex = Object.freeze({
+    ...remoteHex,
+    id: 'HX-SIBLING',
+    name: 'SIBLING',
+    x: 60_000,
+    sectors: Object.freeze([
+      Object.freeze({ id: 'ENEMY-A', name: 'ENEMY A', owner: 'enemy', radio: false, structures: Object.freeze([]) }),
+    ]),
+  });
+  const intel = createWorldMapIntel({
+    hexes: [remoteHex, siblingHex],
+    team: 'ally',
+    playerPosition: { x: 0, y: 0 },
+    reports: [
+      { hexId: remoteHex.id, sectorId: 'ENEMY-A', reportedAt: 100 },
+      { hexId: siblingHex.id, sectorId: 'ENEMY-A', reportedAt: 110 },
+    ],
+    now: 120,
+  });
+
+  assert.equal(intel[0].frontDetail, 'report');
+  assert.equal(intel[0].lastReportTime, 100);
+  assert.equal(intel[0].sectors[1]?.owner, 'reported-hostile-or-contested');
+  assert.equal(intel[1].frontDetail, 'report');
+  assert.equal(intel[1].lastReportTime, 110);
+  assert.equal(intel[1].sectors[0]?.owner, 'reported-hostile-or-contested');
+});
