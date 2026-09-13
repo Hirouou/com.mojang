@@ -4,6 +4,22 @@
    Desktop remains untouched. */
 
 @media (pointer: coarse), (hover: none) {
+  /* Owner QA: walking must remain comfortable in landscape. The old 90px
+     joystick was visually/tactually too small on iPhone. */
+  .inside:not(.station-engaged) #cabinJoystick{
+    width:126px!important;
+    height:126px!important;
+    left:calc(18px + var(--safeL, 0px))!important;
+    bottom:calc(18px + var(--safeB, 0px))!important;
+    opacity:.92!important;
+  }
+  .inside:not(.station-engaged) #cabinJoystick .joy-knob{
+    width:46px!important;
+    height:46px!important;
+    left:39px!important;
+    top:39px!important;
+  }
+
   .inside.station-engaged .fire-deck[data-station="aim"]{
     left:auto!important;
     right:calc(8px + var(--safeR, 0px))!important;
@@ -25,7 +41,6 @@
     z-index:42;
   }
 
-  /* No duplicated 2D aiming machinery or ammunition deck on touch. */
   .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box,
   .inside.station-engaged .fire-deck[data-station="aim"] .ammo-box,
   .inside.station-engaged .fire-deck[data-station="aim"] .loading-text,
@@ -46,70 +61,23 @@
     background:#1a2418d6!important;
     border:1px solid #a7b18a35!important;
   }
-  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box label{
-    font-size:7px!important;
-    height:10px!important;
-    letter-spacing:.8px!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box strong{
-    font-size:16px!important;
-    line-height:18px!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{
-    min-height:32px!important;
-    font-size:18px!important;
-    padding:0!important;
-    background:#263322ed!important;
-    border-color:#aab48a55!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box #chargeRange{
-    font-size:6px!important;
-    line-height:8px!important;
-    opacity:.78!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{
-    display:block!important;
-    grid-column:1!important;
-    grid-row:2!important;
-    padding:0!important;
-    margin:0!important;
-    border:0!important;
-    min-height:0!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{
-    display:block!important;
-    width:100%!important;
-    min-height:42px!important;
-    padding:5px 3px!important;
-    margin:0!important;
-    font-size:9px!important;
-    letter-spacing:1px!important;
-    border-radius:3px!important;
-    background:#7c3228ef!important;
-    box-shadow:0 3px 10px #0008!important;
-  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box label{font-size:7px!important;height:10px!important;letter-spacing:.8px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box strong{font-size:16px!important;line-height:18px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{min-height:32px!important;font-size:18px!important;padding:0!important;background:#263322ed!important;border-color:#aab48a55!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box #chargeRange{font-size:6px!important;line-height:8px!important;opacity:.78!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{display:block!important;grid-column:1!important;grid-row:2!important;padding:0!important;margin:0!important;border:0!important;min-height:0!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{display:block!important;width:100%!important;min-height:42px!important;padding:5px 3px!important;margin:0!important;font-size:9px!important;letter-spacing:1px!important;border-radius:3px!important;background:#7c3228ef!important;box-shadow:0 3px 10px #0008!important;}
 
-  /* Keep the physical centre/lower cabin unobstructed. */
-  .inside.station-engaged .station-header{
-    max-width:150px!important;
-    opacity:.7;
-  }
+  .inside.station-engaged .station-header{max-width:150px!important;opacity:.7;}
   .inside.station-engaged .station-header span{display:none!important;}
-  .inside.station-engaged #leaveStationBtn{
-    z-index:43;
-  }
+  .inside.station-engaged #leaveStationBtn{z-index:43;}
 }
 
 @media (pointer: coarse) and (orientation: landscape) {
-  .inside.station-engaged .fire-deck[data-station="aim"]{
-    right:calc(6px + var(--safeR, 0px))!important;
-    bottom:calc(7px + var(--safeB, 0px))!important;
-    width:96px!important;
-    max-width:96px!important;
-  }
-  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{
-    grid-template-rows:9px 17px 30px 10px!important;
-  }
+  .inside:not(.station-engaged) #cabinJoystick{width:122px!important;height:122px!important;}
+  .inside:not(.station-engaged) #cabinJoystick .joy-knob{width:46px!important;height:46px!important;left:37px!important;top:37px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"]{right:calc(6px + var(--safeR, 0px))!important;bottom:calc(7px + var(--safeB, 0px))!important;width:96px!important;max-width:96px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{grid-template-rows:9px 17px 30px 10px!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{min-height:28px!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{min-height:36px!important;font-size:8px!important;}
 }
