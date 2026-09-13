@@ -2,6 +2,11 @@ import { CABIN_STATIONS } from './cabin-controls.js';
 
 const VALID_STATIONS = new Set(CABIN_STATIONS.map(station => station.id));
 const cleanStation = station => typeof station === 'string' && VALID_STATIONS.has(station) ? station : null;
+const runtimeLocalId = runtime => {
+  let status = null;
+  try { status = runtime?.status?.() || null; } catch { status = null; }
+  return status?.localId ?? status?.session?.localId ?? null;
+};
 
 /**
  * Renderer/input-facing station ownership seam.
@@ -44,7 +49,7 @@ export function requestStationGate(runtime, station) {
   catch { return Object.freeze({ ...before, ok: false, reason: 'claim-failed' }); }
 
   if (result?.ok) {
-    return Object.freeze({ ok: true, ready: true, pending: false, reason: result.reason || 'claimed', station: before.station, owner: result.owner ?? runtime.status?.()?.localId ?? null });
+    return Object.freeze({ ok: true, ready: true, pending: false, reason: result.reason || 'claimed', station: before.station, owner: result.owner ?? runtimeLocalId(runtime) });
   }
   if (result?.pending) {
     return Object.freeze({ ok: false, ready: false, pending: true, reason: result.reason || 'pending-host', station: before.station, owner: result.owner ?? null });
