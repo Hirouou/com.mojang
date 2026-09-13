@@ -8,7 +8,7 @@ function ensureOverlay() {
   if (root || typeof document === 'undefined') return root;
   const style = document.createElement('style');
   style.textContent = `
-    .ir-maintenance{--p:0;position:fixed;left:50%;top:58%;z-index:18;transform:translate(-50%,-50%);display:grid;grid-template-columns:46px auto;align-items:center;gap:10px;min-width:178px;padding:8px 11px 8px 8px;pointer-events:none;background:#091009d9;border:1px solid #b9ad7558;border-left:2px solid #c4ad70;box-shadow:0 8px 26px #0009;color:#e8ddb9;font-family:ui-monospace,Consolas,monospace;backdrop-filter:blur(2px)}
+    .ir-maintenance{--p:0;position:fixed;left:50%;top:58%;z-index:18;transform:translate(-50%,-50%);display:grid;grid-template-columns:46px auto;align-items:center;gap:10px;min-width:178px;padding:8px 11px 8px 8px;pointer-events:none;background:#091009d9;border:1px solid #b9ad7558;border-left:2px solid #c4ad70;box-shadow:0 8px 26px #0009;color:#e8ddb9;font-family:ui-monospace,Consolas,monospace;backdrop-filter:blur(2px);contain:layout paint}
     .ir-maintenance[hidden]{display:none}
     .ir-maintenance-ring{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#d5bc78 calc(var(--p)*1turn),#30362d calc(var(--p)*1turn));box-shadow:inset 0 0 0 1px #d8c48733,0 0 14px #0008;position:relative}
     .ir-maintenance-ring:after{content:'';width:27px;height:27px;border-radius:50%;background:#111811;box-shadow:inset 0 0 0 1px #6e755f55}
@@ -24,7 +24,7 @@ function ensureOverlay() {
     .ir-maintenance.repair:after{right:45px;top:auto;bottom:7px;animation-delay:.18s}
     @keyframes ir-foam{0%{transform:translate(0,1px) scale(.9);opacity:.45}100%{transform:translate(6px,-4px) scale(1.08);opacity:.9}}
     @keyframes ir-sparks{0%{transform:translate(0,0);opacity:.25}55%{transform:translate(5px,-5px);opacity:1}100%{transform:translate(9px,-8px);opacity:0}}
-    @media(max-width:900px) and (orientation:landscape){.ir-maintenance{top:61%;min-width:154px;grid-template-columns:40px auto;gap:8px;padding:6px 9px 6px 6px}.ir-maintenance-ring{width:34px;height:34px}.ir-maintenance-ring:after{width:24px;height:24px}.ir-maintenance-copy span{font-size:8px}.ir-maintenance-copy b{font-size:6.5px}.ir-maintenance-value{font-size:7px}}
+    @media(max-width:900px) and (orientation:landscape){.ir-maintenance{top:61%;min-width:154px;grid-template-columns:40px auto;gap:8px;padding:6px 9px 6px 6px;background:#091009f2;backdrop-filter:none}.ir-maintenance-ring{width:34px;height:34px}.ir-maintenance-ring:after{width:24px;height:24px}.ir-maintenance-copy span{font-size:8px}.ir-maintenance-copy b{font-size:6.5px}.ir-maintenance-value{font-size:7px}.ir-maintenance.extinguish:before,.ir-maintenance.repair:before,.ir-maintenance.repair:after{animation:none}.ir-maintenance.extinguish:before{transform:translate(3px,-2px);opacity:.72}.ir-maintenance.repair:before,.ir-maintenance.repair:after{transform:translate(4px,-4px);opacity:.85}}
     @media(prefers-reduced-motion:reduce){.ir-maintenance.extinguish:before,.ir-maintenance.repair:before,.ir-maintenance.repair:after{animation:none}.ir-maintenance.extinguish:before{transform:translate(3px,-2px);opacity:.68}.ir-maintenance.repair:before,.ir-maintenance.repair:after{transform:translate(4px,-4px);opacity:.8}}
   `;
   document.head.appendChild(style);
