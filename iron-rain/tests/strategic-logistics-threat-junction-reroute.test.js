@@ -16,13 +16,14 @@ function createNetwork() {
   });
 }
 
-test('convoy replans around a newly threatened road while still at the junction', () => {
+test('convoy replans around a newly reported threatened road while still at the junction', () => {
   const logistics = createNetwork();
   const dispatch = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 }, speed: 10 });
   assert.equal(dispatch.ok, true);
   assert.deepEqual(logistics.snapshot().convoys[0].path.map(leg => leg.routeId), ['A-D']);
 
   assert.equal(logistics.setRouteOpen('A-D', true, .9), true);
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: .9, reportedAt: 0 }), true);
   const events = logistics.step(1);
   const convoy = logistics.snapshot().convoys[0];
 
@@ -32,7 +33,7 @@ test('convoy replans around a newly threatened road while still at the junction'
   assert.deepEqual(events.filter(event => event.type === 'convoy-rerouted').map(event => [event.previousRouteId, event.routeId]), [['A-D', 'A-B']]);
 });
 
-test('convoy does not teleport off a threatened road after entering its segment', () => {
+test('convoy does not teleport off a reported threatened road after entering its segment', () => {
   const logistics = createNetwork();
   const dispatch = logistics.dispatch({ team: 'ally', from: 'A', to: 'D', cargo: { fuel: 5 }, speed: 10 });
   assert.equal(dispatch.ok, true);
@@ -42,6 +43,7 @@ test('convoy does not teleport off a threatened road after entering its segment'
   assert.equal(convoy.legProgress, 20);
 
   assert.equal(logistics.setRouteOpen('A-D', true, .9), true);
+  assert.equal(logistics.reportRouteThreat('A-D', { team: 'ally', threat: .9, reportedAt: 2 }), true);
   const events = logistics.step(1);
   convoy = logistics.snapshot().convoys[0];
 
