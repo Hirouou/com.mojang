@@ -1,7 +1,7 @@
 import { createStrategicHexMap, hexControl, neighboringHexIds } from './strategic-hex-map.js';
-import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, startVehicleProduction, stepTerritoryDevelopment, territorySnapshot, DEVELOPMENT_PROJECTS } from './territory-development.js';
-import { chooseTerritoryProject, chooseVehicleProduction, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
-import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from './strategic-logistics.js';
+import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, startVehicleProduction, stepTerritoryDevelopment, territorySnapshot, DEVELOPMENT_PROJECTS, TERRITORY_ASSET_KEYS, consumeCapitalAmmo, queryCapitalFacility, damageCapitalCore } from './territory-development.js';
+import { chooseTerritoryProject, planTerritoryProject, chooseVehicleProduction, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
+import { createLogisticsNode, createSupplyRoute, createStrategicLogistics, LOGISTICS_ASSET_KEYS } from './strategic-logistics.js';
 import { strategicFrontPath } from './strategic-front-pressure.js';
 import { applyAuthoritativeSectorControl } from './strategic-capture-state.js';
 import { createPersistentWarClock } from './persistent-war-clock.js';
@@ -16,7 +16,7 @@ const COLOR = Object.freeze({
   dim: '#8e998b',
   paper: '#101712',
 });
-const STRUCTURE = Object.freeze({ outpost:'POSTO', depot:'DEPÓSITO', mortar:'MORTEIRO', bunker:'BUNKER', garage:'GARAGEM', factory:'FÁBRICA', armorWorks:'BLINDADOS' });
+const STRUCTURE = Object.freeze({ outpost:'POSTO', depot:'BASE SUPR.', resourceWarehouse:'ARMAZÉM', vehicleDepot:'PÁTIO VEÍCULOS', garage:'GARAGEM', infirmary:'ENFERMARIA', ammoDepot:'PAIOL', mortar:'MORTEIRO', heavyMortar:'MORTEIRO PESADO', fieldArtillery:'ARTILHARIA', fixedCannon:'CANHÃO FIXO', antiAir:'AA', bunker:'BUNKER', pillbox:'CASA-MATA', wall:'MURO', barbedWire:'ARAME', factory:'FÁBRICA', armorWorks:'BLINDADOS' });
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const playerTeam = () => window.ironRainEntry?.faction === 'axis' ? 'enemy' : 'ally';
@@ -61,7 +61,7 @@ function makeTheatre() {
   for (const { sector } of records.values()) {
     const owner = ['ally', 'enemy'].includes(sector.owner) ? sector.owner : null;
     const fd = frontDistance(sector), deepRear = fd > 21_500, rear = fd > 15_500, mid = fd > 8_500;
-    const initialAssets = deepRear ? { trucks: 3, tanks: 1, troops: 72 } : rear ? { trucks: 1, troops: 14 } : {};
+    const initialAssets = deepRear ? { trucks: 3, tanks: 1, troops: 72, heavyMortarKits: 2, artilleryKits: 2, cannonKits: 2, aaKits: 2 } : rear ? { trucks: 1, troops: 14 } : {};
     const node = createTerritoryNode({ id: sector.id, owner, assets: initialAssets });
     node.contested = !owner;
     node.securedFor = node.contested ? 0 : deepRear ? 1_260 : rear ? 650 : mid ? 260 : 90;
@@ -107,27 +107,13 @@ function makeTheatre() {
     if (sent?.ok && sent.status !== 'arrived' && sent.convoyId) inFlight.set(key, sent.convoyId);
   }
 
-  function wanted(node) {
-    if (!node?.owner || node.contested || node.activeProject) return null;
-    const missing = type => !node.structures.includes(type);
-    const ready = type => node.securedFor >= DEVELOPMENT_PROJECTS[type].secureFor;
-    if (missing('outpost') && ready('outpost')) return 'outpost';
-    if (missing('depot') && ready('depot') && node.structures.includes('outpost')) return 'depot';
-    if (missing('bunker') && ready('bunker') && node.structures.includes('outpost')) return 'bunker';
-    if (missing('mortar') && ready('mortar') && node.structures.includes('outpost')) return 'mortar';
-    if (missing('garage') && ready('garage') && node.structures.includes('depot')) return 'garage';
-    if (missing('factory') && ready('factory') && node.structures.includes('depot') && node.structures.includes('garage')) return 'factory';
-    if (missing('armorWorks') && ready('armorWorks') && node.structures.includes('garage') && node.structures.includes('factory')) return 'armorWorks';
-    return null;
-  }
-
   function sourceFor(team, destination, cargo = {}, assets = {}) {
     let best = null;
     for (const id of sources) {
       const source = logistics.getNode(id);
       if (!source || source.team !== team || source.id === destination) continue;
       if (!['materials', 'ammo', 'fuel'].every(key => (source.stock[key] || 0) >= (cargo[key] || 0))) continue;
-      if (!['trucks', 'tanks', 'troops'].every(key => (source.assets?.[key] || 0) >= (assets[key] || 0))) continue;
+      if (!LOGISTICS_ASSET_KEYS.every(key => (source.assets?.[key] || 0) >= (assets[key] || 0))) continue;
       const path = logistics.route(team, id, destination);
       if (!path) continue;
       const length = path.reduce((sum, leg) => sum + leg.distance, 0);
@@ -152,9 +138,10 @@ function makeTheatre() {
 
   function syncTerritoryAssets(node, endpoint) {
     if (!node?.assets || !endpoint?.assets) return;
-    node.assets.trucks = endpoint.assets.trucks || 0;
-    node.assets.tanks = endpoint.assets.tanks || 0;
-    node.assets.troops = endpoint.assets.troops || 0;
+    for (const key of TERRITORY_ASSET_KEYS) {
+      const amount = endpoint.assets?.[key] || 0;
+      if (amount > 0 || Object.prototype.hasOwnProperty.call(endpoint.assets, key) || Object.prototype.hasOwnProperty.call(node.assets, key)) node.assets[key] = amount;
+    }
   }
 
   function stageProducedVehicle(node, endpoint, type) {
@@ -171,7 +158,7 @@ function makeTheatre() {
       releaseTerminalConvoyFlight(inFlight, event);
       if (event.type !== 'convoy-arrived') continue;
       const node = territory.get(event.to);
-      if (node && event.cargo) receiveTerritoryDelivery(node, { team: event.team, cargo: event.cargo });
+      if (node) receiveTerritoryDelivery(node, { team: event.team, cargo: event.cargo, assets: event.assets });
     }
 
     const logisticsSnapshot = logistics.snapshot();
@@ -191,39 +178,43 @@ function makeTheatre() {
       const effects = territoryOperationalEffects(node);
       const pressure = clamp((1 - frontDistance(record.sector) / 15_000) * (.75 - effects.defensiveCover), 0, 1);
       const routeThreat = knownSupplyRouteThreat({ team: node.owner, destination: id, sources, logistics, snapshot: logisticsSnapshot });
-      const projectPlan = chooseTerritoryProject(node, {
+      const aiContext = {
         routeOpen,
         routeThreat,
         frontPressure: pressure,
         infantryThreat: pressure,
         armorThreat: pressure * .82,
+        airThreat: pressure * .35,
         armorDemand: pressure,
-      });
-      if (projectPlan) {
-        startTerritoryProject(node, projectPlan.type);
+        logisticsNeed: endpoint.assets.trucks < 2 ? .8 : .15,
+        logisticsDeficit: endpoint.assets.trucks < 2 ? .8 : .1,
+        reinforcementNeed: frontDistance(record.sector) < 10_500 ? .7 : .2,
+      };
+      const desiredProject = planTerritoryProject(node, aiContext);
+      const projectPlan = chooseTerritoryProject(node, aiContext);
+      if (desiredProject && projectPlan?.type === desiredProject.type) {
+        startTerritoryProject(node, desiredProject.type);
         continue;
       }
 
-      const vehiclePlan = chooseVehicleProduction(node, {
-        routeOpen,
-        frontPressure: pressure,
-        infantryThreat: pressure,
-        armorThreat: pressure * .9,
-        armorDemand: pressure,
-        logisticsDeficit: endpoint.assets.trucks < 2 ? .8 : .1,
-        reinforcementNeed: frontDistance(record.sector) < 10_500 ? .7 : .2,
-      });
-      if (vehiclePlan) startVehicleProduction(node, vehiclePlan.type);
+      if (!desiredProject) {
+        const vehiclePlan = chooseVehicleProduction(node, aiContext);
+        if (vehiclePlan) startVehicleProduction(node, vehiclePlan.type);
+      }
 
-      const type = wanted(node);
+      const type = desiredProject?.type || null;
       const supplyKey = `supply:${id}`;
       if (type && !inFlight.has(supplyKey)) {
         const request = projectSupplyRequest(node, type);
         if (request) {
-          const source = sourceFor(node.owner, id, request.cargo, { trucks: 1 });
+          const heavyAssets = Object.fromEntries(Object.entries(request.assets || {}).filter(([, amount]) => amount > 0));
+          const carriesHeavyKit = Object.keys(heavyAssets).length > 0;
+          const cargo = carriesHeavyKit ? {} : request.cargo;
+          const assets = carriesHeavyKit ? { trucks: 1, ...heavyAssets } : { trucks: 1 };
+          const source = sourceFor(node.owner, id, cargo, assets);
           if (source) {
-            const sent = logistics.dispatch({ team: node.owner, from: source, to: id, cargo: request.cargo, assets: { trucks: 1 }, kind: 'supply', speed: 55 });
-            if (sent.ok && sent.status === 'arrived') receiveTerritoryDelivery(node, { team: node.owner, cargo: request.cargo });
+            const sent = logistics.dispatch({ team: node.owner, from: source, to: id, cargo, assets, kind: carriesHeavyKit ? 'heavy-kit' : 'supply', speed: carriesHeavyKit ? 42 : 55 });
+            if (sent.ok && sent.status === 'arrived') receiveTerritoryDelivery(node, { team: node.owner, cargo, assets });
             else rememberFlight(supplyKey, sent);
           }
         }
@@ -378,7 +369,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
 
   function claimAsset(sectorId, team, type, count = 1) {
     const id = String(sectorId ?? ''), amount = Math.max(1, Math.floor(Number(count) || 1));
-    if (!id || !['ally', 'enemy'].includes(team) || !['trucks', 'tanks', 'troops'].includes(type)) return false;
+    if (!id || !['ally', 'enemy'].includes(team) || !LOGISTICS_ASSET_KEYS.includes(type)) return false;
     const endpoint = theatre.logistics.getNode(id);
     if (!endpoint?.alive || endpoint.team !== team || (endpoint.assets?.[type] || 0) < amount) return false;
     endpoint.assets[type] -= amount;
@@ -391,6 +382,39 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     const endpoint = theatre.logistics.getNode(String(sectorId ?? ''));
     if (!endpoint?.alive || endpoint.team !== team) return 0;
     return Math.max(0, Number(endpoint.assets?.[type]) || 0);
+  }
+
+  function nearbyFacilities(position, { team = playerTeam(), types = null, maxDistance = 1_400 } = {}) {
+    if (!position || !['ally', 'enemy'].includes(team)) return Object.freeze([]);
+    const requested = types == null ? null : new Set(Array.isArray(types) ? types : [types]);
+    const facilities = [];
+    for (const [id, node] of theatre.territory) {
+      const record = theatre.records.get(id);
+      if (!record || node.owner !== team || node.contested || node.core?.status === 'neutralized') continue;
+      const candidates = requested ? [...requested] : [...node.structures];
+      for (const type of candidates) {
+        if (!node.structures.includes(type)) continue;
+        const found = queryCapitalFacility(node, { center: record.sector, position, type, maxDistance });
+        if (found) facilities.push(found);
+      }
+    }
+    facilities.sort((a, b) => a.distance - b.distance);
+    return Object.freeze(facilities.map(item => Object.freeze(item)));
+  }
+
+  function resupplyAmmoFromCapital({ position, team = playerTeam(), amount = 1, maxDistance = 85 } = {}) {
+    const nearest = nearbyFacilities(position, { team, types: ['ammoDepot'], maxDistance })[0];
+    if (!nearest) return Object.freeze({ ok: false, reason: 'no-friendly-ammo-depot', transferred: 0 });
+    const node = theatre.territory.get(nearest.capitalId);
+    const result = consumeCapitalAmmo(node, amount);
+    return Object.freeze({ ...result, capitalId: nearest.capitalId, facility: nearest.facility, distance: nearest.distance });
+  }
+
+  function damageCapitalCoreAt(sectorId, damage) {
+    const id = String(sectorId ?? '');
+    const node = theatre.territory.get(id);
+    if (!node) return Object.freeze({ ok: false, reason: 'unknown-sector' });
+    return damageCapitalCore(node, damage);
   }
 
   function combatReserveContext(sectorId, team) {
@@ -428,7 +452,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     return result;
   }
 
-  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, claimAsset, assetCount, applySectorControl, open: () => setOpen(true) });
+  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, claimAsset, assetCount, nearbyFacilities, resupplyAmmoFromCapital, damageCapitalCore: damageCapitalCoreAt, applySectorControl, open: () => setOpen(true) });
   const stopNotebookBridge = installNotebookBridge(locate);
   const warClock = createPersistentWarClock({ stepSeconds: 1, maxCatchUpSeconds: 180 });
   const strategicTimer = setInterval(() => {
@@ -491,7 +515,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     }
     const structures = node.structures.length ? node.structures.map(type => STRUCTURE[type] || type).join(' · ') : 'nenhuma';
     const effects = territoryOperationalEffects(node);
-    detail.innerHTML = `<h3>${record.hex.name} / ${record.sector.name}</h3><p>${relation}<strong>${ownerLabel(node.owner)}</strong> · região ${ownerLabel(control)}<br>Estruturas: <strong>${structures}</strong><br>Obra: <strong>${node.activeProject ? STRUCTURE[node.activeProject] || node.activeProject : '—'}</strong><br>Produção: <strong>${node.vehicleProduction ? node.vehicleProduction.toUpperCase() : '—'}</strong><br>MAT ${Math.round(node.stock.materials)} · MUN ${Math.round(node.stock.ammo)} · COMB ${Math.round(node.stock.fuel)}<br>CAM ${endpoint?.assets?.trucks || 0} · TAN ${endpoint?.assets?.tanks || 0} · REF ${endpoint?.assets?.troops || 0}<br>Defesa ${Math.round(effects.defensiveCover * 100)}% · reforço ${Math.round(effects.reinforcementSupport * 100)}%</p>`;
+    detail.innerHTML = `<h3>${record.hex.name} / ${record.sector.name}</h3><p>${relation}<strong>${ownerLabel(node.owner)}</strong> · região ${ownerLabel(control)}<br>QG: <strong>${node.core.status.toUpperCase()} ${Math.round(node.core.hp)}/${Math.round(node.core.maxHp)}</strong><br>Estruturas: <strong>${structures}</strong><br>Obra: <strong>${node.activeProject ? STRUCTURE[node.activeProject] || node.activeProject : '—'}</strong><br>Produção: <strong>${node.vehicleProduction ? node.vehicleProduction.toUpperCase() : '—'}</strong><br>MAT ${Math.round(node.stock.materials)} · MUN ${Math.round(node.stock.ammo)} · COMB ${Math.round(node.stock.fuel)}<br>CAM ${endpoint?.assets?.trucks || 0} · TAN ${endpoint?.assets?.tanks || 0} · REF ${endpoint?.assets?.troops || 0}<br>Defesa ${Math.round(effects.defensiveCover * 100)}% · reforço ${Math.round(effects.reinforcementSupport * 100)}%</p>`;
   }
 
   function drawTerrain() {
@@ -648,6 +672,9 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     open: () => setOpen(true),
     close: () => setOpen(false),
     locate,
+    nearbyFacilities,
+    resupplyAmmoFromCapital,
+    damageCapitalCore: damageCapitalCoreAt,
     applySectorControl,
     destroy() { clearInterval(strategicTimer); setOpen(false); stopNotebookBridge(); button.remove(); root.remove(); delete window.ironRainStrategicMap; },
   });
