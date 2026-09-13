@@ -3,6 +3,7 @@ import { territoryOperationalEffects } from './territory-ai.js';
 const bool = value => value === true;
 const validTeam = team => team === 'ally' || team === 'enemy';
 const positiveFinite = value => Number.isFinite(value) && value > 0;
+const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
 
 /**
  * Ask the canonical strategic-logistics graph whether a friendly route really
@@ -82,6 +83,20 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
   });
 }
 
+function combatDeliveredTroops(strategicLogistics, to) {
+  if (!strategicLogistics || typeof strategicLogistics.getNode !== 'function') return 0;
+  try {
+    const destination = strategicLogistics.getNode(String(to ?? ''));
+    return destination?.alive ? Math.max(0, Math.floor(Number(destination.assets?.troops) || 0)) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function withDeliveredTroops(logistics, strategicLogistics, to) {
+  return Object.freeze({ ...logistics, availableTroops: combatDeliveredTroops(strategicLogistics, to) });
+}
+
 /**
  * Pure admission gate for aggregate infantry reserves.
  *
@@ -89,13 +104,16 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
  * this gate only decides whether those replacements are physically able to
  * arrive. It intentionally does not create personnel, consume stock, or pick
  * reinforcement amounts. Callers must pass the local `combatLogisticsState()`
- * snapshot earned by the world/logistics simulation.
+ * snapshot earned by the world/logistics simulation. When `availableTroops`
+ * is present, it represents personnel already delivered to the staging node;
+ * an open road by itself never materializes soldiers at the front.
  */
 export function combatReserveGate({ logistics, timerExpired = false, fallbackComplete = false } = {}) {
   const connected = bool(logistics?.connected);
   const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
   const support = positiveFinite(logistics?.reinforcementSupport);
-  const logisticsReady = connected && fieldNode && support && bool(logistics?.canReceiveReinforcements);
+  const delivered = !hasOwn(logistics, 'availableTroops') || positiveFinite(logistics?.availableTroops);
+  const logisticsReady = connected && fieldNode && support && delivered && bool(logistics?.canReceiveReinforcements);
   const due = bool(timerExpired);
   const fallbackReady = bool(fallbackComplete);
   const ready = due && fallbackReady && logisticsReady;
@@ -106,6 +124,7 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
   else if (!connected) reason = 'route';
   else if (!fieldNode) reason = 'field-node';
   else if (!support) reason = 'support';
+  else if (!delivered) reason = 'troops';
   else if (!bool(logistics?.canReceiveReinforcements)) reason = 'logistics';
 
   return Object.freeze({
@@ -121,6 +140,8 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
  * Gameplay-scale reserve batch derived from the canonical territory support.
  * There is deliberately no unconditional minimum: light infrastructure yields
  * a small batch, while cut or malformed logistics yields zero replacements.
+ * When a physical staging inventory is supplied, the batch is capped by troops
+ * already present there so combat cannot spend personnel still in transit.
  *
  * The multiplier stays on the existing aggregate 0..100 front-strength scale;
  * it is a fictional gameplay value, not a real-world personnel table.
@@ -129,9 +150,11 @@ export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
   const shortage = Number.isFinite(deficit) ? Math.max(0, deficit) : 0;
   const support = positiveFinite(logistics?.reinforcementSupport) ? logistics.reinforcementSupport : 0;
   const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
-  const ready = bool(logistics?.connected) && fieldNode && bool(logistics?.canReceiveReinforcements) && support > 0;
+  const delivered = !hasOwn(logistics, 'availableTroops') || positiveFinite(logistics?.availableTroops);
+  const ready = bool(logistics?.connected) && fieldNode && bool(logistics?.canReceiveReinforcements) && support > 0 && delivered;
   if (!ready || shortage <= 0) return 0;
-  return Math.min(shortage, support * 20);
+  const supported = Math.min(shortage, support * 20);
+  return hasOwn(logistics, 'availableTroops') ? Math.min(supported, logistics.availableTroops) : supported;
 }
 
 /**
@@ -171,7 +194,7 @@ export function combatReservePlan({
 } = {}) {
   const origin = from == null ? combatReserveOrigin({ strategicLogistics, team, to }) : from;
   const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to });
-  const logistics = combatLogisticsState({ territory, team, routeOpen });
+  const logistics = withDeliveredTroops(combatLogisticsState({ territory, team, routeOpen }), strategicLogistics, to);
   const decision = combatReserveDecision({ logistics, timerExpired, fallbackComplete, deficit });
   return Object.freeze({ origin, routeOpen, logistics, ...decision });
 }
@@ -216,7 +239,7 @@ export function combatReservePlanCycle({
 } = {}) {
   const origin = from == null ? combatReserveOrigin({ strategicLogistics, team, to }) : from;
   const routeOpen = combatRouteOpen({ logistics: strategicLogistics, team, from: origin, to });
-  const logistics = combatLogisticsState({ territory, team, routeOpen });
+  const logistics = withDeliveredTroops(combatLogisticsState({ territory, team, routeOpen }), strategicLogistics, to);
   const cycle = combatReserveCycle({ logistics, timer, fallbackUntil, tick, strength, resetIn });
   return Object.freeze({ origin, routeOpen, logistics, ...cycle });
 }
