@@ -17,15 +17,21 @@ test('idle loader rests at the mechanical home pose', () => {
   assert.equal(loaderActivity(null).moving, false);
 });
 
-test('loader approaches the carousel empty, then visibly owns the picked round', () => {
-  const approach = loaderArmPose(cycle(.08, 'extract'));
-  const pickup = loaderArmPose(cycle(.16, 'extract'));
-  const approachRig = loaderRigState(cycle(.08, 'extract'));
-  const pickupRig = loaderRigState(cycle(.16, 'extract'));
+test('loader reaches the carousel before claiming the picked round', () => {
+  const approach = loaderArmPose(cycle(.10, 'extract'));
+  const clamp = loaderArmPose(cycle(.14, 'extract'));
+  const pickup = loaderArmPose(cycle(.17, 'extract'));
+  const approachRig = loaderRigState(cycle(.10, 'extract'));
+  const pickupRig = loaderRigState(cycle(.17, 'extract'));
 
   assert.equal(approach.shellVisible, false, 'round stays in the magazine during the empty approach');
+  assert.equal(approach.gripping, false, 'empty approach cannot report a closed clamp');
   assert.equal(approachRig.shell.owner, null, 'loader does not claim renderer ownership before pickup');
-  assert.equal(pickup.shellVisible, true, 'round appears once the claw reaches the pickup band');
+  assert.ok(approach.extension > .2, 'arm reaches most of the way to the carousel before closing the claw');
+  assert.ok(clamp.claw < approach.claw, 'claw closes only after the reach is established');
+  assert.equal(clamp.shellVisible, false, 'round remains in the carousel while the clamp is still closing');
+  assert.equal(pickup.shellVisible, true, 'round appears only once the claw has positively clamped it');
+  assert.equal(pickup.gripping, true, 'pickup establishes mechanical ownership before the swing');
   assert.equal(pickupRig.shell.owner, 'claw', 'picked round belongs to the claw');
 });
 
