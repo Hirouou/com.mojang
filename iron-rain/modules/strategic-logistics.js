@@ -1,9 +1,20 @@
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const stockKeys = Object.freeze(['materials', 'ammo', 'fuel']);
+export const LOGISTICS_ASSET_KEYS = Object.freeze(['trucks', 'tanks', 'troops']);
 const copyStock = value => Object.fromEntries(stockKeys.map(key => [key, Math.max(0, Number(value?.[key]) || 0)]));
+const copyAssets = value => Object.fromEntries(LOGISTICS_ASSET_KEYS.map(key => [key, Math.max(0, Math.floor(Number(value?.[key]) || 0))]));
 
-export function createLogisticsNode({ id, team, x = 0, y = 0, stock = {}, kind = 'outpost' } = {}) {
-  return { id: String(id ?? ''), team: team === 'ally' || team === 'enemy' ? team : null, x: Number(x) || 0, y: Number(y) || 0, kind, alive: true, stock: copyStock(stock) };
+export function createLogisticsNode({ id, team, x = 0, y = 0, stock = {}, assets = {}, kind = 'outpost' } = {}) {
+  return {
+    id: String(id ?? ''),
+    team: team === 'ally' || team === 'enemy' ? team : null,
+    x: Number(x) || 0,
+    y: Number(y) || 0,
+    kind,
+    alive: true,
+    stock: copyStock(stock),
+    assets: copyAssets(assets),
+  };
 }
 
 export function createSupplyRoute({ id, team, from, to, distance = 1_000 } = {}) {
@@ -13,6 +24,9 @@ export function createSupplyRoute({ id, team, from, to, distance = 1_000 } = {})
 function canPay(stock, cargo) { return stockKeys.every(key => (stock?.[key] || 0) >= (cargo?.[key] || 0)); }
 function debit(stock, cargo) { for (const key of stockKeys) stock[key] = Math.max(0, stock[key] - (cargo[key] || 0)); }
 function credit(stock, cargo) { for (const key of stockKeys) stock[key] = Math.max(0, stock[key] + (cargo[key] || 0)); }
+function canPayAssets(assets, manifest) { return LOGISTICS_ASSET_KEYS.every(key => (assets?.[key] || 0) >= (manifest?.[key] || 0)); }
+function debitAssets(assets, manifest) { for (const key of LOGISTICS_ASSET_KEYS) assets[key] = Math.max(0, (assets[key] || 0) - (manifest[key] || 0)); }
+function creditAssets(assets, manifest) { for (const key of LOGISTICS_ASSET_KEYS) assets[key] = Math.max(0, (assets[key] || 0) + (manifest[key] || 0)); }
 
 export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   const nodeMap = new Map(nodes.map(node => [node.id, node]));
@@ -50,20 +64,35 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     return null;
   }
 
-  function dispatch({ team, from, to, cargo = {}, speed = 14 } = {}) {
+  function dispatch({ team, from, to, cargo = {}, assets = {}, speed = 14, kind = 'supply' } = {}) {
     const origin = nodeMap.get(String(from)), destination = nodeMap.get(String(to));
-    const load = copyStock(cargo);
+    const load = copyStock(cargo), manifest = copyAssets(assets);
     if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return Object.freeze({ ok: false, reason: 'invalid-endpoint' });
     if (!canPay(origin.stock, load)) return Object.freeze({ ok: false, reason: 'origin-stock-insufficient' });
+    if (!canPayAssets(origin.assets, manifest)) return Object.freeze({ ok: false, reason: 'origin-assets-insufficient' });
     const path = route(team, origin.id, destination.id);
     if (!path) return Object.freeze({ ok: false, reason: 'route-cut' });
     debit(origin.stock, load);
+    debitAssets(origin.assets, manifest);
     const convoy = {
-      id: `CV-${++serial}`, team, from: origin.id, to: destination.id, cargo: load,
-      path: [...path], leg: 0, legProgress: 0, speed: Math.max(.1, Number(speed) || 14), hp: 100, status: path.length ? 'moving' : 'arrived',
+      id: `CV-${++serial}`,
+      kind: String(kind || 'supply'),
+      team,
+      from: origin.id,
+      to: destination.id,
+      cargo: load,
+      assets: manifest,
+      path: [...path],
+      leg: 0,
+      legProgress: 0,
+      speed: Math.max(.1, Number(speed) || 14),
+      hp: 100,
+      status: path.length ? 'moving' : 'arrived',
     };
-    if (!path.length) credit(destination.stock, load);
-    else convoys.set(convoy.id, convoy);
+    if (!path.length) {
+      credit(destination.stock, load);
+      creditAssets(destination.assets, manifest);
+    } else convoys.set(convoy.id, convoy);
     return Object.freeze({ ok: true, convoyId: convoy.id, status: convoy.status });
   }
 
@@ -79,7 +108,14 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     for (const convoy of convoys.values()) {
       if (['arrived', 'destroyed'].includes(convoy.status)) continue;
       convoy.hp = clamp(convoy.hp - Math.max(0, Number(damageByConvoy[convoy.id]) || 0), 0, 100);
-      if (convoy.hp <= 0) { convoy.status = 'destroyed'; events.push({ type: 'convoy-destroyed', convoyId: convoy.id, team: convoy.team, to: convoy.to }); continue; }
+      if (convoy.hp <= 0) {
+        convoy.status = 'destroyed';
+        events.push({
+          type: 'convoy-destroyed', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind,
+          lostCargo: { ...convoy.cargo }, lostAssets: { ...convoy.assets },
+        });
+        continue;
+      }
       if (!routeStillOpen(convoy)) { convoy.status = 'blocked'; continue; }
       convoy.status = 'moving';
       let travel = convoy.speed * elapsed;
@@ -96,7 +132,13 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       if (convoy.leg >= convoy.path.length) {
         const destination = nodeMap.get(convoy.to);
         if (destination?.alive && destination.team === convoy.team) {
-          credit(destination.stock, convoy.cargo); convoy.status = 'arrived'; events.push({ type: 'convoy-arrived', convoyId: convoy.id, team: convoy.team, to: convoy.to, cargo: { ...convoy.cargo } });
+          credit(destination.stock, convoy.cargo);
+          creditAssets(destination.assets, convoy.assets);
+          convoy.status = 'arrived';
+          events.push({
+            type: 'convoy-arrived', convoyId: convoy.id, team: convoy.team, to: convoy.to, kind: convoy.kind,
+            cargo: { ...convoy.cargo }, assets: { ...convoy.assets },
+          });
         } else convoy.status = 'blocked';
       }
     }
@@ -113,9 +155,18 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
 
   function snapshot() {
     return Object.freeze({
-      nodes: Object.freeze([...nodeMap.values()].map(node => Object.freeze({ ...node, stock: Object.freeze({ ...node.stock }) }))),
+      nodes: Object.freeze([...nodeMap.values()].map(node => Object.freeze({
+        ...node,
+        stock: Object.freeze({ ...node.stock }),
+        assets: Object.freeze({ ...node.assets }),
+      }))),
       routes: Object.freeze([...routeMap.values()].map(route => Object.freeze({ ...route }))),
-      convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({ ...convoy, cargo: Object.freeze({ ...convoy.cargo }), path: Object.freeze(convoy.path.map(step => Object.freeze({ ...step }))) }))),
+      convoys: Object.freeze([...convoys.values()].map(convoy => Object.freeze({
+        ...convoy,
+        cargo: Object.freeze({ ...convoy.cargo }),
+        assets: Object.freeze({ ...convoy.assets }),
+        path: Object.freeze(convoy.path.map(step => Object.freeze({ ...step }))),
+      }))),
     });
   }
 
