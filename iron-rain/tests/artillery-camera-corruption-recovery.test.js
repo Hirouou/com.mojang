@@ -43,3 +43,20 @@ test('one corrupted camera axis does not contaminate the valid return axis', () 
   assert.equal(state.cam.x < 5200, true);
   assert.equal(state.cam.y, state.robot.y);
 });
+
+test('invalid impact hold cannot trap the projectile camera away from the Mamute', () => {
+  for (const impactHold of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    const state = stateWithCorruptCamera();
+    state.cam.x = 5400;
+    state.cam.y = 1400;
+    state.impactHold = impactHold;
+
+    stepCamera(state, 0.016, 1000);
+
+    assert.equal(state.cam.mode, 'return');
+    assert.equal(state.returning, true);
+    assert.equal(state.cam.manualX, 0);
+    assert.equal(state.cam.manualY, 0);
+    assert.ok(state.impactHold <= 0);
+  }
+});

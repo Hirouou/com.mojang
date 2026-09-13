@@ -27,7 +27,8 @@ export function stepCamera(state, dt, viewportWidth) {
   const frameDt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
   if (cam.mode === 'shell' || cam.mode === 'intel') return;
   if (cam.mode === 'impact') {
-    state.impactHold -= frameDt;
+    const impactHold = Number.isFinite(state.impactHold) ? Math.max(0, state.impactHold) : 0;
+    state.impactHold = impactHold - frameDt;
     if (state.impactHold <= 0) beginReturn(state);
     return;
   }
