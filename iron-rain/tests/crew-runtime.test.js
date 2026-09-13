@@ -120,8 +120,8 @@ test('three crew can own different stations while shared Mamute commands remain 
   ]);
 });
 
-test('host runtime consumes canonical artillery ammo before replicating accepted guest fire', () => {
-  const bus = [], clock = { value: 50 }, hostEffects = [], gunnerEffects = [];
+test('host runtime consumes canonical artillery ammo and returns the final authority result to the guest shooter', () => {
+  const bus = [], clock = { value: 50 }, hostEffects = [], gunnerEffects = [], gunnerResults = [];
   const factory = options => new FakeTransport(options, bus);
   const inventory = createMamuteInventory({
     capacity: { HE: 2, SMOKE: 1, FRAG: 1 },
@@ -133,7 +133,12 @@ test('host runtime consumes canonical artillery ammo before replicating accepted
     transportFactory: factory,
     fireInventory: () => inventory,
   });
-  const gunner = createCrewRuntime({ localId: 'gunner', now: () => clock.value, transportFactory: factory });
+  const gunner = createCrewRuntime({
+    localId: 'gunner',
+    now: () => clock.value,
+    transportFactory: factory,
+    onCommandResult(result) { gunnerResults.push(result); },
+  });
   host.subscribeEffects(effect => hostEffects.push(effect));
   gunner.subscribeEffects(effect => gunnerEffects.push(effect));
 
@@ -148,6 +153,11 @@ test('host runtime consumes canonical artillery ammo before replicating accepted
   assert.equal(inventory.shells.HE, 0);
   assert.deepEqual(hostEffects.map(effect => effect.type), ['fire', 'reload']);
   assert.deepEqual(gunnerEffects.map(effect => effect.type), ['fire', 'reload']);
+  const firstResolved = gunnerResults.filter(result => result.authoritative).at(-1);
+  assert.equal(firstResolved?.ok, true);
+  assert.equal(firstResolved?.type, 'fire');
+  assert.equal(firstResolved?.shell, 'HE');
+  assert.equal(firstResolved?.ammoRemaining, 0);
 
   const second = gunner.issueCommand('fire', { shell: 'HE', shotId: 'runtime-ammo-2' });
   assert.equal(second.ok, true);
@@ -155,4 +165,8 @@ test('host runtime consumes canonical artillery ammo before replicating accepted
   assert.equal(inventory.shells.HE, 0);
   assert.equal(hostEffects.length, 2);
   assert.equal(gunnerEffects.length, 2);
+  const secondResolved = gunnerResults.filter(result => result.authoritative).at(-1);
+  assert.equal(secondResolved?.ok, false);
+  assert.equal(secondResolved?.type, 'fire');
+  assert.equal(secondResolved?.reason, 'out-of-ammo');
 });
