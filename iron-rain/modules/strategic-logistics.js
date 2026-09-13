@@ -130,6 +130,41 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     };
   }
 
+  // A convoy may only choose a detour while physically sitting on a route node.
+  // If a road closes after it already entered that leg, it stays blocked there
+  // rather than teleporting back to the junction to obtain a new path.
+  function rerouteFromCurrentNode(convoy) {
+    const blockedLeg = convoy.path[convoy.leg] || null;
+    if (!blockedLeg || convoy.legProgress > 1e-6) return null;
+    const detour = route(convoy.team, blockedLeg.from, convoy.to);
+    if (!detour?.length) return null;
+    const previousRouteId = blockedLeg.routeId;
+    const prefix = convoy.path.slice(0, convoy.leg);
+    convoy.path = [...prefix, ...detour];
+    convoy.legProgress = 0;
+    const nextLeg = convoy.path[convoy.leg] || null;
+    return {
+      previousRouteId,
+      routeId: nextLeg?.routeId ?? null,
+      fromNode: nextLeg?.from ?? blockedLeg.from,
+      toNode: nextLeg?.to ?? null,
+    };
+  }
+
+  function rerouteEvent(convoy, change) {
+    return {
+      type: 'convoy-rerouted',
+      convoyId: convoy.id,
+      team: convoy.team,
+      to: convoy.to,
+      kind: convoy.kind,
+      previousRouteId: change.previousRouteId,
+      routeId: change.routeId,
+      fromNode: change.fromNode,
+      toNode: change.toNode,
+    };
+  }
+
   function step(dt, { damageByConvoy = {} } = {}) {
     const elapsed = clamp(dt, 0, 60), events = [];
     for (const convoy of convoys.values()) {
@@ -145,12 +180,20 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
       }
       const previousStatus = convoy.status;
       if (!routeStillOpen(convoy)) {
-        convoy.status = 'blocked';
-        if (previousStatus !== 'blocked') events.push(routeTransitionEvent('convoy-blocked', convoy));
-        continue;
+        const reroute = rerouteFromCurrentNode(convoy);
+        if (!reroute) {
+          convoy.status = 'blocked';
+          if (previousStatus !== 'blocked') events.push(routeTransitionEvent('convoy-blocked', convoy));
+          continue;
+        }
+        convoy.status = 'moving';
+        events.push(rerouteEvent(convoy, reroute));
+        if (previousStatus === 'blocked') events.push(routeTransitionEvent('convoy-resumed', convoy));
       }
       convoy.status = 'moving';
-      if (previousStatus === 'blocked') events.push(routeTransitionEvent('convoy-resumed', convoy));
+      if (previousStatus === 'blocked' && !events.some(event => event.type === 'convoy-resumed' && event.convoyId === convoy.id)) {
+        events.push(routeTransitionEvent('convoy-resumed', convoy));
+      }
       let travel = convoy.speed * elapsed;
       while (travel > 0 && convoy.leg < convoy.path.length) {
         const leg = convoy.path[convoy.leg], remaining = leg.distance - convoy.legProgress;
@@ -158,6 +201,11 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
         convoy.legProgress += move; travel -= move;
         if (convoy.legProgress >= leg.distance - 1e-6) { convoy.leg += 1; convoy.legProgress = 0; }
         if (convoy.leg < convoy.path.length && !routeStillOpen(convoy)) {
+          const reroute = rerouteFromCurrentNode(convoy);
+          if (reroute) {
+            events.push(rerouteEvent(convoy, reroute));
+            continue;
+          }
           convoy.status = 'blocked';
           events.push(routeTransitionEvent('convoy-blocked', convoy));
           break;
