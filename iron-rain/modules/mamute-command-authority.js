@@ -12,6 +12,7 @@ export const MAMUTE_COMMAND_STATION = Object.freeze({
 
 const cleanId = value => (typeof value === 'string' || typeof value === 'number') && String(value).trim() ? String(value).trim() : null;
 const cleanType = value => MAMUTE_COMMAND_STATION[String(value)] ? String(value) : null;
+const FIRE_REPLAY_WINDOW = 128;
 
 /**
  * Validates multiplayer commands against current physical-station ownership.
@@ -23,7 +24,20 @@ export function createMamuteCommandAuthority({
   apply = () => true,
 } = {}) {
   const sequences = new Map();
+  const acceptedFireShots = new Set();
+  const acceptedFireOrder = [];
   let accepted = 0, rejected = 0;
+
+  function rememberFireShot(playerId, payload) {
+    const shotId = cleanId(payload?.shotId);
+    if (!shotId) return true;
+    const key = `${playerId}:${shotId}`;
+    if (acceptedFireShots.has(key)) return false;
+    acceptedFireShots.add(key);
+    acceptedFireOrder.push(key);
+    while (acceptedFireOrder.length > FIRE_REPLAY_WINDOW) acceptedFireShots.delete(acceptedFireOrder.shift());
+    return true;
+  }
 
   function receive(command) {
     const playerId = cleanId(command?.playerId ?? command?.sender);
@@ -39,6 +53,11 @@ export function createMamuteCommandAuthority({
     if (owner !== playerId) {
       rejected += 1;
       return Object.freeze({ ok: false, reason: owner ? 'station-owned-by-other' : 'station-not-claimed', station, owner: owner || null });
+    }
+    if (type === 'fire' && !rememberFireShot(playerId, command.payload)) {
+      sequences.set(playerId, seq);
+      rejected += 1;
+      return Object.freeze({ ok: false, reason: 'duplicate-shot', station, owner });
     }
     let applied = false;
     try { applied = apply(Object.freeze({ playerId, seq, type, station, payload: command.payload ?? null })) !== false; } catch { applied = false; }

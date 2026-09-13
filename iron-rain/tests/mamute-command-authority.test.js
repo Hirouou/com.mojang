@@ -26,3 +26,27 @@ test('stale duplicate commands are ignored', () => {
   assert.equal(authority.receive({ playerId: 'driver', seq: 4, type: 'drive-stop' }).ok, true);
   assert.equal(authority.receive({ playerId: 'driver', seq: 4, type: 'drive-stop' }).reason, 'stale-command');
 });
+
+test('fire shotId is idempotent even when transport retries with a newer sequence', () => {
+  const applied = [];
+  const authority = createMamuteCommandAuthority({
+    stationOwner: () => 'gunner',
+    apply: command => { applied.push(command); return true; },
+  });
+  const payload = { shotId: 'mamute-a:gunner:7', shell: 'HE', charge: 4, bearing: 92, elevation: 47 };
+
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 7, type: 'fire', payload }).ok, true);
+  const duplicate = authority.receive({ playerId: 'gunner', seq: 8, type: 'fire', payload });
+
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.reason, 'duplicate-shot');
+  assert.equal(applied.length, 1);
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 9, type: 'fire', payload: { ...payload, shotId: 'mamute-a:gunner:8' } }).ok, true);
+  assert.equal(applied.length, 2);
+});
+
+test('legacy fire without shotId remains compatible', () => {
+  const authority = createMamuteCommandAuthority({ stationOwner: () => 'gunner' });
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 1, type: 'fire', payload: { shell: 'HE' } }).ok, true);
+  assert.equal(authority.receive({ playerId: 'gunner', seq: 2, type: 'fire', payload: { shell: 'HE' } }).ok, true);
+});
