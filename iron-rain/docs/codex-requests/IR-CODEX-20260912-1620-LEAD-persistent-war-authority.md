@@ -6,7 +6,7 @@ RESUMED_AT: 2026-09-13
 OWNER_SCOPE: implementar servidor compartilhado, vários Mamutes com até 3 tripulantes cada, presença e dano entre Mamutes, corrigir caminhões teleportando e melhorar estradas/construções; reforçar coordenação dos próximos agentes. Cabine restaurada e mobile devem permanecer funcionais.
 
 ## Reserva atual de integração — Codex
-Pedido retomado explicitamente pelo owner após recuperação da cabine. CODEX mantém exclusividade sobre backend, bootstrap, gameplay, sincronização e configuração de publicação. LEAD/Slots não devem abrir stacks ou publicar integração concorrente. Colaboração interna do Codex usa arquivos delimitados; demais agentes consultam este arquivo e o handoff. Endereço/credenciais de backend público ainda não identificados; implementação e testes locais avançam enquanto hospedagem é esclarecida. Não declarar servidor publicado por um deploy estático do Pages.
+Pedido retomado explicitamente pelo owner após recuperação da cabine. CODEX mantém exclusividade sobre backend, bootstrap, gameplay, sincronização e configuração de publicação. LEAD/Slots não devem abrir stacks ou publicar integração concorrente. Colaboração interna do Codex usa arquivos delimitados; demais agentes consultam este arquivo e o handoff. Owner autorizou hospedar no próprio PC. Backend dedicado e túnel HTTPS ativos; operação documentada em server/README.md. Não declarar servidor publicado por um deploy estático do Pages.
 CLAIMED_HEAD: 3c7e547fa678b4bc56d2c85cbf3a392c211ec12a
 CLAIMED_AT: 2026-09-12T22:46:35-03:00
 REQUESTER: LEAD
@@ -99,3 +99,13 @@ The immediate player-test target is concrete: player A joins an ALIADOS Mamute, 
 - risks/costs/limits for iPhone + GitHub Pages;
 - exact next implementation steps and files/adapters;
 - explicit statement that player-host authority is rejected for the world.
+
+
+## Checkpoint publicável — 2026-09-13
+- Implementação: servidor Node 24 + SQLite, guerra independente de navegadores, identidade reconectável, múltiplos Mamutes/3 assentos, postos exclusivos, comandos deduplicados, tiro/dano/porta/serviço/eventos replicados. Cliente de produção seleciona endpoint em server-config.js.
+- UI: lobby de facção/base/veículo, convite no menu, mapa mobile com navegação própria e toolbar em layout, avatares refinados. Continuidade de comboios corrigida.
+- Testes: 711 testes unitários passaram. Teste integrado em três contextos Chromium e validação Pages registrados no fechamento seguinte; não confundir emulação com dispositivos físicos.
+- Arquivos: server/, server-config.js, server-ui.css, bootstrap.js, game-v6.js, index.html, sw.js, módulos server-*, cabine/crew/câmera, strategic-war-live-v3, strategic-logistics, war-simulation/core/audio, mobile-ux-review, operator-enhancements, testes e workflow Pages.
+- Evidências locais: test-results/full-server.log, test-results/server-browser.log e screenshots server-*.png. Roteiro reproduzível versionado em tests/server-game-browser.mjs.
+- Prova integrada PASSOU (três contextos Chromium, mobile emulado): veículos distintos 6a60c9e7/6d7925cf, passageiro no primeiro; munição HE 18→17; blindagem alvo 46.7122; eventos fire/impact, porta/avatares, canvas 844×248 sem resize ao zoom e reconexão da mesma identidade; zero erros de console. O harness limita RAF a ~20fps para três renderizadores simultâneos na mesma máquina. P0 restante: confirmar publicação Pages. P1: intel estratégico, banda e dispositivos físicos, hospedagem permanente. P2: arte das cidades/estradas e cabine completa. Detalhes/ordem em CONTINUE_FROM_HERE_20260913.md.
+- Recomendação: preservar esta autoridade, validar a versão publicada antes de qualquer incremento. Não aplicar stashes históricos inteiros. Commits deste checkpoint identificados pelo histórico deste arquivo.

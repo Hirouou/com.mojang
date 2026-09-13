@@ -109,7 +109,7 @@ function applyRemoteEffect(effect) {
 
 function bindRuntime() {
   const runtime = globalThis.ironRainEntry?.runtime;
-  if (!runtime || runtime === lastRuntime) return;
+  if (!runtime || runtime.isAuthoritativeClient || runtime === lastRuntime) return;
   unsubscribeEffects?.(); unsubscribeCommandResults?.(); lastRuntime = runtime; maintenanceCadenceState = null; clearPendingGuestFire();
   unsubscribeEffects = runtime.subscribeEffects?.(applyRemoteEffect) || null;
   unsubscribeCommandResults = runtime.subscribeCommandResults?.(applyCommandResult) || null;
@@ -154,6 +154,7 @@ function canReplicateLocalShot(runtime) {
 function emitLocalShot(payload = liveShotPayload()) {
   if (suppressObservedFire) { suppressObservedFire = false; return null; }
   const runtime = globalThis.ironRainEntry?.runtime;
+  if (runtime?.isAuthoritativeClient) return null;
   if (!runtime?.issueCommand || !canReplicateLocalShot(runtime)) return null;
   return runtime.issueCommand('fire', payload);
 }
@@ -253,7 +254,7 @@ function bindFireState() {
 }
 
 function installSelectorWhenReady() {
-  if (selector) return;
+  if (selector || globalThis.ironRainEntry?.runtime?.isAuthoritativeClient) return;
   const lobbyRoot = document.querySelector('.crew-lobby');
   if (!lobbyRoot) return;
   const facade = { element: lobbyRoot, faction() { return lobbyRoot.querySelector('[data-crew-faction].active')?.dataset.crewFaction || null; } };
@@ -292,6 +293,7 @@ addEventListener('ironrain:mamute-impact', event => {
 });
 
 addEventListener('ironrain:mamute-destroyed', () => {
+  if(globalThis.ironRainEntry?.runtime?.isAuthoritativeClient)return;
   destroyedOpen = true;
   const entry = globalThis.ironRainEntry;
   entry && (entry.pendingRespawn = null);

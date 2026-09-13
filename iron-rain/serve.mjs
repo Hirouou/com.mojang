@@ -9,6 +9,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     const requested = decodeURIComponent(url.pathname);
+    if (requested.startsWith('/server/')) { res.writeHead(403); res.end(); return; }
     const filename = path.resolve(root, '.' + (requested === '/' ? '/index.html' : requested));
     if (!filename.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
     const body = await readFile(filename);

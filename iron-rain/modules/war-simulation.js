@@ -232,6 +232,7 @@ function reconcileStrategicAssets(state, before) {
 }
 
 function strategicLogistics(state) {
+  if(state?.serverStrategic?.logistics)return {snapshot:()=>state.serverStrategic.logistics};
   for (const sector of state?.sectors || []) {
     if (!sector?.strategicSectorId) continue;
     for (const team of ['ally', 'enemy']) {
@@ -388,6 +389,7 @@ function dispatchHullState(state, armorBefore) {
 }
 
 export function updateWar(state, dt) {
+  if(globalThis.ironRainEntry?.runtime?.isAuthoritativeClient){publishStrategicTraffic(state);publishWorldBridge(state);return;}
   const live = isLiveGameState(state);
   if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); syncCombatSustainment(state); }
   const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);

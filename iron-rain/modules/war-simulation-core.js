@@ -699,10 +699,10 @@ function pointSegmentDistance(point, a, b) {
 }
 
 /** The ally trench masks direct fire while the vehicle is behind its cover. */
-function behindAllyCover(robot, sector) {
+function behindAllyCover(robot, sector, playerTeam = 'ally') {
   if (!robot || !sector) return false;
-  const line = getFrontGeometry(sector).allyLine;
-  return robot.x < line.x - 90 && Math.abs(robot.y - line.y) < 1_200;
+  const geometry = getFrontGeometry(sector), line = playerTeam === 'enemy' ? geometry.enemyLine : geometry.allyLine;
+  return (playerTeam === 'enemy' ? robot.x > line.x + 90 : robot.x < line.x - 90) && Math.abs(robot.y - line.y) < 1_200;
 }
 
 /**
@@ -713,26 +713,28 @@ function behindAllyCover(robot, sector) {
  */
 export function selectPlayerThreat(state) {
   const robot = state?.robot;
+  const playerTeam = state?.playerTeam === 'enemy' ? 'enemy' : 'ally';
+  const opponent = playerTeam === 'ally' ? 'enemy' : 'ally';
   if (!robot || !Number.isFinite(robot.x) || !Number.isFinite(robot.y)) return null;
   const candidates = [];
   const add = (source, kind, sector) => {
-    if (!source || source.alive === false || source.inactive || source.downed || source.team === 'ally') return;
+    if (!source || source.alive === false || source.inactive || source.downed || source.team === playerTeam) return;
     const profile = PLAYER_THREAT_LIMITS[kind];
     if (!profile || !Number.isFinite(source.x) || !Number.isFinite(source.y)) return;
     const distance = dist(source, robot);
     if (distance > profile.range) return;
     // Direct-fire weapons cannot see through a live smoke screen. Indirect
     // mortars/batteries can still bracket the last reported position.
-    if (['hmg', 'rifle', 'tank'].includes(kind) && (smokeBlocksLine(state.smokes || [], source, robot) || behindAllyCover(robot, sector))) return;
+    if (['hmg', 'rifle', 'tank'].includes(kind) && (smokeBlocksLine(state.smokes || [], source, robot) || behindAllyCover(robot, sector, playerTeam))) return;
     candidates.push({ source, kind, profile, sector, distance, score: distance - profile.priority * 220 });
   };
   for (let index = 0; index < (state.sectors || []).length; index++) {
     const sector = initializeSector(state.sectors[index], index);
     for (const asset of sector.assets || []) add(asset, threatKindForAsset(asset), sector);
-    for (const mortar of sector.war?.mortars || []) if (mortar.team === 'enemy') add(mortar, 'mortar', sector);
-    for (const tank of sector.war?.vehicles || []) if (tank.team === 'enemy') add(tank, 'tank', sector);
+    for (const mortar of sector.war?.mortars || []) if (mortar.team === opponent) add(mortar, 'mortar', sector);
+    for (const tank of sector.war?.vehicles || []) if (tank.team === opponent) add(tank, 'tank', sector);
     for (const unit of sector.units || []) {
-      if (unit.team !== 'enemy') continue;
+      if (unit.team !== opponent) continue;
       add(unit, unit.role === 'mg' ? 'hmg' : 'rifle', sector);
     }
   }
@@ -740,7 +742,7 @@ export function selectPlayerThreat(state) {
   // Mamute when it is near that assigned run; an aircraft on another front
   // remains an abstract strategic event.
   for (const bomber of state.warSimulation?.support || []) {
-    if (bomber.type !== 'bomber' || bomber.team !== 'enemy' || bomber.life <= 0 || !bomber.target) continue;
+    if (bomber.type !== 'bomber' || bomber.team !== opponent || bomber.life <= 0 || !bomber.target) continue;
     const nearRun = dist(robot, bomber.target) < 900 || pointSegmentDistance(robot, bomber.origin || bomber, bomber.target) < 260;
     if (nearRun) add(bomber, 'bomber', state.sectors.find(sec => sec.id === bomber.sector));
   }

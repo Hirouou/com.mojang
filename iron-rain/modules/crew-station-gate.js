@@ -28,7 +28,7 @@ export function stationGateState(runtime, station) {
 
   // A disconnected guest cannot prove current station authority. Treat any
   // cached stationOwner() value as stale until the shared runtime reconnects.
-  if (status?.mode === 'guest' && !status?.connected) {
+  if (['guest', 'server'].includes(status?.mode) && !status?.connected) {
     return Object.freeze({ ok: false, ready: false, pending: false, reason: 'not-connected', station: id, owner: null });
   }
   if (owner != null && localId != null && String(owner) === String(localId)) {

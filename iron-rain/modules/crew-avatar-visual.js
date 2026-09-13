@@ -21,8 +21,8 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
   const geometries = [
     new THREE.BoxGeometry(.34, .56, .22),
     new THREE.BoxGeometry(.12, .48, .12),
-    new THREE.IcosahedronGeometry(.15, 0),
-    new THREE.CylinderGeometry(.17, .18, .12, 6),
+    new THREE.SphereGeometry(.145, 8, 6),
+    new THREE.CylinderGeometry(.16, .19, .13, 8),
     new THREE.BoxGeometry(.23, .09, .12),
   ];
   const [torsoGeo, limbGeo, headGeo, helmetGeo, packGeo] = geometries;
@@ -44,16 +44,29 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
     root.name = `remote-crew-${index + 1}`;
 
     const torso = new THREE.Mesh(torsoGeo, coat); torso.position.y = 1.16; root.add(torso);
-    const pack = new THREE.Mesh(packGeo, gear); pack.position.set(0, 1.18, .16); root.add(pack);
+    const pack = new THREE.Mesh(packGeo, gear); pack.scale.set(1.4,3.5,1.4);pack.position.set(0, 1.18, .2); root.add(pack);
     const headPivot = new THREE.Group(); headPivot.position.y = 1.59; root.add(headPivot);
-    const head = new THREE.Mesh(headGeo, skin); headPivot.add(head);
+    const head = new THREE.Mesh(headGeo, skin);head.scale.set(.88,1.13,.88);headPivot.add(head);
     const cap = new THREE.Mesh(helmetGeo, helmet); cap.position.y = .105; headPivot.add(cap);
 
+    const detail=(geo,mat,parent,position,scale)=>{const mesh=new THREE.Mesh(geo,mat);mesh.position.set(...position);mesh.scale.set(...scale);parent.add(mesh);return mesh;};
+    detail(helmetGeo,helmet,headPivot,[0,.04,0],[1.13,.18,1.13]);
+    detail(packGeo,gear,headPivot,[0,.015,-.125],[.85,.58,.22]);
+    detail(packGeo,accent,headPivot,[0,.02,-.144],[.72,.28,.15]);
+    detail(packGeo,skin,headPivot,[0,-.055,-.137],[.25,.35,.3]);
+    detail(torsoGeo,gear,root,[0,.88,0],[1.03,.15,1.07]);
+    detail(packGeo,accent,root,[0,.89,-.13],[.25,.65,.2]);
+    for(const side of [-1,1]){
+      detail(limbGeo,gear,root,[side*.115,1.15,-.116],[.32,.95,.16]);
+      detail(packGeo,gear,root,[side*.105,1,-.15],[.58,1.25,.6]);
+      detail(packGeo,accent,root,[side*.21,1.37,0],[.55,.6,1.6]);
+    }
     const limbs = [];
     for (const side of [-1, 1]) {
       const arm = new THREE.Mesh(limbGeo, coat); arm.position.set(side * .24, 1.14, 0); root.add(arm);
-      const leg = new THREE.Mesh(limbGeo, gear); leg.position.set(side * .1, .58, 0); root.add(leg);
-      const boot = new THREE.Mesh(packGeo, accent); boot.scale.set(.62, .72, 1); boot.position.set(side * .1, .3, -.035); root.add(boot);
+      const leg = new THREE.Mesh(limbGeo, gear); leg.scale.y=1.35;leg.position.set(side * .1, .5, 0); root.add(leg);
+      const boot = new THREE.Mesh(packGeo, accent); boot.scale.set(.64, 1.6, 1.65);boot.position.set(side * .1, .12, -.035); root.add(boot);
+      detail(packGeo,skin,arm,[0,-.29,0],[.42,1.35,.85]);
       limbs.push({ arm, leg });
     }
     scene.add(root);

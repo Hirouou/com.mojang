@@ -6,7 +6,7 @@ export function createWarAudio() {
   const voices = new Set();
   const MAX_VOICES = 40;
   let context, master, effectsBus, ambientBus, engine, engineFilter, engineGain, noiseBuffer;
-  let muted = false, paused = false, lifecycleHidden = false, nextFoot = 0, nextCrank = 0, resumePending = null, maintenanceState = null;
+  let muted = false, paused = false, lifecycleHidden = false, nextFoot = 0, nextCrank = 0, nextAlarm = 0, resumePending = null, maintenanceState = null;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, Number.isFinite(n) ? n : a));
   // Device loss or denied playback must never escape into the game loop.
   const safely = fn => { try { return fn(); } catch { return undefined; } };
@@ -303,6 +303,10 @@ export function createWarAudio() {
       noise(.65 + thump * .85, .28 + thump * .62, 620 + intensity * 180, { endFrequency: 70 + intensity * 45 });
       tone(.48 + thump * .52, .22 + thump * .48, 96 + intensity * 24, 34 + intensity * 10);
       noise(.22 + rattle * .38, .12 + rattle * .34, 1800 + intensity * 500, { delay: .055, type: 'bandpass', endFrequency: 430 + intensity * 180 });
+    }); },
+    alarm() { safely(() => {
+      if(!canPlay()||context.currentTime<nextAlarm)return;nextAlarm=context.currentTime+1.4;
+      tone(.32,.16,780,1050,0,'triangle');tone(.32,.14,1050,780,.4,'triangle');
     }); },
     radio() { safely(() => {
       noise(.18, .2, 2200, { type: 'bandpass' });

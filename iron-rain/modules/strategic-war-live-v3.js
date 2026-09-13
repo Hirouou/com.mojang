@@ -51,8 +51,9 @@ export function releaseTerminalConvoyFlight(inFlight, event) {
   return released;
 }
 
-function makeTheatre() {
-  const hexes = createStrategicHexMap().map(hex => ({ ...hex, sectors: hex.sectors.map(sector => ({ ...sector, structures: [] })) }));
+export function makeTheatre(saved = null) {
+  if (saved && saved.version !== 1) throw new Error('Unsupported strategic checkpoint; refusing to reset the war');
+  const hexes = saved ? structuredClone(saved.hexes) : createStrategicHexMap().map(hex => ({ ...hex, sectors: hex.sectors.map(sector => ({ ...sector, structures: [] })) }));
   const records = new Map();
   for (const hex of hexes) for (const sector of hex.sectors) records.set(sector.id, { hex, sector });
 
@@ -99,9 +100,13 @@ function makeTheatre() {
     }
   }
 
-  const logistics = createStrategicLogistics({ nodes: logisticNodes, routes });
+  if (saved) {
+    territory.clear();
+    for (const [id, node] of saved.territory) territory.set(id, structuredClone(node));
+  }
+  const logistics = createStrategicLogistics({ nodes: logisticNodes, routes, restore: saved?.logistics });
   const sources = logisticNodes.filter(node => node.kind === 'depot').map(node => node.id);
-  const inFlight = new Map();
+  const inFlight = new Map(saved?.inFlight || []);
 
   function rememberFlight(key, sent) {
     if (sent?.ok && sent.status !== 'arrived' && sent.convoyId) inFlight.set(key, sent.convoyId);
@@ -165,8 +170,9 @@ function makeTheatre() {
     node.assets[key] = endpoint.assets[key];
   }
 
+  let economyAcc = 0;
   function step(seconds) {
-    const elapsed = Math.min(8, Math.max(.1, seconds));
+    let elapsed = Math.min(8, Math.max(.1, seconds));
     for (const event of logistics.step(elapsed)) {
       releaseTerminalConvoyFlight(inFlight, event);
       if (event.type !== 'convoy-arrived') continue;
@@ -174,6 +180,9 @@ function makeTheatre() {
       if (node && event.cargo) receiveTerritoryDelivery(node, { team: event.team, cargo: event.cargo });
     }
 
+    economyAcc += elapsed;
+    if(economyAcc < 1)return;
+    elapsed=economyAcc;economyAcc=0;
     const logisticsSnapshot = logistics.snapshot();
     for (const [id, node] of territory) {
       const record = records.get(id), endpoint = logistics.getNode(id);
@@ -251,7 +260,10 @@ function makeTheatre() {
     }
   }
 
-  return { hexes, records, territory, logistics, step };
+  // Durable state is separate from immutable presentation snapshots. Keep
+  // convoy progress and pending delivery IDs so restart never duplicates cargo.
+  const snapshot = () => structuredClone({ version: 1, hexes, territory: [...territory], logistics: logistics.exportState(), inFlight: [...inFlight] });
+  return { hexes, records, territory, logistics, step, snapshot };
 }
 
 function installStyles() {
@@ -315,30 +327,32 @@ export function installNotebookBridge(locate) {
 export function installStrategicWarLive({ app = document.getElementById('app') } = {}) {
   if (!app || document.getElementById('strategicWarBtn')) return null;
   installStyles();
-  const theatre = makeTheatre();
+  let theatre = makeTheatre();
+  const serverRuntime=globalThis.ironRainEntry?.runtime?.isAuthoritativeClient?globalThis.ironRainEntry.runtime:null;
   const button = document.createElement('button');
   button.id = 'strategicWarBtn';
-  button.className = 'strategic-war-btn';
+  button.className = 'menu-war-map';
   button.type = 'button';
   button.textContent = '▦ GUERRA';
-  document.body.appendChild(button);
+  (document.querySelector('.menu-grid')||document.body).appendChild(button);
 
   const root = document.createElement('section');
-  root.className = 'strategic-war hidden';
+  root.className = 'strategic-war hidden';root.dataset.canonicalNavigation='1';
   root.innerHTML = `<header>
     <div class="strategic-war-title"><b>TEATRO ESTRATÉGICO</b><small>REGIÕES · SETORES · IA · LOGÍSTICA · INTEL</small></div>
     <div class="strategic-war-balance" data-balance></div>
     <button type="button" data-close>VOLTAR AO MAMUTE ×</button>
   </header>
+  <nav class="war-map-toolbar" aria-label="Navegação do mapa"><span>ARRASTE PARA MOVER · PINÇA PARA ZOOM</span><button data-map-out aria-label="Diminuir zoom">−</button><button data-map-center>MEU MAMUTE</button><button data-map-in aria-label="Aumentar zoom">+</button><button data-map-details>SETOR</button></nav>
   <div class="strategic-war-main">
-    <div class="strategic-war-map"><canvas aria-label="Mapa estratégico da guerra"></canvas><div class="strategic-war-locate" data-locate></div></div>
+    <div class="strategic-war-map"><canvas aria-label="Mapa estratégico da guerra"></canvas></div>
     <aside class="strategic-war-side">
       <div class="war-kpis" data-kpis></div>
       <div class="war-legend"><span><i style="background:${COLOR.ally}"></i>ALIADOS</span><span><i style="background:${COLOR.enemy}"></i>EIXO</span><span><i style="background:${COLOR.neutral}"></i>NEUTRO</span><span><i style="background:${COLOR.contested}"></i>DISPUTADO</span></div>
       <div class="war-rule"></div>
       <div data-detail><h3>MAPA DA GUERRA</h3><p>Selecione um setor. Regiões grandes contêm sete setores. A linha tracejada é a frente contínua; a faixa cinza/amarela é terra neutra e disputada.</p></div>
     </aside>
-  </div>`;
+  </div><div class="war-location-bar" data-locate></div>`;
   document.body.appendChild(root);
 
   const canvas = root.querySelector('canvas');
@@ -377,6 +391,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
   }
 
   function claimAsset(sectorId, team, type, count = 1) {
+    if(serverRuntime)return false;
     const id = String(sectorId ?? ''), amount = Math.max(1, Math.floor(Number(count) || 1));
     if (!id || !['ally', 'enemy'].includes(team) || !['trucks', 'tanks', 'troops'].includes(type)) return false;
     const endpoint = theatre.logistics.getNode(id);
@@ -409,6 +424,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
   }
 
   function applySectorControl({ sectorId, owner, contested = false, revision } = {}) {
+    if(serverRuntime)return Object.freeze({ok:false,reason:'server-authority'});
     const id = String(sectorId ?? '');
     const record = theatre.records.get(id);
     const territoryNode = theatre.territory.get(id);
@@ -430,18 +446,26 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
 
   window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, claimAsset, assetCount, applySectorControl, open: () => setOpen(true) });
   const stopNotebookBridge = installNotebookBridge(locate);
-  const warClock = createPersistentWarClock({ stepSeconds: 1, maxCatchUpSeconds: 180 });
+  const offServer = serverRuntime?.subscribeSnapshots(snapshot=>{
+    if(!snapshot.strategic)return;
+    const data=snapshot.strategic;
+    const records=new Map();for(const hex of data.hexes)for(const sector of hex.sectors)records.set(sector.id,{hex,sector});
+    const nodes=new Map(data.logistics.nodes.map(n=>[n.id,n]));
+    theatre={hexes:data.hexes,records,territory:new Map(data.territory),logistics:{snapshot:()=>data.logistics,getNode:id=>nodes.get(String(id))||null}};
+    if(open)updatePanels();
+  });
+  const warClock = createPersistentWarClock({ stepSeconds: .25, maxCatchUpSeconds: 5 });
   const strategicTimer = setInterval(() => {
+    if(serverRuntime)return;
     const advance = warClock.advance();
-    const ticks = Math.min(20, advance.ticks);
-    for (let i = 0; i < ticks; i++) theatre.step(8);
-    if (ticks && open) { updatePanels(); draw(); }
-  }, 1_000);
+    for (let i = 0; i < advance.ticks; i++) theatre.step(advance.stepSeconds);
+    if (advance.ticks && open) { updatePanels(); draw(); }
+  }, 100);
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return;
-    width = rect.width; height = rect.height; dpr = Math.min(2, devicePixelRatio || 1);
+    width = rect.width; height = rect.height; dpr = Math.min(1.5, devicePixelRatio || 1);
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fitView();
@@ -579,7 +603,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
       ctx.stroke();
       ctx.fillStyle = current?.hex.id === hex.id ? '#fff8d9' : '#d6ddd0c5';
       ctx.textAlign = 'center'; ctx.font = `${current?.hex.id === hex.id ? '800' : '700'} 9px system-ui`;
-      ctx.fillText(hex.name, p.x, p.y - Math.max(8, radius * .12));
+      if(radius>35)ctx.fillText(hex.name, p.x, p.y - Math.max(8, radius * .12));
 
       ctx.strokeStyle = color + '36'; ctx.lineWidth = .7;
       for (let i = 1; i < hex.sectors.length; i++) {
@@ -602,6 +626,10 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
       drawConvoy(convoy, p, Number(convoy.position.heading) || 0);
     }
 
+    for(const m of serverRuntime?.snapshot()?.mamutes||[]){
+      if(m.id===serverRuntime.snapshot()?.mamute?.id)continue;
+      const p=toScreen(m.robot);ctx.fillStyle=m.faction===globalThis.ironRainEntry?.faction?'#71c3ff':'#ed8070';ctx.fillRect(p.x-4,p.y-4,8,8);ctx.font='9px monospace';ctx.fillText(m.name,p.x,p.y-9);
+    }
     if (current) {
       const p = toScreen(current.position);
       ctx.save(); ctx.translate(p.x, p.y); ctx.strokeStyle = '#fff5c8'; ctx.fillStyle = '#fff5c8'; ctx.lineWidth = 2;
@@ -615,9 +643,10 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     }
   }
 
-  function frame() {
+  let drawnAt=0;
+  function frame(at=0) {
     if (!open) return;
-    draw();
+    if(at-drawnAt>=33){draw();drawnAt=at;}
     raf = requestAnimationFrame(frame);
   }
 
@@ -630,18 +659,27 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     } else cancelAnimationFrame(raf);
   }
 
-  button.addEventListener('click', () => setOpen(true));
+  button.addEventListener('click', () => {document.getElementById('resumeBtn')?.click();setOpen(true);});
   root.querySelector('[data-close]').addEventListener('click', () => setOpen(false));
-  canvas.addEventListener('pointerdown', event => {
-    const rect = canvas.getBoundingClientRect();
-    const world = toWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top });
-    let best = null, bestDistance = Infinity;
-    for (const { sector } of theatre.records.values()) {
-      const current = distance(world, sector);
-      if (current < bestDistance) { best = sector; bestDistance = current; }
-    }
-    if (best && bestDistance < 4_600) { selected = best.id; updatePanels(); draw(); }
-  });
+  const pointers=new Map();let gesture=null;
+  const localPoint=e=>{const r=canvas.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
+  function zoomAt(factor,anchor={x:width/2,y:height/2}){
+    const before=toWorld(anchor),fit=Math.min((width-68)/THEATRE_SIZE.w,(height-68)/THEATRE_SIZE.h);
+    view.scale=clamp(view.scale*factor,Math.max(.0001,fit*.8),fit*9);view.ox=anchor.x-before.x*view.scale;view.oy=anchor.y-before.y*view.scale;draw();
+  }
+  root.querySelector('[data-map-in]').onclick=()=>zoomAt(1.3);
+  root.querySelector('[data-map-out]').onclick=()=>zoomAt(1/1.3);
+  root.querySelector('[data-map-center]').onclick=()=>{const position=parseMamutePosition();fitView();if(position){view.scale*=2;view.ox=width/2-position.x*view.scale;view.oy=height/2-position.y*view.scale;}draw();};
+  root.querySelector('[data-map-details]').onclick=()=>{root.classList.toggle('show-details');resize();draw();};
+  canvas.addEventListener('wheel',e=>{e.preventDefault();zoomAt(Math.exp(-clamp(e.deltaY,-150,150)*.003),localPoint(e));},{passive:false});
+  canvas.addEventListener('pointerdown',e=>{e.preventDefault();const p=localPoint(e);pointers.set(e.pointerId,p);canvas.setPointerCapture(e.pointerId);gesture={start:p,last:p,moved:false};if(pointers.size===2){const [a,b]=[...pointers.values()];gesture={moved:true,pinch:Math.hypot(a.x-b.x,a.y-b.y)};}});
+  canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId)||!gesture)return;e.preventDefault();const p=localPoint(e),old=pointers.get(e.pointerId);pointers.set(e.pointerId,p);if(pointers.size===2){const [a,b]=[...pointers.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(gesture.pinch>0)zoomAt(d/gesture.pinch,{x:(a.x+b.x)/2,y:(a.y+b.y)/2});gesture.pinch=d;gesture.moved=true;}else{view.ox+=p.x-old.x;view.oy+=p.y-old.y;if(gesture.start&&Math.hypot(p.x-gesture.start.x,p.y-gesture.start.y)>6)gesture.moved=true;draw();}});
+  function releasePointer(e){
+    if(!pointers.has(e.pointerId))return;
+    if(e.type==='pointerup'&&pointers.size===1&&gesture&&!gesture.moved){const world=toWorld(localPoint(e));let best=null,bestDistance=Infinity;for(const {sector} of theatre.records.values()){const d=distance(world,sector);if(d<bestDistance){best=sector;bestDistance=d;}}if(best&&bestDistance<4600){selected=best.id;updatePanels();}}
+    pointers.delete(e.pointerId);gesture=pointers.size?{moved:true}:null;try{canvas.releasePointerCapture(e.pointerId);}catch{}draw();
+  }
+  canvas.addEventListener('pointerup',releasePointer);canvas.addEventListener('pointercancel',releasePointer);
   addEventListener('resize', () => { if (open) { resize(); draw(); } });
 
   return Object.freeze({
@@ -649,6 +687,6 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     close: () => setOpen(false),
     locate,
     applySectorControl,
-    destroy() { clearInterval(strategicTimer); setOpen(false); stopNotebookBridge(); button.remove(); root.remove(); delete window.ironRainStrategicMap; },
+    destroy() { offServer?.();clearInterval(strategicTimer); setOpen(false); stopNotebookBridge(); button.remove(); root.remove(); delete window.ironRainStrategicMap; },
   });
 }

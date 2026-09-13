@@ -523,7 +523,7 @@ export function createCabinView(canvas, { onStation = () => {}, onWheelDelta = (
     const pulse=Math.pow(Math.max(0,Math.sin(elapsed*.63)),34);flash.intensity=pulse*3.5;
     warmLights[1].intensity=4.5-(Math.sin(elapsed*8.1)>.991?.3:0);
     dust.rotation.y=Math.sin(elapsed*.025)*.025;focus=movement.focus();
-    hatchTarget=Math.abs(movement.position.z-3.67)<1.85&&Math.abs(movement.position.x)<1.05?1:0;
+    hatchTarget=typeof data.hatchOpen==='boolean'?Number(data.hatchOpen):Math.abs(movement.position.z-3.67)<1.85&&Math.abs(movement.position.x)<1.05?1:0;
     hatchOpen+=(hatchTarget-hatchOpen)*Math.min(1,step*8);hatchDoor.rotation.y=-hatchOpen*Math.PI*.52;
     if(focus?.id==='engine')focus.action=latest.engine?.fire?'Combater incêndio':latest.engine?.repairing?'Reparando motor':Number(latest.engine?.health??100)<100?'Reparar motor':'Inspecionar motor';
     if(focus?.id==='extinguisher')focus.action=latest.engine?.hasExtinguisher?'Extintor equipado':'Pegar extintor';

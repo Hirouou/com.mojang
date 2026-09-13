@@ -3,7 +3,6 @@ name: Publish Iron Rain
 on:
   push:
     branches:
-      - iron-rain-frontline
       - iron-rain-v6-1-continuation
   workflow_dispatch:
 
@@ -25,6 +24,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Use server-compatible Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Test Iron Rain
         id: iron-rain-tests
         continue-on-error: true
@@ -54,7 +57,7 @@ jobs:
           set -euo pipefail
           mkdir -p _site
           cp -R iron-rain/. _site/
-          rm -rf _site/tests _site/docs _site/test-results
+          rm -rf _site/tests _site/docs _site/test-results _site/server
           touch _site/.nojekyll
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

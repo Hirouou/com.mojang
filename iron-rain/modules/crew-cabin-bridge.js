@@ -4,7 +4,7 @@ import { releaseStationGate, requestStationGate, stationGateMessage, stationGate
 const clampDelay = value => Math.max(0, Number.isFinite(value) ? value : .1);
 const clampDt = value => Math.min(.1, Math.max(0, Number(value) || 0));
 const runtimeLocalId = status => status?.localId ?? status?.session?.localId ?? null;
-const guestDisconnected = status => status?.mode === 'guest' && status?.connected === false;
+const guestDisconnected = status => ['guest', 'server'].includes(status?.mode) && status?.connected === false;
 const stationDenial = (runtime, station) => {
   let status = null;
   try { status = runtime?.status?.() || null; } catch { status = null; }

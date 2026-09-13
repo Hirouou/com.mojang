@@ -52,12 +52,12 @@ export function stepCamera(state, dt, viewportWidth) {
   // Strategic-map movement is physical movement of the same Mamute. Running it
   // here keeps manual driving, camera follow, multiplayer/war updates and the
   // world marker on one state instead of inventing a second vehicle position.
-  stepMarchAutopilot(state, frameDt);
+  if(!globalThis.ironRainEntry?.runtime?.isAuthoritativeClient)stepMarchAutopilot(state, frameDt);
 
   // Armour now manoeuvres in two dimensions instead of sliding on one X axis:
   // damaged tanks fall back, assault armour closes, fire-support armour holds
   // standoff distance and crews relocate laterally when smoke blocks the lane.
-  stepTankTactics(state, frameDt);
+  if(!globalThis.ironRainEntry?.runtime?.isAuthoritativeClient)stepTankTactics(state, frameDt);
   updateOperatorZoom(state, frameDt);
 
   // The radio/recon aircraft presentation lives in a transparent overlay so it

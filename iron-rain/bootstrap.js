@@ -1,3 +1,6 @@
+import { WAR_SERVER_URL } from './server-config.js';
+import { createServerCrewRuntime } from './modules/server-crew-runtime.js';
+import { createServerLobbyUI } from './modules/server-lobby-ui.js';
 import { createCrewLobbyUI } from './modules/crew-lobby-ui.js';
 import { createCrewRuntime } from './modules/crew-runtime.js';
 import { createCrewBroadcastTransport } from './modules/crew-broadcast-transport.js';
@@ -8,9 +11,12 @@ import { normalizeFaction, factionInfo } from './modules/factions.js';
 
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
+const localPreview=['localhost','127.0.0.1'].includes(location.hostname);
+const serverEndpoint=crewQa?'':(localPreview&&params.get('server')||WAR_SERVER_URL);
+const serverStyle=document.createElement('link');serverStyle.rel='stylesheet';serverStyle.href='./server-ui.css';document.head.appendChild(serverStyle);
 const app = document.getElementById('app');
-const CLIENT_BUILD = '20260913-mobile-crew-restored';
-const EXPECTED_CACHE_SUFFIX = 'v7.32';
+const CLIENT_BUILD = '20260913-shared-war-server';
+const EXPECTED_CACHE_SUFFIX = 'v7.33';
 const BOOT_RECOVERY_PARAM = 'ir_recovery';
 const BOOT_TIMEOUT_MS = 8000;
 const FIRE_AMMO_COUNTER_ID = Object.freeze({ HE: 'heCount', SMOKE: 'smokeCount', FRAG: 'fragCount' });
@@ -92,7 +98,7 @@ function localPlayerId() {
 
 const localId = localPlayerId();
 const transportFactory = crewQa ? options => createCrewBroadcastTransport(options) : options => createCrewMqttTransport(options);
-const runtime = createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status), onCommandResult: handleMamuteCommandResult });
+const runtime = serverEndpoint ? createServerCrewRuntime({endpoint:serverEndpoint,onStatus:status=>lobby?.setStatus(status)}) : createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status), onCommandResult: handleMamuteCommandResult });
 
 function setNotice(title, copy = '') {
   const root = lobby?.element;
@@ -246,8 +252,9 @@ async function fallbackSpawn(faction) {
 
 function sessionDescriptor(status = {}, fallbackMode = 'offline') {
   const faction = normalizeFaction(status.faction || lobby?.faction());
-  const spawn = globalThis.ironRainSpawnChoice ? { ...globalThis.ironRainSpawnChoice } : null;
-  return { localId, faction, factionInfo: factionInfo(faction), mode: status.mode || fallbackMode, room: status.room || '', seat: Number.isFinite(Number(status.seat)) ? Number(status.seat) : 0, capacity: Number(status.capacity) || 3, runtime, crewBridge: null, qaTransport: crewQa, spawn };
+  const m=runtime.isAuthoritativeClient?runtime.snapshot()?.mamute:null;
+  const spawn = m?{id:m.spawnId,...m.robot}:globalThis.ironRainSpawnChoice ? { ...globalThis.ironRainSpawnChoice } : null;
+  return { localId:status.localId||localId, faction, factionInfo: factionInfo(faction), mode: status.mode || fallbackMode, room: status.room || '', seat: Number.isFinite(Number(status.seat)) ? Number(status.seat) : 0, capacity: Number(status.capacity) || 3, runtime, crewBridge: null, qaTransport: crewQa, spawn };
 }
 
 function publishCrewBridge(nextBridge) {
@@ -328,7 +335,7 @@ function beginCrew(mode, room, faction) {
   return result;
 }
 
-lobby = createCrewLobbyUI({
+lobby = serverEndpoint ? createServerLobbyUI({runtime,onEnter:status=>startGame(status,'server')}) : createCrewLobbyUI({
   root: document.body,
   onHost(room, faction) { beginCrew('host', room, faction); },
   onJoin(room, faction) { beginCrew('guest', room, faction); },
@@ -337,7 +344,7 @@ lobby = createCrewLobbyUI({
 });
 
 lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, capacity: 3, lastEvent: 'choose-faction' });
-setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
+if(!serverEndpoint)setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
 lobby.show();
 void refreshServiceWorker();
 void loadLiveIntegration();

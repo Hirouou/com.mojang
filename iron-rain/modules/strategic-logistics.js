@@ -46,12 +46,29 @@ function canPayAssets(assets, manifest) { return LOGISTICS_ASSET_KEYS.every(key 
 function debitAssets(assets, manifest) { for (const key of LOGISTICS_ASSET_KEYS) assets[key] = Math.max(0, (assets[key] || 0) - (manifest[key] || 0)); }
 function creditAssets(assets, manifest) { for (const key of LOGISTICS_ASSET_KEYS) assets[key] = Math.max(0, (assets[key] || 0) + (manifest[key] || 0)); }
 
-export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
+export function createStrategicLogistics({ nodes = [], routes = [], restore = null } = {}) {
+  if (restore && restore.version !== 1) throw new Error('Unsupported logistics checkpoint version');
+  if (restore) {
+    nodes = (restore.nodes || []).map(node => ({ ...createLogisticsNode(node), alive: node.alive !== false }));
+    routes = (restore.routes || []).map(route => ({
+      ...createSupplyRoute(route), open: route.open !== false,
+      threat: clamp(Number(route.threat), 0, 1),
+      threatIntel: route.threatIntel ? { ...route.threatIntel } : null,
+    }));
+  }
   const nodeMap = new Map(nodes.map(node => [node.id, node]));
   const routeMap = new Map(routes.map(route => [route.id, route]));
   const convoys = new Map();
-  let serial = 0;
-  let intelNow = 0;
+  let serial = Math.max(0, Math.floor(Number(restore?.serial) || 0));
+  let intelNow = Math.max(0, Number(restore?.intelNow) || 0);
+  for (const saved of restore?.convoys || []) {
+    const { position: _derivedPosition, ...data } = saved;
+    const convoy = { ...data, cargo: copyStock(saved.cargo), assets: copyAssets(saved.assets), path: (saved.path || []).map(leg => ({ ...leg })) };
+    if (!convoy.id || !convoy.path.length || !nodeMap.has(convoy.from) || !nodeMap.has(convoy.to)) throw new Error('Invalid logistics convoy checkpoint');
+    convoys.set(convoy.id, convoy);
+    const suffix = /^CV-(\d+)$/.exec(convoy.id);
+    if (suffix) serial = Math.max(serial, Number(suffix[1]));
+  }
 
   function adjacency(team) {
     const graph = new Map();
@@ -171,17 +188,26 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
   }
 
   function convoyPosition(convoy) {
-    const leg = convoy.path[convoy.leg];
+    // Preserve the physical destination after arrival. Renderers can retire this
+    // entity by status without replacing a missing position with its origin.
+    const arrived = convoy.leg >= convoy.path.length;
+    const leg = convoy.path[arrived ? convoy.path.length - 1 : convoy.leg];
     if (!leg) return null;
     const fromNode = nodeMap.get(leg.from), toNode = nodeMap.get(leg.to);
     if (!fromNode || !toNode) return null;
     const dx = toNode.x - fromNode.x, dy = toNode.y - fromNode.y;
     const geometryLength = Math.hypot(dx, dy);
-    const q = clamp(convoy.legProgress / Math.max(1, leg.distance), 0, 1);
+    const q = arrived ? 1 : clamp(convoy.legProgress / Math.max(1, leg.distance), 0, 1);
     const laneOffset = Math.max(0, Number(leg.laneOffset) || 0);
+    // Adjacent roads have different normals. A fixed offset on both sides of a
+    // junction jumped the truck sideways when its leg changed (or rerouted).
+    // Merge into the common node over the final metres and leave it gradually.
+    const mergeLength = Math.min(12, geometryLength * .2);
+    const merge = mergeLength > 1e-6 ? clamp(Math.min(q, 1 - q) * geometryLength / mergeLength, 0, 1) : 0;
+    const effectiveLaneOffset = laneOffset * merge * merge * (3 - 2 * merge);
     const nx = geometryLength > 1e-6 ? -dy / geometryLength : 0;
     const ny = geometryLength > 1e-6 ? dx / geometryLength : 0;
-    return Object.freeze({ x: fromNode.x + dx * q + nx * laneOffset, y: fromNode.y + dy * q + ny * laneOffset, heading: Math.atan2(dy, dx), routeId: leg.routeId, laneDirection: leg.laneDirection || 'forward', laneOffset });
+    return Object.freeze({ x: fromNode.x + dx * q + nx * effectiveLaneOffset, y: fromNode.y + dy * q + ny * effectiveLaneOffset, heading: Math.atan2(dy, dx), routeId: leg.routeId, laneDirection: leg.laneDirection || 'forward', laneOffset, effectiveLaneOffset });
   }
 
   function step(dt, { damageByConvoy = {} } = {}) {
@@ -267,5 +293,17 @@ export function createStrategicLogistics({ nodes = [], routes = [] } = {}) {
     });
   }
 
-  return Object.freeze({ dispatch, step, route, setRouteOpen, reportRouteThreat, snapshot, getNode: id => nodeMap.get(String(id)) || null });
+  // Authority checkpoint, separate from the immutable rendering projection.
+  // Restoring must never dispatch cargo again or replay an arrival credit.
+  function exportState() {
+    const current = snapshot();
+    return {
+      version: 1, serial, intelNow,
+      nodes: current.nodes.map(node => ({ ...node, stock: { ...node.stock }, assets: { ...node.assets } })),
+      routes: current.routes.map(({ knownThreat: _derivedThreat, ...route }) => ({ ...route, threatIntel: route.threatIntel ? { ...route.threatIntel } : null })),
+      convoys: current.convoys.map(({ position: _derivedPosition, ...convoy }) => ({ ...convoy, cargo: { ...convoy.cargo }, assets: { ...convoy.assets }, path: convoy.path.map(leg => ({ ...leg })) })),
+    };
+  }
+
+  return Object.freeze({ dispatch, step, route, setRouteOpen, reportRouteThreat, snapshot, exportState, getNode: id => nodeMap.get(String(id)) || null });
 }

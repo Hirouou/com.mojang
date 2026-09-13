@@ -1,3 +1,4 @@
+import { createServerGameClient } from './modules/server-game-client.js';
 import { ballistics, bearingVector, chargeBand, sampleTrajectory, MIN_ELEVATION, MAX_ELEVATION } from './modules/ballistics.js';
 import { bindJoystick, bindHandwheel } from './modules/pointer-controls.js';
 import { initializeSector, updateWar, applyWarImpact, trenchPath, phaseLabels, getFrontGeometry, assessRoute, checkRouteAmbush } from './modules/war-simulation.js';
@@ -44,6 +45,8 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   let selectedShell='HE';
   let idleAt=performance.now();
   let state;
+  const serverRuntime=globalThis.ironRainEntry?.runtime?.isAuthoritativeClient?globalThis.ironRainEntry.runtime:null;
+  let serverClient=null;
   let cabin=null,cabinFailed=false,cabinMove={x:0,y:0},toastUntil=0;
   let radioChannel='all',pendingBinding=null,resettingInputs=false;
   let bindings={...DEFAULT_BINDINGS},touchMode=matchMedia('(pointer: coarse)').matches;
@@ -253,8 +256,8 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
     ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(p.x-34*z,p.y+32*z,68*z,5*z);ctx.fillStyle='#ff8378';ctx.fillRect(p.x-34*z,p.y+32*z,68*z*(a.hp/a.maxHp),5*z);
   }
 
-  function drawRobot(){
-    const r=state.robot,p=worldToScreen(r.x,r.y),z=state.cam.zoom,s=43*z;
+  function drawRobot(r=state.robot,name=state.serverMamute?.name||'M–47',remote=false){
+    const p=worldToScreen(r.x,r.y),z=state.cam.zoom,s=43*z;
     if(!visible(r.x,r.y,140))return;
     ctx.save();ctx.translate(p.x,p.y);ctx.rotate(r.facing);
     ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(-s-3, -s*.68+8*z, s*2+12*z,s*1.4);
@@ -273,14 +276,15 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
     // Top-down rendering has no vertical screen axis for shell altitude. Keep
     // the tube's map-plane projection on the exact same bearing as the shell;
     // elevation only shortens that projection instead of bending it sideways.
-    const direction=bearingVector(state.mode==='artillery'?state.bearing:deg(r.turret+Math.PI/2));
+    const direction=bearingVector(!remote&&state.mode==='artillery'?state.bearing:deg(r.turret+Math.PI/2));
     const bx=direction.x*length*Math.cos(el), by=direction.y*length*Math.cos(el);
     ctx.save();ctx.translate(p.x,p.y);
     ctx.fillStyle='#525e40';ctx.beginPath();ctx.ellipse(0,0,23*z,18*z,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#343d2c';ctx.lineCap='round';ctx.lineWidth=14*z;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(bx,by);ctx.stroke();
     ctx.strokeStyle='#c9bc87';ctx.lineWidth=8*z;ctx.beginPath();ctx.moveTo(1,-3*z);ctx.lineTo(bx,by-3*z);ctx.stroke();
     ctx.fillStyle='#111910';ctx.beginPath();ctx.arc(bx,by-3*z,4.5*z,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#d5c385';ctx.font=`600 ${9*z}px monospace`;ctx.textAlign='center';ctx.fillText('M–47',-16*z,29*z);ctx.restore();
+    ctx.fillStyle='#d5c385';ctx.font=`600 ${9*z}px monospace`;ctx.textAlign='center';ctx.fillText(name,-16*z,29*z);ctx.restore();
+    if(remote){ctx.strokeStyle=r.faction===globalThis.ironRainEntry?.faction?'#71c3ff':'#ed8070';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(p.x-25*z,p.y-40*z);ctx.lineTo(p.x+25*z,p.y-40*z);ctx.stroke();}
   }
 
   function drawPlane(){if(!state.intel||state.intel.source!=='plane')return;const t=state.intel;const x=t.sourcePos.x+(t.elapsed*180)%700-350,y=t.sourcePos.y-260;const p=worldToScreen(x,y),z=state.cam.zoom;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(.06);ctx.fillStyle='#dfe5dc';ctx.beginPath();ctx.moveTo(-24*z,0);ctx.lineTo(18*z,0);ctx.lineTo(34*z,-9*z);ctx.lineTo(38*z,-5*z);ctx.lineTo(24*z,3*z);ctx.lineTo(2*z,4*z);ctx.lineTo(-4*z,20*z);ctx.lineTo(-9*z,20*z);ctx.lineTo(-8*z,3*z);ctx.lineTo(-24*z,7*z);ctx.closePath();ctx.fill();ctx.restore();}
@@ -293,10 +297,11 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   function drawShell(){if(!state.shell)return;const s=state.shell,p=worldToScreen(s.x,s.y);ctx.fillStyle='#ffe08a';ctx.beginPath();ctx.arc(p.x,p.y,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.fillText(`ALT ${Math.max(0,Math.round(s.z))} m`,p.x+12,p.y-10);}
 
   function draw(){
+    if(document.querySelector('.strategic-war:not(.hidden)'))return;
     if(inside()&&cabin){try{cabin.render();return;}catch(error){console.error('Cabin render failed:',error);cabinFailed=true;state.view='field';syncControls();}}
     ctx.clearRect(0,0,SW,SH);drawTerrain();drawBase();drawCrater();drawSmokes();
     const view={worldToScreen,visible,zoom:state.cam.zoom,time:state.time,width:SW,height:SH};
-    drawWarInfrastructure(ctx,state,view);for(const s of state.sectors)drawSector(s);drawObserver();drawPlane();drawRobot();drawTracers();drawShell();drawEffects();drawWarAtmosphere(ctx,state,view);
+    drawWarInfrastructure(ctx,state,view);for(const s of state.sectors)drawSector(s);drawObserver();drawPlane();for(const m of state.serverMamutes||[])if(m.id!==state.serverMamute?.id)drawRobot({...m.robot,faction:m.faction},m.name,true);drawRobot();drawTracers();drawShell();drawEffects();drawWarAtmosphere(ctx,state,view);
     if(state.mode==='march'&&state.relocation){const o=state.relocation,p=worldToScreen(o.x,o.y);if(visible(o.x,o.y,80)){ctx.strokeStyle='#c9bc8d';ctx.lineWidth=2;ctx.strokeRect(p.x-14,p.y-14,28,28);ctx.fillStyle='#e4d8ad';ctx.font='9px monospace';ctx.fillText('POSIÇÃO SOLICITADA',p.x+20,p.y+4);}}
   }
 
@@ -382,6 +387,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   function fireShell(){
     if(state.mode!=='artillery'||state.shell||state.loading||state.paused||sheetOpen||cinematicActive(state)||(!cabinFailed&&state.station!=='aim'))return;
     if(state.ammo[selectedShell]<=0){log(`<b>CARREGADOR:</b> ${selectedShell} esgotado.`,'bad');return;}
+    if(serverClient){serverClient.fire();return;}
     resetInputs();state.ammo[selectedShell]--;
     const solution=ballistics(state.charge,state.elev);
     state.shell={x:state.robot.x,y:state.robot.y,z:0,origin:{x:state.robot.x,y:state.robot.y},solution,bearing:state.bearing,wind:{...state.wind},type:selectedShell,t:0,follow:true,compression:clamp(solution.tof/7,2,28)};
@@ -430,7 +436,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
     if(!engineCanDrive(state.engine)){
       // A disabled Mamute returns to its local cabin so the crew can fight
       // the fire and repair the engine instead of driving through damage.
-      if(state.mode==='march'){setMode('artillery');if(state.engineNotice!=='disabled'){state.engineNotice='disabled';toast('Motor avariado. Volte ao compartimento e use o extintor.','MOTOR',8);}}
+      if(state.engineNotice!=='disabled'){state.engineNotice='disabled';toast('Motor avariado. A tração volta após o reparo da tripulação.','MOTOR',8);}
       return;
     }
     const v={x:joy.x+(heldKeys.has('right')?1:0)-(heldKeys.has('left')?1:0),y:joy.y+(heldKeys.has('back')?1:0)-(heldKeys.has('forward')?1:0)},n=Math.max(1,Math.hypot(v.x,v.y));v.x/=n;v.y/=n;
@@ -485,14 +491,23 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   function update(dt){
     if(!state||state.paused)return;state.time+=dt;state.robot.recoil=Math.max(0,(state.robot.recoil||0)-dt*3);
     state.shotElapsed+=dt;
-    if(state.loading){const oldPhase=state.loading.phase;stepLoading(state.loading,dt);const loaderCue=loaderAudioCue(oldPhase,state.loading);if(loaderCue)audio.load(loaderCue);if(state.loading.complete){state.loadedShell=state.loading.to;state.loading=null;}}
-    if(state.mission&&!state.mission.target.alive)clearMission();
-    if(!state.mission&&state.time>=state.nextCommander){state.nextCommander=queueIntel('mission')?Infinity:state.time+30;}
-    if(state.time>=state.nextDiscovery){queueIntel('discovery');state.nextDiscovery=state.time+rand(65,100);}
-    updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);updateWar(state,dt);updatePlayerHits();updateEffects(dt);updateWarMessages();updateRelocation();
+    if(!serverClient&&state.loading){const oldPhase=state.loading.phase;stepLoading(state.loading,dt);const loaderCue=loaderAudioCue(oldPhase,state.loading);if(loaderCue)audio.load(loaderCue);if(state.loading.complete){state.loadedShell=state.loading.to;state.loading=null;}}
+    if(!serverClient&&state.mission&&!state.mission.target.alive)clearMission();
+    if(!serverClient&&!state.mission&&state.time>=state.nextCommander){state.nextCommander=queueIntel('mission')?Infinity:state.time+30;}
+    if(!serverClient&&state.time>=state.nextDiscovery){queueIntel('discovery');state.nextDiscovery=state.time+rand(65,100);}
+    if(serverClient){
+      const v={x:joy.x+(heldKeys.has('right')?1:0)-(heldKeys.has('left')?1:0),y:joy.y+(heldKeys.has('back')?1:0)-(heldKeys.has('forward')?1:0)};
+      serverClient.update(dt,v,state.mode==='march'&&!sheetOpen);
+      updateWar(state,dt);updateCamera(dt);updateEffects(dt);
+      selectedShell=state.serverSelectedShell||selectedShell;
+      $('routeText').textContent=`${state.serverMamute?.name||'MAMUTE'} · blindagem ${Math.round(state.robot.armor)}% · ${engineCanDrive(state.engine)?'tração disponível':'motor avariado'}`;
+      app.classList.toggle('hull-critical',state.robot.armor>0&&state.robot.armor<=30);
+      if(state.robot.armor>0&&state.robot.armor<=30)audio.alarm?.();
+      const loss=$('serverLoss');if(loss){loss.hidden=!state.serverMamute?.destroyed;$('serverRespawn').disabled=state.time<(state.serverMamute?.respawnAt||Infinity);}
+    }else{updateRobot(dt);updateGun(dt);updateIntel(dt);updateShell(dt);updateCamera(dt);updateWar(state,dt);updatePlayerHits();updateEffects(dt);updateWarMessages();updateRelocation();}
     const armorBefore=state.engineLastArmor??state.robot.armor;
     const armorLoss=Math.max(0,armorBefore-state.robot.armor);
-    if(armorLoss>0){
+    if(!serverClient&&armorLoss>0){
       const hit=damageEngine(state.engine,armorLoss);
       if(hit.ignited){state.engineNotice='fire';log('<b>MOTOR:</b> impacto rompeu linhas de combustível. Incêndio no compartimento traseiro.','bad',{channel:'infantry'});toast('INCÊNDIO NO MOTOR · pegue o extintor e avance até a sala de máquinas.','MOTOR',9);audio.impact();}
       else if(hit.disabled&&state.engineNotice!=='disabled'){state.engineNotice='disabled';log('<b>MOTOR:</b> tração perdida após o impacto.','bad',{channel:'infantry'});toast('MOTOR AVARIADO · tração bloqueada.','MOTOR',8);}
@@ -500,10 +515,10 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
     state.engineLastArmor=state.robot.armor;
     const walking=inside()&&enabled()&&!state.station;
     const move={x:walking?clamp(cabinMove.x+(heldKeys.has('right')?1:0)-(heldKeys.has('left')?1:0),-1,1):0,y:walking?clamp(cabinMove.y+(heldKeys.has('back')?1:0)-(heldKeys.has('forward')?1:0),-1,1):0};
-    try{cabin?.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine});}catch(error){console.error('Cabin update failed:',error);cabinFailed=true;state.view='field';syncControls();}
+    try{cabin?.update(dt,{move,bearing:state.bearing,elevation:state.elev,charge:state.charge,shellType:selectedShell,wind:state.wind,own:state.robot,mission:state.mission?.report,paused:!!sheetOpen||!UI.radio.classList.contains('hidden'),loading:state.loading,recoil:state.robot.recoil,shotElapsed:state.shotElapsed,engine:state.engine,hatchOpen:state.serverMamute?.hatchOpen});}catch(error){console.error('Cabin update failed:',error);cabinFailed=true;state.view='field';syncControls();}
     let cabinPosition=null;try{cabinPosition=cabin?.snapshot?.().position||null;}catch(error){console.error('Cabin snapshot failed:',error);cabinFailed=true;state.view='field';syncControls();}
     const nearEngine=inside()&&cabinPosition&&Math.hypot(cabinPosition.x-.82,cabinPosition.z-6.6)<=1.35;
-    const engineEvent=stepEngine(state.engine,dt,{nearEngine});
+    const engineEvent=serverClient?null:stepEngine(state.engine,dt,{nearEngine});
     if(engineEvent?.message){
       state.engineNotice=engineEvent.kind;
       log(`<b>MOTOR:</b> ${engineEvent.message}` ,engineEvent.kind==='repaired'?'good':'intel',{channel:'infantry'});
@@ -564,7 +579,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   const enabled=()=>!!state&&!state.paused&&!sheetOpen&&UI.radio.classList.contains('hidden')&&!cinematicActive(state)&&!state.launchDelay;
   const joyEl=$('joystick'),joyKnob=$('joyKnob');
   controls.push(bindJoystick(joyEl,joyKnob,{onChange:v=>{joy=v;},onEngage:touchUI,isEnabled:()=>enabled()&&state.mode==='march'}));
-  function turnWheel(axis,degrees){if(!enabled()||state.mode!=='artillery'||(!cabinFailed&&state.station!=='aim'))return;if(axis==='azimuth')state.azTarget=(state.azTarget+degrees+360)%360;else state.elTarget=clamp(state.elTarget+degrees,MIN_ELEVATION,MAX_ELEVATION);audio.crank();touchUI();}
+  function turnWheel(axis,degrees){if(!enabled()||state.mode!=='artillery'||(!cabinFailed&&state.station!=='aim'))return;if(serverClient){serverClient.turn(axis,degrees);audio.crank();touchUI();return;}if(axis==='azimuth')state.azTarget=(state.azTarget+degrees+360)%360;else state.elTarget=clamp(state.elTarget+degrees,MIN_ELEVATION,MAX_ELEVATION);audio.crank();touchUI();}
   controls.push(bindHandwheel($('azWheel'),$('azArm'),{onDelta:d=>turnWheel('azimuth',d),onEngage:touchUI,isEnabled:()=>enabled()&&state.mode==='artillery'&&(cabinFailed||state.station==='aim'),reduction:1/6.5}));
   controls.push(bindHandwheel($('elWheel'),$('elArm'),{onDelta:d=>turnWheel('elevation',d),onEngage:touchUI,isEnabled:()=>enabled()&&state.mode==='artillery'&&(cabinFailed||state.station==='aim'),reduction:1/8.5}));
   controls.push(bindJoystick($('cabinJoystick'),$('cabinJoyKnob'),{onChange:v=>{cabinMove=v;},onEngage:touchUI,isEnabled:()=>enabled()&&inside()&&!state.station}));
@@ -598,11 +613,12 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   const endPan=e=>{if(e.pointerId!==panId)return;const id=panId;panId=null;panStart=null;try{canvas.releasePointerCapture(id);}catch{}};
   canvas.addEventListener('pointerup',endPan);canvas.addEventListener('pointercancel',endPan);canvas.addEventListener('lostpointercapture',endPan);addEventListener('pointerup',endPan);
 
-  function changeCharge(delta){if(!enabled()||(!cabinFailed&&state.station!=='aim'))return;state.charge=clamp(state.charge+delta,1,7);audio.load();touchUI();updateUI();updateNotebook();}
+  function changeCharge(delta){if(!enabled()||(!cabinFailed&&state.station!=='aim'))return;if(serverClient){serverClient.command('change-charge',{delta});return;}state.charge=clamp(state.charge+delta,1,7);audio.load();touchUI();updateUI();updateNotebook();}
   $('chargeUp').addEventListener('click',()=>changeCharge(1));$('chargeDown').addEventListener('click',()=>changeCharge(-1));
-  document.querySelectorAll('.ammo').forEach(b=>b.addEventListener('click',()=>{if(!enabled()||state.loading||(!cabinFailed&&state.station!=='load'))return;const next=b.dataset.shell;if(next!==selectedShell){state.loading=beginLoading(state.loadedShell,next);selectedShell=next;const loaderCue=loaderAudioCue(null,state.loading);if(loaderCue)audio.load(loaderCue);}document.querySelectorAll('.ammo').forEach(x=>x.classList.toggle('active',x===b));touchUI();syncControls();}));
+  document.querySelectorAll('.ammo').forEach(b=>b.addEventListener('click',()=>{if(!enabled()||state.loading||(!cabinFailed&&state.station!=='load'))return;const next=b.dataset.shell;if(serverClient){serverClient.command('select-shell',{shell:next});return;}if(next!==selectedShell){state.loading=beginLoading(state.loadedShell,next);selectedShell=next;const loaderCue=loaderAudioCue(null,state.loading);if(loaderCue)audio.load(loaderCue);}document.querySelectorAll('.ammo').forEach(x=>x.classList.toggle('active',x===b));touchUI();syncControls();}));
   $('deployBtn').addEventListener('click',()=>setMode('artillery'));$('marchBtn').addEventListener('click',()=>cabinFailed?setMode('march'):leaveStation());$('fireBtn').addEventListener('click',fireShell);$('notebookBtn').addEventListener('click',requestMap);
-  $('menuBtn').addEventListener('click',()=>openSheet('menu'));$('resumeBtn').addEventListener('click',resume);$('helpBtn').addEventListener('click',()=>openSheet('help'));$('restartBtn').addEventListener('click',()=>{resetGame();});$('centerBtn').addEventListener('click',()=>{state.cam.manualX=0;state.cam.manualY=0;skipCinematic();resume();});
+  $('copyCrewCode').onclick=async()=>{const code=globalThis.ironRainEntry?.runtime?.status?.().room||'';try{await navigator.clipboard.writeText(code);$('copyCrewCode').textContent='COPIADO';}catch{$('copyCrewCode').textContent='SELECIONE O CÓDIGO';}};
+  $('menuBtn').addEventListener('click',()=>{const crew=globalThis.ironRainEntry?.runtime?.status?.()||{};$('crewInviteName').textContent=`${crew.name||'MAMUTE'} · ${crew.count||1}/3`;$('crewInviteCode').textContent=crew.room||'PARTIDA SOLO';$('copyCrewCode').disabled=!crew.room;if(serverClient)$('restartBtn').textContent='RECONECTAR';openSheet('menu');});$('resumeBtn').addEventListener('click',resume);$('helpBtn').addEventListener('click',()=>openSheet('help'));$('restartBtn').addEventListener('click',()=>{if(serverClient)location.reload();else resetGame();});$('centerBtn').addEventListener('click',()=>{state.cam.manualX=0;state.cam.manualY=0;skipCinematic();resume();});
   $('radioBtn').addEventListener('click',openRadio);$('closeRadio').addEventListener('click',closeRadio);
   document.querySelectorAll('[data-radio-channel]').forEach(b=>b.addEventListener('click',()=>setRadioChannel(b.dataset.radioChannel)));
   UI.radioLog.addEventListener('click',e=>{const row=e.target.closest('[data-intel-id]');if(!row)return;const item=state.intelQueue.find(i=>i.id===row.dataset.intelId);if(item)startIntel(item);});
@@ -620,9 +636,25 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
 
   function loop(now){const dt=Math.min(.035,(now-last)/1000||0);last=now;try{update(dt);}catch(error){console.error('Frame update failed:',error);if(state?.view==='cabin'){cabinFailed=true;state.view='field';try{syncControls();}catch{}}}try{draw();}catch(error){console.error('Frame draw failed:',error);if(state?.view==='cabin'){cabinFailed=true;state.view='field';try{syncControls();}catch{}}}requestAnimationFrame(loop);}
   tableMap=createTableMap(UI.notebook,{onClose:()=>state.station==='map'?leaveStation():resume()});
-  loadSettings();resize();resetGame();requestAnimationFrame(loop);
+  loadSettings();resize();resetGame();
+  if(serverRuntime){
+    const loss=document.createElement('section');loss.id='serverLoss';loss.hidden=true;
+    loss.innerHTML='<b>MAMUTE DESTRUÍDO</b><p>A tripulação pode retornar à base após 15 segundos.</p><button id="serverRespawn" type="button">RETORNAR COM A TRIPULAÇÃO</button>';document.body.appendChild(loss);
+    $('serverRespawn').onclick=()=>serverClient.command('respawn').then(r=>{if(r.ok){leaveStation();cabin?.reset();}});
+    serverClient=createServerGameClient({runtime:serverRuntime,getState:()=>state,onError:reason=>toast(`Ação não concluída: ${reason}`,'TRIPULAÇÃO',3),onEffect:effect=>{
+      const p=effect.payload||{};
+      if(effect.type==='fire'){audio.fire();state.robot.recoil=1;state.shotElapsed=0;}
+      else if(effect.type==='impact'||effect.type==='critical'){audio.impact();toast(`IMPACTO · blindagem ${Math.round(p.armor)}%`,'CASCO',4);}
+      else if(effect.type==='explosion'){state.effects.push({type:'blast',x:p.x,y:p.y,life:1.1,start:1.1,max:145});audio.impact();}
+      else if(effect.type==='reload')audio.load();
+      else if(effect.type==='repair'&&p.result?.message)toast(p.result.message,'MOTOR',4);
+      else if(effect.type==='respawn'){state.cam.x=state.robot.x;state.cam.y=state.robot.y;}
+      dispatchEvent(new CustomEvent('ironrain:shared-crew-effect',{detail:{...effect,remote:true}}));
+    }});
+  }
+  requestAnimationFrame(loop);
   import('./modules/cabin-view.js').then(({createCabinView})=>{
-    cabin=createCabinView($('cabinCanvas'),{onStation:enterStation,onWheelDelta:({axis,degrees})=>turnWheel(axis,degrees),onPointerUnlock:()=>{if(state.station)leaveStation();else resetInputs();},onService:({type})=>{const result=serviceEngine(state.engine,type);if(result?.message){toast(result.message,'MOTOR',5);if(result.kind==='equipped')audio.load?.();}touchUI();updateUI();}});cabin.resize(SW,SH);cabin.reset();syncControls();$('bootStatus').classList.add('hidden');
+    cabin=createCabinView($('cabinCanvas'),{onStation:enterStation,onWheelDelta:({axis,degrees})=>turnWheel(axis,degrees),onPointerUnlock:()=>{if(state.station)leaveStation();else resetInputs();},onService:({type})=>{if(serverClient){serverClient.command(type==='extinguisher'?'extinguisher':'engine-service');return;}const result=serviceEngine(state.engine,type);if(result?.message){toast(result.message,'MOTOR',5);if(result.kind==='equipped')audio.load?.();}touchUI();updateUI();}});cabin.resize(SW,SH);cabin.reset();syncControls();$('bootStatus').classList.add('hidden');
   }).catch(error=>{
     console.error('Interior 3D indisponível:',error);cabinFailed=true;state.view='field';syncControls();$('bootStatus').classList.add('hidden');toast('Interior 3D indisponível neste navegador. Controles externos disponíveis.','SISTEMAS',20);
   });
