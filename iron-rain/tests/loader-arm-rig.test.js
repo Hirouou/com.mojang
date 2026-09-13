@@ -2,9 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loaderRigState } from '../modules/loader-arm.js';
 
-test('loader rig keeps visible transfer shell owned by the claw', () => {
+test('loader rig approaches empty, then keeps the visible transfer shell owned by the claw', () => {
+  const approach = loaderRigState({ progress: .1, phase: 'extract' });
+  assert.equal(approach.active, true);
+  assert.equal(approach.shell.visible, false);
+  assert.equal(approach.shell.owner, null);
+  assert.equal(approach.shell.clamped, false);
+
   for (const cycle of [
-    { progress: .1, phase: 'extract' },
+    { progress: .16, phase: 'extract' },
     { progress: .45, phase: 'rotate' },
     { progress: .8, phase: 'ram' },
     { progress: .91, phase: 'lock' },
