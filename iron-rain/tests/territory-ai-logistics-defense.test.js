@@ -24,9 +24,17 @@ test('pressured logistics nodes fortify before expanding support infrastructure'
   assert.equal(plan?.reason, 'logistics-defense');
 });
 
-test('low pressure preserves normal development order at logistics nodes', () => {
+test('known route threat fortifies established logistics nodes even away from the front', () => {
   const node = territory(['outpost', 'depot']);
-  const plan = chooseTerritoryProject(node, { frontPressure: .3 });
+  const plan = chooseTerritoryProject(node, { frontPressure: .2, routeThreat: .7 });
+
+  assert.equal(plan?.type, 'bunker');
+  assert.equal(plan?.reason, 'route-defense');
+});
+
+test('low route threat preserves normal development order at logistics nodes', () => {
+  const node = territory(['outpost', 'depot']);
+  const plan = chooseTerritoryProject(node, { frontPressure: .2, routeThreat: .4 });
 
   assert.equal(plan?.type, 'garage');
   assert.equal(plan?.reason, 'development');
@@ -40,8 +48,24 @@ test('front pressure alone does not skip the first physical depot', () => {
   assert.equal(plan?.reason, 'development');
 });
 
+test('route threat alone does not skip the first physical depot', () => {
+  const node = territory(['outpost']);
+  const plan = chooseTerritoryProject(node, { routeThreat: .8 });
+
+  assert.equal(plan?.type, 'depot');
+  assert.equal(plan?.reason, 'development');
+});
+
 test('logistics-defense priority remains symmetric between factions', () => {
   const context = { frontPressure: .5 };
+  const ally = chooseTerritoryProject(territory(['outpost', 'depot'], 'ally'), context);
+  const enemy = chooseTerritoryProject(territory(['outpost', 'depot'], 'enemy'), context);
+
+  assert.deepEqual(ally, enemy);
+});
+
+test('route-defense priority remains symmetric between factions', () => {
+  const context = { routeThreat: .7 };
   const ally = chooseTerritoryProject(territory(['outpost', 'depot'], 'ally'), context);
   const enemy = chooseTerritoryProject(territory(['outpost', 'depot'], 'enemy'), context);
 
