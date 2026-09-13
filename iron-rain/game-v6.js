@@ -370,7 +370,7 @@ import { createEngine, damageEngine, engineCanDrive, serviceEngine, updateEngine
   }
 
   function createMission(sec,target,source){
-    state.mission={sector:sec,target,source,created:state.time,report:state.reports.find(r=>r.id===target.id)};UI.missionPill.classList.remove('hidden');UI.missionTitle.textContent=`${source==='plane'?'RECON':'FO'} • ${target.type}`;UI.missionText.textContent=`X${fmt(target.x)} Y${fmt(target.y)} • ${Math.round(distance(state.robot,target))} m`;
+    state.mission={sector:sec,target,source,created:state.time,report:state.reports.find(r=>r.id===target.id)};UI.missionPill.classList.remove('hidden');UI.missionTitle.textContent=`${source==='plane'?'RECON':'FO'} • ${target.type}`;UI.missionText.textContent=`X${fmt(target.x)} Y${fmt(target.y)} • ${Math.round(distance(state.robot,target)/100)/10} km`;
     updateNotebook();
   }
   function clearMission(){
