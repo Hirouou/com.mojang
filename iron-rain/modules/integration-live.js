@@ -10,6 +10,7 @@ const audio = createWarAudio();
 const remoteShotReplayGuard = createArtilleryShotReplayGuard(64);
 let selector = null;
 let unsubscribeEffects = null;
+let unsubscribeCommandResults = null;
 let lastRuntime = null;
 let fireObserver = null;
 let observedFireButton = null;
@@ -17,6 +18,7 @@ let fireArmed = true;
 let suppressObservedFire = false;
 let authoritativeFireReplay = false;
 let guestFirePendingShotId = null;
+let guestFirePendingCommandSeq = null;
 let shotSerial = 0;
 const shotSession = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 let destroyedOpen = false;
@@ -55,11 +57,16 @@ function showRemoteMaintenance(kind, progress) {
   try { dispatchEvent(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
 }
 
+function clearPendingGuestFire() {
+  guestFirePendingShotId = null;
+  guestFirePendingCommandSeq = null;
+}
+
 function replayAuthoritativeLocalFire(effect) {
   const fire = document.getElementById('fireBtn');
   const shotId = remoteFireReplayKey(effect);
   if (guestFirePendingShotId && shotId !== guestFirePendingShotId) return false;
-  guestFirePendingShotId = null;
+  clearPendingGuestFire();
   if (!fire || fire.disabled) return false;
   authoritativeFireReplay = true;
   suppressObservedFire = true;
@@ -69,6 +76,18 @@ function replayAuthoritativeLocalFire(effect) {
   } finally {
     authoritativeFireReplay = false;
   }
+}
+
+function applyCommandResult(result) {
+  if (!guestFirePendingShotId || result?.authoritative !== true || result?.type !== 'fire' || result?.ok !== false) return;
+  const resultShotId = String(result?.shotId || '').trim();
+  const resultSeq = Number(result?.seq);
+  const sameShot = Boolean(resultShotId && resultShotId === guestFirePendingShotId);
+  const sameCommand = guestFirePendingCommandSeq != null && Number.isFinite(resultSeq) && resultSeq === guestFirePendingCommandSeq;
+  if (!sameShot && !sameCommand) return;
+  clearPendingGuestFire();
+  const reason = String(result?.reason || 'rejeitado pelo host').replaceAll('-', ' ');
+  toast(`DISPARO RECUSADO · ${reason}.`, 'PONTARIA');
 }
 
 function applyRemoteEffect(effect) {
@@ -91,8 +110,9 @@ function applyRemoteEffect(effect) {
 function bindRuntime() {
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime || runtime === lastRuntime) return;
-  unsubscribeEffects?.(); lastRuntime = runtime; maintenanceCadenceState = null; guestFirePendingShotId = null;
+  unsubscribeEffects?.(); unsubscribeCommandResults?.(); lastRuntime = runtime; maintenanceCadenceState = null; clearPendingGuestFire();
   unsubscribeEffects = runtime.subscribeEffects?.(applyRemoteEffect) || null;
+  unsubscribeCommandResults = runtime.subscribeCommandResults?.(applyCommandResult) || null;
 }
 
 function numericReadout(id) {
@@ -184,10 +204,14 @@ function interceptGuestFire(event) {
   event.stopImmediatePropagation?.();
   if (guestFirePending()) return true;
   const payload = liveShotPayload();
+  guestFirePendingShotId = payload.shotId;
+  guestFirePendingCommandSeq = null;
   const result = emitLocalShot(payload);
-  if (result?.pending) {
-    guestFirePendingShotId = payload.shotId;
+  if (result?.pending && guestFirePendingShotId === payload.shotId) {
+    guestFirePendingCommandSeq = Number.isFinite(Number(result.seq)) ? Number(result.seq) : null;
     toast('DISPARO ENVIADO · aguardando autorização do Mamute.', 'PONTARIA');
+  } else if (!result?.pending && guestFirePendingShotId === payload.shotId) {
+    clearPendingGuestFire();
   }
   return true;
 }
@@ -295,4 +319,4 @@ addEventListener('ironrain:respawn-applied', event => {
 
 const timer = setInterval(() => { installSelectorWhenReady(); bindRuntime(); bindFireState(); }, 180);
 
-addEventListener('beforeunload', () => { clearInterval(timer); fireObserver?.disconnect(); unsubscribeEffects?.(); audio.dispose(); }, { once: true });
+addEventListener('beforeunload', () => { clearInterval(timer); fireObserver?.disconnect(); unsubscribeEffects?.(); unsubscribeCommandResults?.(); audio.dispose(); }, { once: true });
