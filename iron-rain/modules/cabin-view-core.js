@@ -444,13 +444,18 @@ export function createCabinView(canvas, { onStation = () => {}, onWheelDelta = (
     wheelPointer=null;
   }
   function listen(target,event,handler){target.addEventListener(event,handler,{passive:false});listeners.push(()=>target.removeEventListener(event,handler));}
+  function canvasPoint(clientX, clientY){
+    const rect=canvas.getBoundingClientRect?.();
+    const rectWidth=Math.max(1,Number(rect?.width)||width),rectHeight=Math.max(1,Number(rect?.height)||height);
+    return {x:(clientX-(Number(rect?.left)||0))*width/rectWidth,y:(clientY-(Number(rect?.top)||0))*height/rectHeight};
+  }
   function wheelAt(clientX, clientY){
     if (station !== 'aim') return null;
-    const bounds = getWheelBounds();
+    const bounds = getWheelBounds(),point=canvasPoint(clientX,clientY);
     for (const axis of ['azimuth', 'elevation']) {
       const b = bounds[axis];
-      if (b.visible && clientX >= b.x && clientX <= b.x + b.width && clientY >= b.y && clientY <= b.y + b.height) {
-        return { axis, angle: Math.atan2(clientY - (b.y + b.height / 2), clientX - (b.x + b.width / 2)) };
+      if (b.visible && point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height) {
+        return { axis, angle: Math.atan2(point.y - (b.y + b.height / 2), point.x - (b.x + b.width / 2)) };
       }
     }
     return null;
@@ -476,8 +481,8 @@ export function createCabinView(canvas, { onStation = () => {}, onWheelDelta = (
     if(!active||latest.paused)return;
     if (wheelPointer?.id === e.pointerId) {
       e.preventDefault();
-      const b = getWheelBounds()[wheelPointer.axis], cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-      const angle = Math.atan2(e.clientY - cy, e.clientX - cx);
+      const b = getWheelBounds()[wheelPointer.axis],point=canvasPoint(e.clientX,e.clientY),cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      const angle = Math.atan2(point.y - cy, point.x - cx);
       const difference = Math.atan2(Math.sin(angle - wheelPointer.angle), Math.cos(angle - wheelPointer.angle));
       wheelPointer.angle = angle;
       const rawDegrees = difference * 180 / Math.PI;
