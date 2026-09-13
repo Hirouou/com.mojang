@@ -1,9 +1,10 @@
 import { createStrategicHexMap, hexControl, neighboringHexIds } from './strategic-hex-map.js';
-import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, stepTerritoryDevelopment, territorySnapshot, DEVELOPMENT_PROJECTS } from './territory-development.js';
-import { chooseTerritoryProject, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
+import { createTerritoryNode, receiveTerritoryDelivery, startTerritoryProject, startVehicleProduction, stepTerritoryDevelopment, territorySnapshot, DEVELOPMENT_PROJECTS } from './territory-development.js';
+import { chooseTerritoryProject, chooseVehicleProduction, projectSupplyRequest, territoryOperationalEffects } from './territory-ai.js';
 import { createLogisticsNode, createSupplyRoute, createStrategicLogistics } from './strategic-logistics.js';
 import { strategicFrontPath } from './strategic-front-pressure.js';
 import { applyAuthoritativeSectorControl } from './strategic-capture-state.js';
+import { createPersistentWarClock } from './persistent-war-clock.js';
 import { THEATRE_SIZE, lineSnapshot } from './theatre-control.js';
 
 const COLOR = Object.freeze({
@@ -15,7 +16,7 @@ const COLOR = Object.freeze({
   dim: '#8e998b',
   paper: '#101712',
 });
-const STRUCTURE = Object.freeze({ outpost:'POSTO', depot:'DEPÓSITO', mortar:'MORTEIRO', bunker:'BUNKER', garage:'GARAGEM', factory:'FÁBRICA' });
+const STRUCTURE = Object.freeze({ outpost:'POSTO', depot:'DEPÓSITO', mortar:'MORTEIRO', bunker:'BUNKER', garage:'GARAGEM', factory:'FÁBRICA', armorWorks:'BLINDADOS' });
 const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(value) ? value : lo));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const playerTeam = () => window.ironRainEntry?.faction === 'axis' ? 'enemy' : 'ally';
@@ -31,12 +32,14 @@ function makeTheatre() {
   const logisticNodes = [];
   for (const { sector } of records.values()) {
     const owner = ['ally', 'enemy'].includes(sector.owner) ? sector.owner : null;
-    const node = createTerritoryNode({ id: sector.id, owner });
-    const fd = frontDistance(sector), rear = fd > 15_500, mid = fd > 8_500;
+    const fd = frontDistance(sector), deepRear = fd > 21_500, rear = fd > 15_500, mid = fd > 8_500;
+    const initialAssets = deepRear ? { trucks: 3, tanks: 1, troops: 72 } : rear ? { trucks: 1, troops: 14 } : {};
+    const node = createTerritoryNode({ id: sector.id, owner, assets: initialAssets });
     node.contested = !owner;
-    node.securedFor = node.contested ? 0 : rear ? 650 : mid ? 260 : 90;
+    node.securedFor = node.contested ? 0 : deepRear ? 1_260 : rear ? 650 : mid ? 260 : 90;
     if (owner && mid) node.structures.push('outpost');
     if (owner && rear) node.structures.push('depot');
+    if (owner && deepRear) node.structures.push('garage', 'factory', 'armorWorks');
     territory.set(sector.id, node);
     logisticNodes.push(createLogisticsNode({
       id: sector.id,
@@ -44,7 +47,8 @@ function makeTheatre() {
       x: sector.x,
       y: sector.y,
       kind: rear ? 'depot' : mid ? 'outpost' : 'front',
-      stock: rear ? { materials: 560, ammo: 170, fuel: 190 } : {},
+      stock: deepRear ? { materials: 920, ammo: 310, fuel: 300 } : rear ? { materials: 110, ammo: 45, fuel: 55 } : {},
+      assets: initialAssets,
     }));
   }
 
@@ -71,6 +75,14 @@ function makeTheatre() {
   const sources = logisticNodes.filter(node => node.kind === 'depot').map(node => node.id);
   const inFlight = new Map();
 
+  function clearFlight(convoyId) {
+    for (const [key, current] of inFlight) if (current === convoyId) inFlight.delete(key);
+  }
+
+  function rememberFlight(key, sent) {
+    if (sent?.ok && sent.status !== 'arrived' && sent.convoyId) inFlight.set(key, sent.convoyId);
+  }
+
   function wanted(node) {
     if (!node?.owner || node.contested || node.activeProject) return null;
     const missing = type => !node.structures.includes(type);
@@ -81,15 +93,17 @@ function makeTheatre() {
     if (missing('mortar') && ready('mortar') && node.structures.includes('outpost')) return 'mortar';
     if (missing('garage') && ready('garage') && node.structures.includes('depot')) return 'garage';
     if (missing('factory') && ready('factory') && node.structures.includes('depot') && node.structures.includes('garage')) return 'factory';
+    if (missing('armorWorks') && ready('armorWorks') && node.structures.includes('garage') && node.structures.includes('factory')) return 'armorWorks';
     return null;
   }
 
-  function sourceFor(team, destination, cargo) {
+  function sourceFor(team, destination, cargo = {}, assets = {}) {
     let best = null;
     for (const id of sources) {
       const source = logistics.getNode(id);
-      if (!source || source.team !== team) continue;
+      if (!source || source.team !== team || source.id === destination) continue;
       if (!['materials', 'ammo', 'fuel'].every(key => (source.stock[key] || 0) >= (cargo[key] || 0))) continue;
+      if (!['trucks', 'tanks', 'troops'].every(key => (source.assets?.[key] || 0) >= (assets[key] || 0))) continue;
       const path = logistics.route(team, id, destination);
       if (!path) continue;
       const length = path.reduce((sum, leg) => sum + leg.distance, 0);
@@ -98,38 +112,120 @@ function makeTheatre() {
     return best?.id || null;
   }
 
+  function nearestDepot(team, from) {
+    let best = null;
+    for (const id of sources) {
+      if (id === from) continue;
+      const source = logistics.getNode(id);
+      if (!source || source.team !== team) continue;
+      const path = logistics.route(team, from, id);
+      if (!path) continue;
+      const length = path.reduce((sum, leg) => sum + leg.distance, 0);
+      if (!best || length < best.length) best = { id, length };
+    }
+    return best?.id || null;
+  }
+
+  function syncTerritoryAssets(node, endpoint) {
+    if (!node?.assets || !endpoint?.assets) return;
+    node.assets.trucks = endpoint.assets.trucks || 0;
+    node.assets.tanks = endpoint.assets.tanks || 0;
+    node.assets.troops = endpoint.assets.troops || 0;
+  }
+
+  function stageProducedVehicle(node, endpoint, type) {
+    if (!type || !node?.assets || !endpoint?.assets) return;
+    const key = type === 'tank' ? 'tanks' : type === 'truck' ? 'trucks' : null;
+    if (!key) return;
+    endpoint.assets[key] = Math.max(endpoint.assets[key] || 0, node.assets[key] || 0);
+    node.assets[key] = endpoint.assets[key];
+  }
+
   function step(seconds) {
     const elapsed = Math.min(8, Math.max(.1, seconds));
     for (const event of logistics.step(elapsed)) {
       if (event.type !== 'convoy-arrived') continue;
       const node = territory.get(event.to);
-      if (node) receiveTerritoryDelivery(node, event);
-      inFlight.delete(event.to);
+      if (node && event.cargo) receiveTerritoryDelivery(node, { team: event.team, cargo: event.cargo });
+      clearFlight(event.convoyId);
     }
+
+    const logisticsSnapshot = logistics.snapshot();
     for (const [id, node] of territory) {
-      const record = records.get(id);
-      if (!record) continue;
-      const routeOpen = Boolean(node.owner && logistics.snapshot().nodes.some(source => source.team === node.owner && logistics.route(node.owner, source.id, id)));
-      stepTerritoryDevelopment(node, elapsed, { routeOpen, contested: node.contested });
+      const record = records.get(id), endpoint = logistics.getNode(id);
+      if (!record || !endpoint) continue;
+      syncTerritoryAssets(node, endpoint);
+      const routeOpen = Boolean(node.owner && sources.some(sourceId => {
+        const source = logistics.getNode(sourceId);
+        return source?.team === node.owner && (sourceId === id || Boolean(logistics.route(node.owner, sourceId, id)));
+      }));
+      const development = stepTerritoryDevelopment(node, elapsed, { routeOpen, contested: node.contested });
+      stageProducedVehicle(node, endpoint, development?.vehicleBuilt);
       record.sector.structures = [...node.structures];
       if (!node.owner || node.contested) continue;
+
       const effects = territoryOperationalEffects(node);
       const pressure = clamp((1 - frontDistance(record.sector) / 15_000) * (.75 - effects.defensiveCover), 0, 1);
-      const plan = chooseTerritoryProject(node, { routeOpen, frontPressure: pressure, infantryThreat: pressure, armorThreat: pressure * .75 });
-      if (plan) {
-        startTerritoryProject(node, plan.type);
+      const projectPlan = chooseTerritoryProject(node, {
+        routeOpen,
+        frontPressure: pressure,
+        infantryThreat: pressure,
+        armorThreat: pressure * .82,
+        armorDemand: pressure,
+      });
+      if (projectPlan) {
+        startTerritoryProject(node, projectPlan.type);
         continue;
       }
+
+      const vehiclePlan = chooseVehicleProduction(node, {
+        routeOpen,
+        frontPressure: pressure,
+        infantryThreat: pressure,
+        armorThreat: pressure * .9,
+        armorDemand: pressure,
+        logisticsDeficit: endpoint.assets.trucks < 2 ? .8 : .1,
+        reinforcementNeed: frontDistance(record.sector) < 10_500 ? .7 : .2,
+      });
+      if (vehiclePlan) startVehicleProduction(node, vehiclePlan.type);
+
       const type = wanted(node);
-      if (!type || inFlight.has(id)) continue;
-      const request = projectSupplyRequest(node, type);
-      if (!request) continue;
-      const source = sourceFor(node.owner, id, request.cargo);
-      if (!source) continue;
-      const sent = logistics.dispatch({ team: node.owner, from: source, to: id, cargo: request.cargo, speed: 55 });
-      if (sent.ok && sent.status === 'arrived') receiveTerritoryDelivery(node, { team: node.owner, cargo: request.cargo });
-      else if (sent.ok) inFlight.set(id, sent.convoyId);
+      const supplyKey = `supply:${id}`;
+      if (type && !inFlight.has(supplyKey)) {
+        const request = projectSupplyRequest(node, type);
+        if (request) {
+          const source = sourceFor(node.owner, id, request.cargo, { trucks: 1 });
+          if (source) {
+            const sent = logistics.dispatch({ team: node.owner, from: source, to: id, cargo: request.cargo, assets: { trucks: 1 }, kind: 'supply', speed: 55 });
+            if (sent.ok && sent.status === 'arrived') receiveTerritoryDelivery(node, { team: node.owner, cargo: request.cargo });
+            else rememberFlight(supplyKey, sent);
+          }
+        }
+      }
+
+      const fd = frontDistance(record.sector);
+      if (fd < 11_500) {
+        const troopKey = `troops:${id}`;
+        if ((endpoint.assets.troops || 0) < 18 && !inFlight.has(troopKey)) {
+          const source = sourceFor(node.owner, id, {}, { troops: 18, trucks: 1 });
+          if (source) rememberFlight(troopKey, logistics.dispatch({ team: node.owner, from: source, to: id, assets: { troops: 18, trucks: 1 }, kind: 'troops', speed: 60 }));
+        }
+        const armorKey = `armor:${id}`;
+        if (pressure > .2 && (endpoint.assets.tanks || 0) < 1 && !inFlight.has(armorKey)) {
+          const source = sourceFor(node.owner, id, {}, { tanks: 1 });
+          if (source) rememberFlight(armorKey, logistics.dispatch({ team: node.owner, from: source, to: id, assets: { tanks: 1 }, kind: 'armor', speed: 38 }));
+        }
+      }
+
+      const returnKey = `return:${id}`;
+      if (endpoint.kind !== 'depot' && (endpoint.assets.trucks || 0) > 0 && !inFlight.has(returnKey) && fd < 13_500) {
+        const depot = nearestDepot(node.owner, id);
+        if (depot) rememberFlight(returnKey, logistics.dispatch({ team: node.owner, from: id, to: depot, assets: { trucks: 1 }, kind: 'return', speed: 62 }));
+      }
     }
+
+    // Keep snapshots warm so concurrent readers never need to mutate the live graph.
+    void logisticsSnapshot;
   }
 
   return { hexes, records, territory, logistics, step };
@@ -230,7 +326,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
   const kpis = root.querySelector('[data-kpis]');
   const balance = root.querySelector('[data-balance]');
   const locateBox = root.querySelector('[data-locate]');
-  let open = false, selected = null, width = 1, height = 1, dpr = 1, raf = 0, last = performance.now(), simAcc = 0;
+  let open = false, selected = null, width = 1, height = 1, dpr = 1, raf = 0;
 
   const view = { scale: 1, ox: 0, oy: 0 };
   function fitView() {
@@ -259,13 +355,36 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     return { hex: bestHex, sector: bestSector, position, insideRegion: bestHexDistance <= bestHex.radius * 1.04 };
   }
 
+  function claimAsset(sectorId, team, type, count = 1) {
+    const id = String(sectorId ?? ''), amount = Math.max(1, Math.floor(Number(count) || 1));
+    if (!id || !['ally', 'enemy'].includes(team) || !['trucks', 'tanks', 'troops'].includes(type)) return false;
+    const endpoint = theatre.logistics.getNode(id);
+    if (!endpoint?.alive || endpoint.team !== team || (endpoint.assets?.[type] || 0) < amount) return false;
+    endpoint.assets[type] -= amount;
+    const node = theatre.territory.get(id);
+    if (node?.assets) node.assets[type] = endpoint.assets[type];
+    return true;
+  }
+
+  function assetCount(sectorId, team, type) {
+    const endpoint = theatre.logistics.getNode(String(sectorId ?? ''));
+    if (!endpoint?.alive || endpoint.team !== team) return 0;
+    return Math.max(0, Number(endpoint.assets?.[type]) || 0);
+  }
+
   function combatReserveContext(sectorId, team) {
     const id = String(sectorId ?? '');
     if (!id || !['ally', 'enemy'].includes(team)) return null;
     const node = theatre.territory.get(id);
     const endpoint = theatre.logistics.getNode(id);
     if (!node || node.owner !== team || !endpoint?.alive || endpoint.team !== team) return null;
-    return Object.freeze({ strategicLogistics: theatre.logistics, territory: territorySnapshot(node), to: id });
+    return Object.freeze({
+      strategicLogistics: theatre.logistics,
+      territory: territorySnapshot(node),
+      to: id,
+      assetCount: type => assetCount(id, team, type),
+      claimAsset: (type, count = 1) => claimAsset(id, team, type, count),
+    });
   }
 
   function applySectorControl({ sectorId, owner, contested = false, revision } = {}) {
@@ -288,8 +407,15 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     return result;
   }
 
-  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, applySectorControl, open: () => setOpen(true) });
+  window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, claimAsset, assetCount, applySectorControl, open: () => setOpen(true) });
   const stopNotebookBridge = installNotebookBridge(locate);
+  const warClock = createPersistentWarClock({ stepSeconds: 1, maxCatchUpSeconds: 180 });
+  const strategicTimer = setInterval(() => {
+    const advance = warClock.advance();
+    const ticks = Math.min(20, advance.ticks);
+    for (let i = 0; i < ticks; i++) theatre.step(8);
+    if (ticks && open) { updatePanels(); draw(); }
+  }, 1_000);
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
@@ -317,7 +443,9 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     const mine = nodes.filter(node => node.owner === t);
     const logistics = theatre.logistics.snapshot();
     const convoys = logistics.convoys.filter(convoy => convoy.team === t && ['moving', 'blocked'].includes(convoy.status));
-    kpis.innerHTML = `<div><b>${mine.length}</b><small>SETORES DA FACÇÃO</small></div><div><b>${convoys.length}</b><small>COMBOIOS</small></div><div><b>${mine.filter(node => node.activeProject).length}</b><small>OBRAS</small></div><div><b>${mine.filter(node => node.structures.includes('factory')).length}</b><small>FÁBRICAS</small></div>`;
+    const tanks = logistics.nodes.filter(node => node.team === t).reduce((sum, node) => sum + (node.assets?.tanks || 0), 0);
+    const troops = logistics.nodes.filter(node => node.team === t).reduce((sum, node) => sum + (node.assets?.troops || 0), 0);
+    kpis.innerHTML = `<div><b>${mine.length}</b><small>SETORES DA FACÇÃO</small></div><div><b>${convoys.length}</b><small>COMBOIOS</small></div><div><b>${tanks}</b><small>BLINDADOS EM ESTOQUE</small></div><div><b>${troops}</b><small>REFORÇOS EM TRÂNSITO/BASE</small></div>`;
 
     if (current) {
       locateBox.innerHTML = `<small>POSIÇÃO ATUAL DO M-47</small><b>★ ${current.hex.name} · ${current.sector.name}</b><small>X ${Math.round(current.position.x).toString().padStart(5, '0')} · Y ${Math.round(current.position.y).toString().padStart(5, '0')}</small><br><button type="button" data-select-current>SELECIONAR MEU SETOR</button>`;
@@ -328,6 +456,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     if (!selected) return;
     const record = theatre.records.get(selected);
     const node = territorySnapshot(theatre.territory.get(selected));
+    const endpoint = theatre.logistics.getNode(selected);
     if (!record || !node) return;
     const relation = current?.hex.id === record.hex.id ? '<strong>VOCÊ ESTÁ NESTA REGIÃO</strong><br>' : '';
     const control = hexControl(record.hex);
@@ -341,7 +470,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     }
     const structures = node.structures.length ? node.structures.map(type => STRUCTURE[type] || type).join(' · ') : 'nenhuma';
     const effects = territoryOperationalEffects(node);
-    detail.innerHTML = `<h3>${record.hex.name} / ${record.sector.name}</h3><p>${relation}<strong>${ownerLabel(node.owner)}</strong> · região ${ownerLabel(control)}<br>Estruturas: <strong>${structures}</strong><br>Obra: <strong>${node.activeProject ? STRUCTURE[node.activeProject] || node.activeProject : '—'}</strong><br>MAT ${Math.round(node.stock.materials)} · MUN ${Math.round(node.stock.ammo)} · COMB ${Math.round(node.stock.fuel)}<br>Defesa ${Math.round(effects.defensiveCover * 100)}% · reforço ${Math.round(effects.reinforcementSupport * 100)}%</p>`;
+    detail.innerHTML = `<h3>${record.hex.name} / ${record.sector.name}</h3><p>${relation}<strong>${ownerLabel(node.owner)}</strong> · região ${ownerLabel(control)}<br>Estruturas: <strong>${structures}</strong><br>Obra: <strong>${node.activeProject ? STRUCTURE[node.activeProject] || node.activeProject : '—'}</strong><br>Produção: <strong>${node.vehicleProduction ? node.vehicleProduction.toUpperCase() : '—'}</strong><br>MAT ${Math.round(node.stock.materials)} · MUN ${Math.round(node.stock.ammo)} · COMB ${Math.round(node.stock.fuel)}<br>CAM ${endpoint?.assets?.trucks || 0} · TAN ${endpoint?.assets?.tanks || 0} · REF ${endpoint?.assets?.troops || 0}<br>Defesa ${Math.round(effects.defensiveCover * 100)}% · reforço ${Math.round(effects.reinforcementSupport * 100)}%</p>`;
   }
 
   function drawTerrain() {
@@ -374,6 +503,32 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     ctx.beginPath(); line.forEach((point, index) => { const p = toScreen(point); index ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke();
     ctx.strokeStyle = '#eee4c688'; ctx.lineWidth = 1.3; ctx.setLineDash([7, 6]);
     ctx.beginPath(); line.forEach((point, index) => { const p = toScreen(point); index ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawConvoy(convoy, p, angle) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle);
+    const blocked = convoy.status === 'blocked';
+    ctx.fillStyle = blocked ? '#e1ad55' : '#f1e9c9';
+    ctx.strokeStyle = '#0b120d';
+    ctx.lineWidth = 1;
+    if (convoy.kind === 'armor') {
+      ctx.fillRect(-6, -3, 10, 6);
+      ctx.fillRect(-1, -5, 5, 4);
+      ctx.fillRect(3, -1, 7, 2);
+      ctx.strokeRect(-6, -3, 10, 6);
+    } else {
+      ctx.fillRect(-6, -3, 9, 6);
+      ctx.fillRect(3, -2, 4, 5);
+      ctx.strokeRect(-6, -3, 13, 6);
+      ctx.beginPath(); ctx.arc(-3, 4, 1.5, 0, Math.PI * 2); ctx.arc(4, 4, 1.5, 0, Math.PI * 2); ctx.fill();
+      if (convoy.kind === 'troops') {
+        ctx.fillStyle = '#d4c68f';
+        ctx.beginPath(); ctx.arc(-2, -5, 1.5, 0, Math.PI * 2); ctx.arc(2, -5, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
     ctx.restore();
   }
 
@@ -414,9 +569,9 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
 
     for (const { sector } of theatre.records.values()) {
       const p = toScreen(sector), isSelected = selected === sector.id;
-      ctx.beginPath(); ctx.arc(p.x, p.y, isSelected ? 4.7 : 2.5, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(p.x, p.y, isSelected ? 5.4 : 3.2, 0, Math.PI * 2);
       ctx.fillStyle = COLOR[sector.owner] || COLOR.neutral; ctx.fill();
-      if (isSelected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); }
+      ctx.strokeStyle = isSelected ? '#fff' : '#0b120d'; ctx.lineWidth = isSelected ? 1.5 : .8; ctx.stroke();
     }
 
     for (const convoy of logistics.convoys) {
@@ -425,7 +580,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
       if (!a || !b) continue;
       const q = clamp(convoy.legProgress / leg.distance, 0, 1);
       const p = toScreen({ x: a.x + (b.x - a.x) * q, y: a.y + (b.y - a.y) * q });
-      ctx.fillStyle = convoy.status === 'blocked' ? '#e1ad55' : '#f1e9c9'; ctx.fillRect(p.x - 2.5, p.y - 2.5, 5, 5);
+      drawConvoy(convoy, p, Math.atan2(b.y - a.y, b.x - a.x));
     }
 
     if (current) {
@@ -441,18 +596,17 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     }
   }
 
-  function frame(now) {
+  function frame() {
     if (!open) return;
-    const dt = Math.min(.1, (now - last) / 1_000); last = now; simAcc += dt;
-    if (simAcc >= .75) { theatre.step(simAcc * 8); simAcc = 0; updatePanels(); }
-    draw(); raf = requestAnimationFrame(frame);
+    draw();
+    raf = requestAnimationFrame(frame);
   }
 
   function setOpen(next) {
     open = Boolean(next);
     root.classList.toggle('hidden', !open);
     if (open) {
-      resize(); updatePanels(); last = performance.now();
+      resize(); updatePanels();
       cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
     } else cancelAnimationFrame(raf);
   }
@@ -476,6 +630,6 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     close: () => setOpen(false),
     locate,
     applySectorControl,
-    destroy() { setOpen(false); stopNotebookBridge(); button.remove(); root.remove(); delete window.ironRainStrategicMap; },
+    destroy() { clearInterval(strategicTimer); setOpen(false); stopNotebookBridge(); button.remove(); root.remove(); delete window.ironRainStrategicMap; },
   });
 }
