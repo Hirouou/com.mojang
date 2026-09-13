@@ -1,6 +1,6 @@
 /* Iron Rain mobile station layer.
    Touch AIM uses the physical 3D azimuth/elevation machinery. The legacy fire
-   deck is reduced to charge + fire only so it cannot cover the handwheels.
+   deck is reduced to charge + range telemetry + fire so it cannot cover the handwheels.
    Desktop remains untouched. */
 
 @media (pointer: coarse), (hover: none) {
@@ -32,7 +32,7 @@
     padding:4px!important;
     display:grid!important;
     grid-template-columns:1fr!important;
-    grid-template-rows:auto auto!important;
+    grid-template-rows:auto auto auto!important;
     gap:4px!important;
     background:#0b120bd9!important;
     border-color:#b8aa7560!important;
@@ -65,7 +65,42 @@
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box strong{font-size:16px!important;line-height:18px!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{min-height:32px!important;font-size:18px!important;padding:0!important;background:#263322ed!important;border-color:#aab48a55!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box #chargeRange{font-size:6px!important;line-height:8px!important;opacity:.78!important;}
-  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{display:block!important;grid-column:1!important;grid-row:2!important;padding:0!important;margin:0!important;border:0!important;min-height:0!important;}
+
+  /* Keep the physical elevation wheel as the control. Only its canonical
+     still-air range telemetry remains visible so the operator can copy the
+     metre value from the plotting table without restoring a duplicate wheel. */
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box{
+    display:block!important;
+    grid-column:1!important;
+    grid-row:2!important;
+    padding:3px 2px!important;
+    margin:0!important;
+    min-height:0!important;
+    background:#151f16df!important;
+    border:1px solid #a7b18a35!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box > label,
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box .handwheel{
+    display:none!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box .range-readout{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    gap:1px!important;
+    margin:0!important;
+    font-size:7px!important;
+    line-height:1!important;
+    letter-spacing:.8px!important;
+  }
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box .range-readout strong{
+    font-size:12px!important;
+    line-height:14px!important;
+    color:#e1d5a1!important;
+    white-space:nowrap!important;
+  }
+
+  .inside.station-engaged .fire-deck[data-station="aim"] .fire-actions{display:block!important;grid-column:1!important;grid-row:3!important;padding:0!important;margin:0!important;border:0!important;min-height:0!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{display:block!important;width:100%!important;min-height:42px!important;padding:5px 3px!important;margin:0!important;font-size:9px!important;letter-spacing:1px!important;border-radius:3px!important;background:#7c3228ef!important;box-shadow:0 3px 10px #0008!important;}
 
   .inside.station-engaged .station-header{max-width:150px!important;opacity:.7;}
@@ -79,5 +114,7 @@
   .inside.station-engaged .fire-deck[data-station="aim"]{right:calc(6px + var(--safeR, 0px))!important;bottom:calc(7px + var(--safeB, 0px))!important;width:96px!important;max-width:96px!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box{grid-template-rows:9px 17px 30px 10px!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] .charge-box button{min-height:28px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box .range-readout{font-size:6px!important;}
+  .inside.station-engaged .fire-deck[data-station="aim"] .handwheel-box.elevation-box .range-readout strong{font-size:11px!important;line-height:12px!important;}
   .inside.station-engaged .fire-deck[data-station="aim"] #fireBtn{min-height:36px!important;font-size:8px!important;}
 }
