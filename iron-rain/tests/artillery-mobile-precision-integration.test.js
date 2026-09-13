@@ -5,13 +5,16 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const read = path => readFile(new URL(path, root), 'utf8');
 
-test('mobile AIM keeps canonical metre range telemetry without restoring duplicate handwheels', async () => {
+test('mobile AIM exposes dual canonical touch dials with metre-precise range telemetry', async () => {
   const [css, game] = await Promise.all([read('mobile-station-ui.css'), read('game-v6.js')]);
+  assert.match(css, /handwheel-box:not\(\.elevation-box\)/);
   assert.match(css, /handwheel-box\.elevation-box/);
-  assert.match(css, /range-readout/);
-  assert.match(css, /handwheel-box\.elevation-box \.handwheel/);
-  // The compact mobile readout may include extra telemetry (for example apex),
-  // but the canonical ballistic range must still be displayed in metres.
+  assert.match(css, /display:block!important/);
+  assert.match(css, /#rangeReadout/);
+  assert.match(css, /DISTÂNCIA \/ SOLUÇÃO/);
+  assert.match(css, /\.charge-box/);
+  // The mobile readout exposes the canonical ballistic result in metres so a
+  // one-decimal kilometre display can never hide meaningful aiming differences.
   assert.match(game, /UI\.range\.(?:textContent|innerHTML)\s*=.*Math\.round\((?:solution|B)\.range\)\.toLocaleString\('pt-BR'\).* m/);
 });
 
