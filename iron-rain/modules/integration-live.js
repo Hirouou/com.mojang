@@ -10,6 +10,7 @@ let lastRuntime = null;
 let fireObserver = null;
 let observedFireButton = null;
 let fireArmed = true;
+let shotSerial = 0;
 let destroyedOpen = false;
 let maintenanceCadenceState = null;
 
@@ -56,11 +57,21 @@ function numericReadout(id) {
   return match ? Number(match[0]) : null;
 }
 
-function liveShotPayload() {
+function nextShotIdentity(runtime) {
+  const status = runtime?.status?.() || {};
+  const shooterId = String(status.localId || globalThis.ironRainEntry?.localId || 'local');
+  const mamuteId = String(status.room || globalThis.ironRainEntry?.room || 'solo');
+  shotSerial += 1;
+  return Object.freeze({ shotId: `${mamuteId}:${shooterId}:${shotSerial}`, shooterId, mamuteId, shotSerial });
+}
+
+function liveShotPayload(runtime) {
   const shell = document.querySelector('.ammo.active')?.dataset.shell || 'HE';
   const ammoId = shell === 'SMOKE' ? 'smokeCount' : shell === 'FRAG' ? 'fragCount' : 'heCount';
+  const identity = nextShotIdentity(runtime);
   return Object.freeze({
     at: performance.now() / 1000,
+    ...identity,
     shell,
     charge: numericReadout('chargeValue'),
     bearing: numericReadout('azValue'),
@@ -78,9 +89,9 @@ function canReplicateLocalShot(runtime) {
 function emitLocalShot() {
   const runtime = globalThis.ironRainEntry?.runtime;
   if (!runtime?.emitEffect || !canReplicateLocalShot(runtime)) return;
-  const shot = liveShotPayload();
+  const shot = liveShotPayload(runtime);
   runtime.emitEffect('fire', shot);
-  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell });
+  runtime.emitEffect('reload', { duration: 2.8, phase: 'extract', shell: shot.shell, shotId: shot.shotId });
 }
 
 function bindFireState() {
