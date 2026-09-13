@@ -51,6 +51,11 @@ export function createMamuteCommandAuthority({
     try { return typeof fireInventory === 'function' ? fireInventory() : fireInventory; } catch { return null; }
   }
 
+  function remainingShells(inventory, shell) {
+    const remaining = Number(inventory?.shells?.[shell]);
+    return Number.isFinite(remaining) ? Math.max(0, remaining) : undefined;
+  }
+
   function restoreShell(inventory, shell) {
     if (!inventory?.shells || typeof inventory.shells[shell] !== 'number') return;
     const capacity = Number(inventory.capacity?.[shell]);
@@ -92,12 +97,14 @@ export function createMamuteCommandAuthority({
     if (inventory) {
       if (!canFireShell(inventory, shell)) {
         rejected += 1;
-        return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}) });
+        const ammoRemaining = remainingShells(inventory, shell);
+        return Object.freeze({ ok: false, reason: 'out-of-ammo', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
       }
       shellReserved = consumeShell(inventory, shell, 1);
       if (!shellReserved) {
         rejected += 1;
-        return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}) });
+        const ammoRemaining = remainingShells(inventory, shell);
+        return Object.freeze({ ok: false, reason: 'ammo-consume-failed', station, owner, shell: shell || null, ...(shotId ? { shotId } : {}), ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) });
       }
     }
 
@@ -106,13 +113,14 @@ export function createMamuteCommandAuthority({
     if (!applied) {
       if (shellReserved) restoreShell(inventory, shell);
       rejected += 1;
-      return Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}) });
+      const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
+      return Object.freeze({ ok: false, reason: 'command-rejected', station, owner, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
     }
 
     if (shotKey) rememberFireShot(shotKey);
     sequences.set(playerId, seq); accepted += 1;
-    const ammoRemaining = inventory ? inventory.shells?.[shell] : undefined;
-    return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ammoRemaining } : {}) });
+    const ammoRemaining = inventory ? remainingShells(inventory, shell) : undefined;
+    return Object.freeze({ ok: true, station, owner, accepted, ...(shotId ? { shotId } : {}), ...(inventory ? { shell, ...(ammoRemaining !== undefined ? { ammoRemaining } : {}) } : {}) });
   }
 
   return Object.freeze({
