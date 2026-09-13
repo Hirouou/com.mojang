@@ -72,7 +72,9 @@ export function stationGateMessage(result) {
   const reason = result?.reason;
   if (reason === 'occupied') return 'POSTO OCUPADO POR OUTRO TRIPULANTE';
   if (reason === 'pending-host') return 'AGUARDANDO CONFIRMAÇÃO DO POSTO';
+  if (reason === 'claim-cancelled') return 'SOLICITAÇÃO DO POSTO CANCELADA';
   if (reason === 'not-connected') return 'TRIPULAÇÃO DESCONECTADA';
+  if (reason === 'release-failed') return 'NÃO FOI POSSÍVEL LIBERAR O POSTO';
   if (reason === 'faction-mismatch') return 'ESTE MAMUTE PERTENCE À OUTRA FACÇÃO';
   if (reason === 'invalid-station') return 'POSTO INVÁLIDO';
   if (reason === 'claim-failed' || reason === 'claim-denied' || reason === 'authority-unavailable') return 'POSTO INDISPONÍVEL';
