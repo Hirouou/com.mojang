@@ -17,7 +17,7 @@ test('touch handwheels are geared down while desktop retains the original delta'
   const cabin = await read('modules/cabin-view.js');
   assert.match(cabin, /\(hover: none\) and \(pointer: coarse\)/);
   assert.match(cabin, /axis === 'elevation' \? \.055 : \.12/);
-  assert.match(cabin, /\) : 1;/);
+  assert.match(cabin, /touchAimReduction = axis => coarseAimPointer/);
   assert.match(cabin, /degrees: degrees \* touchAimReduction\(event\.axis\)/);
 });
 
