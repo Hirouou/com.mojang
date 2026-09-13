@@ -4,6 +4,7 @@ const bool = value => value === true;
 const validTeam = team => team === 'ally' || team === 'enemy';
 const positiveFinite = value => Number.isFinite(value) && value > 0;
 const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value || {}, key);
+const COMBAT_ROUTE_THREAT_LIMIT = .75;
 
 function validRoutePath(path, originId, destinationId) {
   if (!Array.isArray(path) || path.length === 0) return false;
@@ -17,6 +18,21 @@ function validRoutePath(path, originId, destinationId) {
   return expectedFrom === String(destinationId ?? '');
 }
 
+function routeIntelSafe(logistics, path) {
+  if (typeof logistics?.snapshot !== 'function') return true;
+  let routes;
+  try { routes = logistics.snapshot()?.routes; } catch { return false; }
+  if (!Array.isArray(routes)) return false;
+  const byId = new Map(routes.map(route => [String(route?.id ?? ''), route]));
+  for (const leg of path) {
+    const route = byId.get(String(leg?.routeId ?? ''));
+    if (!route) continue;
+    const knownThreat = Number(route.knownThreat);
+    if (Number.isFinite(knownThreat) && knownThreat >= COMBAT_ROUTE_THREAT_LIMIT) return false;
+  }
+  return true;
+}
+
 /** Ask the canonical strategic-logistics graph whether a friendly route really exists. */
 export function combatRouteOpen({ logistics, team, from, to } = {}) {
   if (!validTeam(team) || !logistics || typeof logistics.route !== 'function' || typeof logistics.getNode !== 'function') return false;
@@ -24,7 +40,10 @@ export function combatRouteOpen({ logistics, team, from, to } = {}) {
   const destination = logistics.getNode(String(to ?? ''));
   if (!origin?.alive || !destination?.alive || origin.team !== team || destination.team !== team) return false;
   if (origin.id === destination.id) return true;
-  try { return validRoutePath(logistics.route(team, origin.id, destination.id), origin.id, destination.id); }
+  try {
+    const path = logistics.route(team, origin.id, destination.id);
+    return validRoutePath(path, origin.id, destination.id) && routeIntelSafe(logistics, path);
+  }
   catch { return false; }
 }
 
@@ -41,7 +60,7 @@ export function combatReserveOrigin({ strategicLogistics, team, to } = {}) {
     if (!node?.alive || node.team !== team || node.kind !== 'depot' || node.id === destination.id) continue;
     let path;
     try { path = strategicLogistics.route(team, node.id, destination.id); } catch { continue; }
-    if (!validRoutePath(path, node.id, destination.id)) continue;
+    if (!validRoutePath(path, node.id, destination.id) || !routeIntelSafe(strategicLogistics, path)) continue;
     const distance = path.reduce((sum, leg) => sum + Number(leg.distance), 0);
     if (!positiveFinite(distance)) continue;
     const stocked = positiveFinite(Number(node.assets?.troops));
