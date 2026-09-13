@@ -7,6 +7,14 @@ import { beginLoading, stepLoading } from './loading-cycle.js';
 import './maintenance-overlay.js';
 
 export function createCabinView(canvas, options = {}) {
+  // Diagnostic escape hatch only. Product solo play stays on the crew-aware
+  // authority seam; this path exists strictly to isolate renderer boot/WebGL QA.
+  if (globalThis.ironRainEntry?.mode === 'offline' && options.allowOfflineCabinQa === true) {
+    const core = createCabinViewCore(canvas, options);
+    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:cabin-ready', { detail: { cabin: core } })); } catch {}
+    return core;
+  }
+
   let scene = null;
   let view = null;
   let activeCrewStation = null;
@@ -58,10 +66,10 @@ export function createCabinView(canvas, options = {}) {
   function updateRemoteCrew(remotes = [], dt = 0) { return crewVisuals.update(remotes, 1, safeDt(dt)); }
   function publishMaintenance(engine) {
     const detail = maintenanceFeedback(engine);
-    try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail })); } catch {}
+    try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail })); } catch {}
     return detail;
   }
-  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('ironrain:maintenance-feedback', { detail: { active: false } })); } catch {} }
+  function clearMaintenance() { try { globalThis.dispatchEvent?.(new CustomEvent('iron-rain:maintenance-feedback', { detail: { active: false } })); } catch {} }
 
   function onSharedCrewEffect(event) {
     const effect = event.detail || {};
