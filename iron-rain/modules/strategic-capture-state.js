@@ -19,6 +19,13 @@ const validRevision = revision => Number.isSafeInteger(revision) && revision >= 
  * but the client must not keep an old faction route alive through a captured
  * endpoint in the meantime.
  *
+ * A claimed capital can remain contested while reconstruction is in progress.
+ * In that state the territorial claimant is remembered, but the visual sector
+ * stays DISPUTED and the logistics endpoint has no active team. This prevents a
+ * neutralized/rebuilding capital from supplying reserves or accepting normal
+ * faction logistics before shared authority marks it operational. Reactivation
+ * also does not magically reopen routes cut during neutralization.
+ *
  * `revision` is optional for the current local/legacy seam. Once an authority
  * starts publishing revisions for a sector, that projection becomes revisioned:
  * older events and unversioned replays fail closed instead of rolling territory
@@ -51,11 +58,12 @@ export function applyAuthoritativeSectorControl({
     return Object.freeze({ ok: false, changed: false, reason: 'revision-required', revision: currentRevision });
   }
 
-  const visualOwner = team || (nextContested ? 'contested' : 'neutral');
+  const visualOwner = nextContested ? 'contested' : team || 'neutral';
+  const endpointTeam = nextContested ? null : team;
   const changed = sector.owner !== visualOwner
     || territoryNode.owner !== team
     || Boolean(territoryNode.contested) !== nextContested
-    || endpoint.team !== team;
+    || endpoint.team !== endpointTeam;
 
   if (currentRevision !== null && revision < currentRevision) {
     return Object.freeze({ ok: false, changed: false, reason: 'stale-revision', revision: currentRevision });
@@ -82,7 +90,7 @@ export function applyAuthoritativeSectorControl({
   sector.owner = visualOwner;
   sector.controlProgress = team && !nextContested ? 1 : 0;
   setTerritoryControl(territoryNode, team, { contested: nextContested, dt: 0 });
-  endpoint.team = team;
+  endpoint.team = endpointTeam;
   if (hasRevision) territoryNode.controlRevision = revision;
 
   const cutRoutes = [];
@@ -94,7 +102,7 @@ export function applyAuthoritativeSectorControl({
   return Object.freeze({
     ok: true,
     changed: true,
-    reason: team ? `captured:${team}` : 'neutralized',
+    reason: nextContested ? (team ? `rebuilding:${team}` : 'neutralized') : `captured:${team}`,
     id,
     owner: team,
     contested: nextContested,
