@@ -42,7 +42,10 @@ test('combat sustainment requires a physical field logistics node before stock s
 });
 
 test('threatened critical logistics nodes can regroup for defense without regaining offensive supply', () => {
-  const threatened = graph({ ammo: 80, knownThreat: .9 });
+  // Keep the threat below combat-reserves' canonical route-cut threshold: this
+  // case is a dangerous-but-still-open road, not a route the shared graph has
+  // already rejected outright.
+  const threatened = graph({ ammo: 80, knownThreat: .74 });
   const criticalTerritory = Object.freeze({ owner: 'ally', contested: false, structures: ['depot'] });
   const criticalSupply = combatSustainmentSupply({ strategicLogistics: threatened, territory: criticalTerritory, team: 'ally', to: 'field' });
   const outpostSupply = combatSustainmentSupply({ strategicLogistics: threatened, territory, team: 'ally', to: 'field' });
