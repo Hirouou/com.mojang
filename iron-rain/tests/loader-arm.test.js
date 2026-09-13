@@ -66,6 +66,15 @@ test('lock phase seats the round before releasing and retracting', () => {
   assert.ok(late.extension < released.extension, 'arm continues retracting toward home');
 });
 
+test('unknown replicated phase falls back to the canonical progress phase', () => {
+  const malformed = loaderArmPose(cycle(.48, 'desync-garbage'));
+  const canonical = loaderArmPose(cycle(.48, 'rotate'));
+
+  assert.equal(malformed.phase, 'rotate');
+  assert.deepEqual(malformed, canonical, 'visual rig follows the shared loading clock instead of jumping into lock');
+  assert.equal(loaderActivity(cycle(.48, 'desync-garbage')).heavyMotion, true);
+});
+
 test('malformed progress clamps safely', () => {
   for (const value of [-9, Number.NaN, Infinity, 9]) finitePose(loaderArmPose({ progress: value, phase: 'ram' }));
 });
