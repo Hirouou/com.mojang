@@ -184,6 +184,7 @@ export function createCabinView(canvas, options = {}) {
   let remoteRecoil = 0;
   let remoteImpact = 0;
   const originalOnStation = options.onStation;
+  const originalOnPointerUnlock = options.onPointerUnlock;
   const originalSceneAdd = THREE.Scene.prototype.add;
 
   const crewBridge = () => globalThis.ironRainEntry?.crewBridge || null;
@@ -273,6 +274,9 @@ export function createCabinView(canvas, options = {}) {
     activeCrewStation = null;
     stationResultEvent(state || { ok: false, ready: false, pending: false, reason: bridge ? 'claim-failed' : 'authority-unavailable', station });
     core.leaveStation?.();
+    // Reuse the existing parent cleanup seam so gameplay/UI state cannot remain
+    // seated after the crew authority has already ejected the rendered cabin.
+    try { originalOnPointerUnlock?.(); } catch {}
     return false;
   }
 
