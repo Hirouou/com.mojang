@@ -23,7 +23,7 @@ function ensureOverlay() {
     .ir-maintenance.repair .ir-maintenance-ring{filter:saturate(.85)}
     .ir-maintenance.repair:before,.ir-maintenance.repair:after{content:'';position:absolute;width:3px;height:3px;background:#d7b36d;box-shadow:8px 4px #b47c45,14px -3px #e2c078;right:31px;top:9px;animation:ir-sparks .55s steps(2,end) infinite}
     .ir-maintenance.repair:after{right:45px;top:auto;bottom:7px;animation-delay:.18s}
-    .ir-maintenance-vfx{--spray:.45;--sparks:.25;--repair-speed:.36s;position:fixed;inset:0;z-index:17;pointer-events:none;overflow:hidden;contain:strict;display:none}
+    .ir-maintenance-vfx{--spray:.45;--sparks:.25;--repair-speed:.36s;--danger:0;position:fixed;inset:0;z-index:17;pointer-events:none;overflow:hidden;contain:strict;display:none;background:radial-gradient(ellipse at center,#0000 52%,rgb(110 24 18 / calc(var(--danger)*.28)) 100%)}
     .ir-maintenance-vfx.active{display:block}
     .ir-maintenance-vfx .foam,.ir-maintenance-vfx .spark,.ir-maintenance-vfx .tool{position:absolute;display:none}
     .ir-maintenance-vfx.extinguish .foam{display:block;left:18%;top:62%;width:48%;height:18%;transform-origin:left center;opacity:calc(.2 + var(--spray)*.7);filter:blur(.2px);background:radial-gradient(ellipse at 8% 55%,#f7fff7e6 0 2%,#0000 3%),radial-gradient(ellipse at 26% 35%,#eff8f0d9 0 3%,#0000 4%),radial-gradient(ellipse at 43% 66%,#fffde8cc 0 2.5%,#0000 3.5%),radial-gradient(ellipse at 61% 29%,#e6efe7cc 0 3%,#0000 4%),radial-gradient(ellipse at 82% 58%,#f7fff7ba 0 4%,#0000 5%),linear-gradient(8deg,#dfe8df00 0 20%,#eef6eec4 46%,#fff0 73%);clip-path:polygon(0 42%,100% 0,100% 100%,0 58%);animation:ir-spray-cone .18s steps(2,end) infinite}
@@ -67,6 +67,7 @@ function render(detail) {
   const spray = Math.max(0, Math.min(1, Number(detail.spray) || 0));
   const sparks = Math.max(0, Math.min(1, Number(detail.sparks) || 0));
   const repairMotion = Math.max(0, Math.min(1, Number(detail.repairMotion) || 0));
+  const danger = Math.max(0, Math.min(1, Number(detail.dangerPulse) || 0));
   const isExtinguish = detail.kind === 'extinguish';
   const vfxActive = isExtinguish ? spray > .02 : repairMotion > .02 || sparks > .02;
   element.hidden = false;
@@ -79,6 +80,7 @@ function render(detail) {
     vfx.className = `ir-maintenance-vfx${vfxActive ? ' active' : ''} ${isExtinguish ? 'extinguish' : 'repair'}`;
     vfx.style.setProperty('--spray', String(spray));
     vfx.style.setProperty('--sparks', String(sparks));
+    vfx.style.setProperty('--danger', String(danger));
     vfx.style.setProperty('--repair-speed', `${(.42 - repairMotion * .12).toFixed(3)}s`);
   }
 }
