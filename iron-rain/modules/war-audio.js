@@ -172,12 +172,21 @@ export function createWarAudio() {
       voice.cleanup();
     }
   };
-  const onMaintenanceFeedback = event => maintenance(event?.detail);
-  const onVisibilityChange = () => safely(applyVolumes);
-  const onPageHide = () => safely(() => {
-    lifecycleHidden = true;
+  const quiesceTransientAudio = () => {
     stopTransientVoices();
     maintenanceState = null;
+  };
+  const onMaintenanceFeedback = event => maintenance(event?.detail);
+  const onVisibilityChange = () => safely(() => {
+    // Mobile app switching commonly fires visibilitychange without pagehide.
+    // Drain short-lived Web Audio nodes while hidden, but keep the persistent
+    // graph alive so Safari/iOS can resume it from the next operator gesture.
+    if (globalThis.document?.visibilityState === 'hidden') quiesceTransientAudio();
+    applyVolumes();
+  });
+  const onPageHide = () => safely(() => {
+    lifecycleHidden = true;
+    quiesceTransientAudio();
     applyVolumes();
   });
   const onPageShow = () => safely(() => {
