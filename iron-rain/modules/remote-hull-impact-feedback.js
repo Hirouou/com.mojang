@@ -23,5 +23,24 @@ export function remoteHullImpactFeedback(effect = {}) {
       ? clamp01(transmitted)
       : canonical.intensity;
 
-  return Object.freeze({ ...canonical, intensity });
+  if (type !== 'critical') return Object.freeze({ ...canonical, intensity });
+
+  // A replicated critical already means the authority classified the hit as a
+  // severe hull event. Keep that classification perceptible across every
+  // presentation channel instead of forcing only `intensity` to 1 while shake,
+  // dust and audio still inherit a light payload such as damage=1/rifle.
+  const criticalFloor = hullImpactFeedback({ damage: 20, kind: 'tank', inside: true });
+  return Object.freeze({
+    ...canonical,
+    intensity: 1,
+    duration: Math.max(canonical.duration, criticalFloor.duration),
+    cameraShake: Math.max(canonical.cameraShake, criticalFloor.cameraShake),
+    hullFlash: Math.max(canonical.hullFlash, criticalFloor.hullFlash),
+    dustKick: Math.max(canonical.dustKick, criticalFloor.dustKick),
+    lampFlicker: Math.max(canonical.lampFlicker, criticalFloor.lampFlicker),
+    metalRattle: Math.max(canonical.metalRattle, criticalFloor.metalRattle),
+    lowThump: Math.max(canonical.lowThump, criticalFloor.lowThump),
+    sharpCrack: Math.max(canonical.sharpCrack, criticalFloor.sharpCrack),
+    label: criticalFloor.label,
+  });
 }
