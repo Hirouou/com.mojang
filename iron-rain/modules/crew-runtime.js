@@ -64,6 +64,20 @@ export function createCrewRuntime({
     catch { return Object.freeze({ ok: false, reason: 'transport-send-failed', event }); }
   }
 
+  function replicateAcceptedFire(payload, shooterId, { notifyLocal = false, packet = null } = {}) {
+    const shooter = cleanId(shooterId) || id;
+    const source = payload && typeof payload === 'object' ? payload : {};
+    const firePayload = Object.freeze({ ...source, shooterId: shooter });
+    const reloadPayload = Object.freeze({ duration: 2.8, phase: 'extract', shell: firePayload.shell || null, shotId: firePayload.shotId || null, shooterId: shooter });
+    if (notifyLocal) {
+      const sentAt = Number(now()) || 0;
+      notifyEffect(Object.freeze({ sender: shooter, type: 'fire', payload: firePayload, sentAt, seq: -1, authoritative: true }), packet);
+      notifyEffect(Object.freeze({ sender: shooter, type: 'reload', payload: reloadPayload, sentAt, seq: -1, authoritative: true }), packet);
+    }
+    emitEffect('fire', firePayload);
+    emitEffect('reload', reloadPayload);
+  }
+
   function acceptCrewEffect(packet) {
     if (!roomMatches(packet) || !EFFECT_TYPES.has(String(packet.type || ''))) return false;
     const status = session.status(), sender = cleanId(packet.sender);
@@ -83,7 +97,10 @@ export function createCrewRuntime({
     if (!sender || !status.peers.some(peer => peer.id === sender)) return false;
     const result = commandAuthority.receive({ playerId: sender, seq: packet.seq, type: packet.type, payload: packet.payload });
     notifyCommandResult(result, packet);
-    if (result.ok) emitMamuteState(packet.type || 'command');
+    if (result.ok) {
+      emitMamuteState(packet.type || 'command');
+      if (packet.type === 'fire') replicateAcceptedFire(packet.payload, sender, { notifyLocal: true, packet });
+    }
     return true;
   }
   function acceptMamuteState(packet) {
@@ -134,7 +151,13 @@ export function createCrewRuntime({
     if (session.stationOwner(station) !== id) return notifyCommandResult(Object.freeze({ ok: false, reason: 'station-not-owned', station, owner: session.stationOwner(station) }), null);
     const seq = ++localCommandSeq, command = Object.freeze({ playerId: id, seq, type: String(type), payload });
     if (status.mode === 'offline' || status.mode === 'host') {
-      const result = commandAuthority.receive(command); notifyCommandResult(result, command); if (result.ok && status.mode === 'host') emitMamuteState(type); return result;
+      const result = commandAuthority.receive(command);
+      notifyCommandResult(result, command);
+      if (result.ok && status.mode === 'host') {
+        emitMamuteState(type);
+        if (type === 'fire') replicateAcceptedFire(payload, id);
+      }
+      return result;
     }
     if (status.mode !== 'guest' || !status.connected || !transport?.send) return notifyCommandResult(Object.freeze({ ok: false, reason: 'not-connected', station }), command);
     const packet = Object.freeze({ kind: 'mamute-command', protocol: CREW_PROTOCOL, room: status.room, faction: status.faction, sender: id, sentAt: Number(now()) || 0, seq, type: String(type), payload });
