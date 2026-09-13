@@ -15,7 +15,7 @@ const CUES = Object.freeze({
  * exclusively from loader-arm.js / the loading cycle.
  */
 export function loaderAudioCue(previousPhase, cycle) {
-  if (!cycle || cycle.complete) return null;
+  if (!cycle) return null;
   const activity = loaderActivity(cycle);
   const phase = String(cycle.phase || 'idle');
   if (phase === previousPhase || !CUES[phase]) return null;
