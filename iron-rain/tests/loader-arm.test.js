@@ -45,16 +45,21 @@ test('loader visibly grabs, swings and rams instead of linearly floating a shell
 
 test('lock phase seats the round before releasing and retracting', () => {
   const held = loaderArmPose(cycle(.915, 'lock'));
+  const releaseEdge = loaderArmPose(cycle(.923, 'lock'));
   const released = loaderArmPose(cycle(.94, 'lock'));
   const late = loaderArmPose(cycle(.985, 'lock'));
-  finitePose(held); finitePose(released); finitePose(late);
+  finitePose(held); finitePose(releaseEdge); finitePose(released); finitePose(late);
 
   assert.equal(held.gripping, true, 'claw keeps hold during the lock dwell');
+  assert.equal(held.shellVisible, true, 'carried round remains visible while the claw is still closed');
   assert.equal(held.baseYaw, 1.34, 'arm does not swing home while still gripping');
   assert.equal(held.extension, .42, 'ram remains fully seated during the lock dwell');
   assert.equal(held.rammer, 1, 'rammer stays engaged until the claw release point');
 
-  assert.equal(released.gripping, false, 'claw releases after seating');
+  assert.equal(releaseEdge.gripping, false, 'claw releases immediately after the lock dwell');
+  assert.equal(releaseEdge.shellVisible, false, 'wrist-parented round disappears as soon as it is released into the breech');
+  assert.equal(loaderRigState(cycle(.923, 'lock')).shell.owner, null, 'released round is no longer owned by the moving loader rig');
+  assert.equal(released.gripping, false, 'claw stays released during retraction');
   assert.ok(released.extension < held.extension, 'retraction begins only after release');
   assert.equal(loaderRigState(cycle(.94, 'lock')).shell.owner, null, 'released shell is no longer carried by the claw');
   assert.ok(Math.abs(late.baseYaw - LOADER_ARM_HOME.baseYaw) < Math.abs(released.baseYaw - LOADER_ARM_HOME.baseYaw));
