@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../modules/maintenance-overlay.js', import.meta.url), 'utf8');
+const cabinSource = await readFile(new URL('../modules/cabin-view.js', import.meta.url), 'utf8');
+
+test('maintenance overlay listens on the live cabin maintenance event seam', () => {
+  assert.match(source, /const EVENT_NAME = 'ironrain:maintenance-feedback'/);
+  assert.match(cabinSource, /new CustomEvent\('ironrain:maintenance-feedback'/);
+  assert.doesNotMatch(source, /const EVENT_NAME = 'iron-rain:maintenance-feedback'/);
+});
 
 test('maintenance overlay consumes canonical spray, sparks and repair motion signals', () => {
   assert.match(source, /Number\(detail\.spray\)/);
