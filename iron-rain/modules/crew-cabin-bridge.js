@@ -25,6 +25,7 @@ const stationDenial = (runtime, station) => {
 export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 } = {}) {
   const delay = clampDelay(interpolationDelay);
   const pendingStations = new Set();
+  const abandonedStations = new Set();
 
   function keepCabinOutsideUntilReady(result) {
     if (result?.ready) return result;
@@ -33,17 +34,32 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
   }
 
   function failClosedFrame(dt = 0) {
-    // A broken runtime frame means this client can no longer prove station
-    // ownership. Leave the local station before hiding remote presence so input
-    // and camera cannot remain attached to stale authority during reconnect.
     try { cabin?.leaveStation?.(); } catch {}
     pendingStations.clear();
+    abandonedStations.clear();
     cabin?.updateRemoteCrew?.([], clampDt(dt));
     return Object.freeze({ status: null, remoteCount: 0 });
   }
 
+  function reconcilePendingIntent(snapshot) {
+    if (!pendingStations.size || !snapshot || typeof snapshot !== 'object') return;
+    const hasFocus = Object.prototype.hasOwnProperty.call(snapshot, 'focus');
+    const hasStation = Object.prototype.hasOwnProperty.call(snapshot, 'station');
+    if (!hasFocus && !hasStation) return;
+    const focused = snapshot?.focus?.id ?? null;
+    const seated = snapshot?.station ?? null;
+    for (const station of [...pendingStations]) {
+      if (focused === station || seated === station) continue;
+      pendingStations.delete(station);
+      abandonedStations.add(station);
+      releaseStationGate(runtime, station);
+    }
+  }
+
   function update(dt = 0, at) {
-    const localPose = crewLocalPoseFromCabinSnapshot(cabin?.snapshot?.());
+    const snapshot = cabin?.snapshot?.();
+    reconcilePendingIntent(snapshot);
+    const localPose = crewLocalPoseFromCabinSnapshot(snapshot);
     if (!localPose || typeof runtime?.update !== 'function' || typeof runtime?.renderSamples !== 'function' || typeof cabin?.updateRemoteCrew !== 'function') {
       return failClosedFrame(dt);
     }
@@ -65,7 +81,9 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
 
   function clear() {
     try { cabin?.leaveStation?.(); } catch {}
+    for (const station of pendingStations) releaseStationGate(runtime, station);
     pendingStations.clear();
+    abandonedStations.clear();
     cabin?.updateRemoteCrew?.([], 0);
   }
 
@@ -73,6 +91,13 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
     const state = stationGateState(runtime, station);
     const id = state.station;
     if (!id) return state;
+    if (abandonedStations.has(id)) {
+      if (state.ready) releaseStationGate(runtime, id);
+      if (state.ready || state.reason !== 'available') {
+        return Object.freeze({ ...state, ok: false, ready: false, pending: false, reason: 'claim-cancelled' });
+      }
+      abandonedStations.delete(id);
+    }
     if (state.ready || state.reason !== 'available') {
       pendingStations.delete(id);
       return state;
@@ -96,7 +121,11 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
 
   function requestStation(station) {
     const current = stationState(station);
-    if (current.pending || current.ready || (!current.ok && current.reason !== 'available')) return keepCabinOutsideUntilReady(current);
+    if (current.reason === 'claim-cancelled' && current.station) {
+      abandonedStations.delete(current.station);
+    } else if (current.pending || current.ready || (!current.ok && current.reason !== 'available')) {
+      return keepCabinOutsideUntilReady(current);
+    }
     const result = requestStationGate(runtime, station);
     if (result?.station) {
       if (result.pending) pendingStations.add(result.station);
@@ -107,7 +136,10 @@ export function createCrewCabinBridge({ runtime, cabin, interpolationDelay = .1 
 
   function releaseStation(station) {
     const released = releaseStationGate(runtime, station);
-    if (released && typeof station === 'string') pendingStations.delete(station);
+    if (released && typeof station === 'string') {
+      pendingStations.delete(station);
+      abandonedStations.delete(station);
+    }
     return released;
   }
 
