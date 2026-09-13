@@ -112,6 +112,15 @@ function ensureStrategicAlignment(state) {
   const targets = chooseTacticalTargets(state.sectors.length); state.sectors.forEach((sector, index) => alignSector(sector, targets[index])); state.warSimulation.strategicAligned = true; return true;
 }
 
+function refreshCombatReserveContext(state) {
+  if (!isLiveGameState(state)) return;
+  state.warSimulation ||= {};
+  const strategicMap = globalThis.ironRainStrategicMap;
+  state.warSimulation.combatReserveContext = typeof strategicMap?.combatReserveContext === 'function'
+    ? ({ sectorId, team }) => strategicMap.combatReserveContext(sectorId, team)
+    : null;
+}
+
 function routeInsideFriendly(from, to, team) {
   if (!finitePoint(from) || !finitePoint(to)) return false;
   for (let index = 0; index <= 8; index++) { const t = index / 8, point = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t }; if (strategicOwnerAt(point) !== team) return false; }
@@ -139,7 +148,7 @@ function dispatchHullState(state, armorBefore) {
 
 export function updateWar(state, dt) {
   const live = isLiveGameState(state);
-  if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); }
+  if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); }
   const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);
   if (rearSafe && originalMode === 'march') state.mode = 'strategic-rear';
   try { coreUpdateWar(state, dt); }
