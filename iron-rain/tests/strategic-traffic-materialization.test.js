@@ -40,7 +40,7 @@ test('nearby canonical capitals reuse logistics node positions and live territor
   assert.match(war, /id: `strategic-capital:\$\{node\.id\}`/);
   assert.match(war, /level: capitalVisualLevel\(structures\)/);
   assert.match(war, /__strategicCapitalVisual: true/);
-  assert.match(war, /host\.war\.bases\.push\(\.\.\.capitals\)/);
+  assert.doesNotMatch(war, /host\.war\.bases\.push\(\.\.\.capitals\)/);
 });
 
 test('capital visuals persist between throttled strategic traffic projections instead of flickering per frame', () => {

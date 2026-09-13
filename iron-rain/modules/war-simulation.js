@@ -314,8 +314,8 @@ function publishStrategicCapitals(state, snapshot) {
       __strategicCapitalVisual: true,
     }));
   }
-  const host = (state.sectors || []).find(sector => Array.isArray(sector?.war?.bases));
-  if (host && capitals.length) host.war.bases.push(...capitals);
+  // Render projections are immutable. The capital renderer consumes this list
+  // directly; mixing it into tactical bases breaks supply/damage updates.
   return capitals;
 }
 

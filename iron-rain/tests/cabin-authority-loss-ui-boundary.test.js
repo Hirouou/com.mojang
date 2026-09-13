@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../modules/cabin-view.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../modules/cabin-view.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 
 test('authority loss ejects both the cabin renderer and parent station state', () => {
   const match = source.match(/function reconcileCrewStation\(\) \{([\s\S]*?)\n  \}\n\n  view =/);
