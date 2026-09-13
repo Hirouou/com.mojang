@@ -111,8 +111,18 @@ function render(detail) {
   }
 }
 
+function hideForPageLifecycle() {
+  hideMaintenance(root);
+}
+
+function onVisibilityChange() {
+  if (globalThis.document?.visibilityState === 'hidden') hideForPageLifecycle();
+}
+
 if (typeof globalThis.addEventListener === 'function') {
   globalThis.addEventListener(EVENT_NAME, event => render(event?.detail));
+  globalThis.addEventListener('pagehide', hideForPageLifecycle);
 }
+globalThis.document?.addEventListener?.('visibilitychange', onVisibilityChange);
 
 export { EVENT_NAME, render as renderMaintenanceOverlay };
