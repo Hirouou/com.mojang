@@ -1,4 +1,5 @@
 // Local camera only. Cinematic states never change scale to fit the theatre.
+const CAMERA_MODES = new Set(['follow', 'shell', 'intel', 'impact', 'return']);
 export const cinematicActive = state => state.cam.mode !== 'follow';
 export const smooth = (rate, dt) => 1 - Math.exp(-rate * Math.max(0, dt));
 export function cameraAnchor(state, viewportWidth) {
@@ -26,6 +27,13 @@ export function stepCamera(state, dt, viewportWidth) {
   const cam = state.cam;
   const frameDtValid = Number.isFinite(dt) && dt >= 0;
   const frameDt = frameDtValid ? dt : 0;
+  // Unknown transient modes otherwise count as cinematic forever while falling
+  // through to ordinary follow smoothing. Fail closed to the canonical Mamute
+  // anchor so a corrupted projectile/intel state cannot trap operator controls.
+  if (!CAMERA_MODES.has(cam.mode)) {
+    finishCamera(state, viewportWidth);
+    return;
+  }
   if (cam.mode === 'shell' || cam.mode === 'intel') return;
   if (cam.mode === 'impact') {
     const impactHold = Number.isFinite(state.impactHold) ? Math.max(0, state.impactHold) : 0;
