@@ -15,23 +15,11 @@ function makeFront(team = 'ally') {
 }
 
 function reserveCycle({ strategicLogistics, territory, team = 'ally', from = `${team}-rear`, to = `${team}-front` }) {
-  return combatReservePlanCycle({
-    strategicLogistics,
-    territory,
-    team,
-    from,
-    to,
-    timer: 0,
-    fallbackUntil: 0,
-    tick: 1,
-    strength: 50,
-    resetIn: 40,
-  });
+  return combatReservePlanCycle({ strategicLogistics, territory, team, from, to, timer: 0, fallbackUntil: 0, tick: 1, strength: 50, resetIn: 40 });
 }
 
 test('an open road cannot materialize reserves before troops physically reach staging', () => {
   const { strategicLogistics, territory } = makeFront('ally');
-
   const waiting = reserveCycle({ strategicLogistics, territory });
   assert.equal(waiting.routeOpen, true);
   assert.equal(waiting.logistics.availableTroops, 0);
@@ -40,14 +28,7 @@ test('an open road cannot materialize reserves before troops physically reach st
   assert.equal(waiting.amount, 0);
   assert.equal(waiting.nextTimer, 0);
 
-  const dispatched = strategicLogistics.dispatch({
-    team: 'ally',
-    from: 'ally-rear',
-    to: 'ally-front',
-    assets: { troops: 2 },
-    speed: 10,
-    kind: 'reinforcement',
-  });
+  const dispatched = strategicLogistics.dispatch({ team: 'ally', from: 'ally-rear', to: 'ally-front', assets: { troops: 2 }, speed: 10, kind: 'reinforcement' });
   assert.equal(dispatched.ok, true);
   assert.equal(dispatched.status, 'moving');
 
@@ -62,19 +43,22 @@ test('an open road cannot materialize reserves before troops physically reach st
 
   const arrived = reserveCycle({ strategicLogistics, territory });
   assert.equal(arrived.logistics.availableTroops, 2);
+  assert.equal(arrived.logistics.deployableTroops, 1);
   assert.equal(arrived.ready, true);
   assert.equal(arrived.reason, 'ready');
   assert.equal(arrived.amount, 1);
   assert.equal(arrived.nextTimer, 40);
 });
 
-test('delivered-troop reserve gate is symmetric between factions', () => {
+test('delivered-troop garrison gate is symmetric between factions', () => {
   for (const team of ['ally', 'enemy']) {
     const { strategicLogistics, territory, front } = makeFront(team);
-    front.assets.troops = 1;
+    front.assets.troops = 2;
     const result = reserveCycle({ strategicLogistics, territory, team });
     assert.equal(result.ready, true, team);
-    assert.equal(result.logistics.availableTroops, 1, team);
+    assert.equal(result.logistics.availableTroops, 2, team);
+    assert.equal(result.logistics.deployableTroops, 1, team);
     assert.equal(result.amount, 1, team);
+    assert.equal(front.assets.troops, 1, team);
   }
 });
