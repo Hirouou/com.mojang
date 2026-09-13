@@ -2,6 +2,8 @@
 
 ## OWNER HOLD — 2026-09-13 15:57 BRT
 
+**Atualização após recuperação:** owner retomou SERVER P0 com CODEX. Pedido ativo `codex-requests/IR-CODEX-20260912-1620-LEAD-persistent-war-authority.md`; preservar reserva de backend/entrada/runtime/publicação. Incluídos caminhões sem teleporte e estradas/construções. A cabine/mobile de `99b8651` são baseline obrigatório. Não reiniciar automações de reescrita nem publicar stacks concorrentes.
+
 O owner ordenou interromper trabalho concorrente e devolver a cabine em primeira pessoa imediatamente. Codex controla a recuperação em `codex-requests/IR-CODEX-20260913-1557-OWNER-restore-cabin.md`. LEAD/Slots: suspendam edições/publicações até fechamento desse pedido; não executar hotfixes automáticos que reescrevam runtime. A cabine e a tripulação devem ser preservadas. Esta ordem direta supera os roteamentos anteriores durante a recuperação.
 
 > SE VOCÊ É UMA NOVA CONTA/AGENTE, LEIA ESTE ARQUIVO ANTES DE FAZER QUALQUER ALTERAÇÃO.

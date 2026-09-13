@@ -1,6 +1,12 @@
 # IR-CODEX-20260912-1620-LEAD-persistent-war-authority
 
 STATUS: IN_PROGRESS
+RESUMED_HEAD: 99b865133ec54fb7640e179741947bc2bad5ca22
+RESUMED_AT: 2026-09-13
+OWNER_SCOPE: implementar servidor compartilhado, vários Mamutes com até 3 tripulantes cada, presença e dano entre Mamutes, corrigir caminhões teleportando e melhorar estradas/construções; reforçar coordenação dos próximos agentes. Cabine restaurada e mobile devem permanecer funcionais.
+
+## Reserva atual de integração — Codex
+Pedido retomado explicitamente pelo owner após recuperação da cabine. CODEX mantém exclusividade sobre backend, bootstrap, gameplay, sincronização e configuração de publicação. LEAD/Slots não devem abrir stacks ou publicar integração concorrente. Colaboração interna do Codex usa arquivos delimitados; demais agentes consultam este arquivo e o handoff. Endereço/credenciais de backend público ainda não identificados; implementação e testes locais avançam enquanto hospedagem é esclarecida. Não declarar servidor publicado por um deploy estático do Pages.
 CLAIMED_HEAD: 3c7e547fa678b4bc56d2c85cbf3a392c211ec12a
 CLAIMED_AT: 2026-09-12T22:46:35-03:00
 REQUESTER: LEAD
