@@ -98,6 +98,11 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
   const effects = territoryOperationalEffects(friendly ? territory : null);
   const reinforcementSupport = friendly && positiveFinite(effects.reinforcementSupport) ? effects.reinforcementSupport : 0;
   const canReceiveReinforcements = connected && (hasOutpost || hasDepot || hasGarage) && reinforcementSupport > 0;
+  // Physical staging nodes must retain a minimal local guard instead of sending
+  // every delivered soldier to the trench. This is one fictional aggregate
+  // unit, not a real-world manpower table, and only applies where combat already
+  // recognizes a valid field node from canonical territory state.
+  const garrisonReserve = friendly && (hasOutpost || hasDepot || hasGarage) ? 1 : 0;
 
   return Object.freeze({
     connected,
@@ -106,6 +111,7 @@ export function combatLogisticsState({ territory, team, routeOpen = false } = {}
     hasGarage,
     canReceiveReinforcements,
     reinforcementSupport,
+    garrisonReserve,
   });
 }
 
@@ -142,9 +148,16 @@ function consumeDeliveredTroops(strategicLogistics, to, amount) {
 
 function withDeliveredTroops(logistics, strategicLogistics, to) {
   const availableTroops = combatDeliveredTroops(strategicLogistics, to);
-  return availableTroops == null
-    ? logistics
-    : Object.freeze({ ...logistics, availableTroops });
+  if (availableTroops == null) return logistics;
+  const garrisonReserve = Math.max(0, Math.floor(Number(logistics?.garrisonReserve) || 0));
+  const deployableTroops = Math.max(0, availableTroops - garrisonReserve);
+  return Object.freeze({ ...logistics, availableTroops, deployableTroops });
+}
+
+function deployableTroops(logistics) {
+  if (hasOwn(logistics, 'deployableTroops')) return Math.max(0, Math.floor(Number(logistics.deployableTroops) || 0));
+  if (hasOwn(logistics, 'availableTroops')) return Math.max(0, Math.floor(Number(logistics.availableTroops) || 0));
+  return null;
 }
 
 /**
@@ -154,15 +167,16 @@ function withDeliveredTroops(logistics, strategicLogistics, to) {
  * this gate only decides whether those replacements are physically able to
  * arrive. It intentionally does not create personnel or pick reinforcement
  * amounts. Callers must pass the local `combatLogisticsState()` snapshot earned
- * by the world/logistics simulation. When `availableTroops` is present, it
- * represents personnel already delivered to the staging node; an open road by
- * itself never materializes soldiers at the front.
+ * by the world/logistics simulation. When physical troop inventory is present,
+ * only troops above the staging node's minimal defensive garrison are deployable;
+ * an open road by itself never materializes soldiers at the front.
  */
 export function combatReserveGate({ logistics, timerExpired = false, fallbackComplete = false } = {}) {
   const connected = bool(logistics?.connected);
   const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
   const support = positiveFinite(logistics?.reinforcementSupport);
-  const delivered = !hasOwn(logistics, 'availableTroops') || positiveFinite(logistics?.availableTroops);
+  const deployable = deployableTroops(logistics);
+  const delivered = deployable == null || deployable > 0;
   const logisticsReady = connected && fieldNode && support && delivered && bool(logistics?.canReceiveReinforcements);
   const due = bool(timerExpired);
   const fallbackReady = bool(fallbackComplete);
@@ -191,8 +205,8 @@ export function combatReserveGate({ logistics, timerExpired = false, fallbackCom
  * There is deliberately no unconditional minimum: light infrastructure yields
  * a small batch, while cut or malformed logistics yields zero replacements.
  * When a physical staging inventory is supplied, the batch is capped by troops
- * already present there and resolved to whole delivered troop units so combat
- * can debit exactly what it admits.
+ * that can leave after preserving the node's defensive garrison and resolved to
+ * whole delivered troop units so combat can debit exactly what it admits.
  *
  * The multiplier stays on the existing aggregate 0..100 front-strength scale;
  * it is a fictional gameplay value, not a real-world personnel table.
@@ -201,12 +215,13 @@ export function combatReserveBatch({ logistics, deficit = 0 } = {}) {
   const shortage = Number.isFinite(deficit) ? Math.max(0, deficit) : 0;
   const support = positiveFinite(logistics?.reinforcementSupport) ? logistics.reinforcementSupport : 0;
   const fieldNode = bool(logistics?.hasOutpost) || bool(logistics?.hasDepot) || bool(logistics?.hasGarage);
-  const delivered = !hasOwn(logistics, 'availableTroops') || positiveFinite(logistics?.availableTroops);
+  const deployable = deployableTroops(logistics);
+  const delivered = deployable == null || deployable > 0;
   const ready = bool(logistics?.connected) && fieldNode && bool(logistics?.canReceiveReinforcements) && support > 0 && delivered;
   if (!ready || shortage <= 0) return 0;
   const supported = Math.min(shortage, support * 20);
-  if (!hasOwn(logistics, 'availableTroops')) return supported;
-  return Math.min(Math.floor(supported), Math.floor(logistics.availableTroops));
+  if (deployable == null) return supported;
+  return Math.min(Math.floor(supported), deployable);
 }
 
 /**
