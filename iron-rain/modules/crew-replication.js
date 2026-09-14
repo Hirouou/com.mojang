@@ -49,6 +49,7 @@ export function createCrewReplication({ localId = 'local', capacity = 3, staleAf
       at,
       from: current?.to || pose,
       to: pose,
+      ...(['aim','drive','load','map','radio'].includes(packet.station) ? {station:packet.station} : {}),
       receivedAt: at,
     });
     return true;
@@ -67,7 +68,7 @@ export function createCrewReplication({ localId = 'local', capacity = 3, staleAf
       // Late packets are intentionally clamped instead of extrapolated through
       // cabin equipment. crew-presence performs the final collision-safe blend.
       const alpha = Math.max(0, Math.min(1, (t - delay - entry.previousAt) / span));
-      return Object.freeze({ id: entry.id, from: entry.from, to: entry.to, alpha, seq: entry.seq, at: entry.at });
+      return Object.freeze({ id: entry.id, from: entry.from, to: entry.to, alpha, seq: entry.seq, at: entry.at, ...(entry.station ? {station:entry.station} : {}) });
     }));
   }
 

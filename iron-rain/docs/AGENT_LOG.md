@@ -1253,3 +1253,6 @@ Pré-claim do posto antes de liberar pointer lock/câmera. Resultado testado com
 
 ## CODEX — 13/09 — pontaria e caderneta no celular
 Manivelas 2D e alcance restaurados, toque testado em cinco viewports; notebook com coordenada persistente, formulário acima e rolagem por toque testada em três layouts. Build mobile-aim-table / v7.35. Seguem pendentes rede/servidor, voo e exterior/arte; resultados no request compartilhado.
+
+### 2026-09-13 — CODEX / integração de rede e apresentação
+Build 20260913-war-feedback, cache v7.36. Publicação incremental de dano discreto, trajetórias, agrupamento de entrada, snapshots leves, economia otimizada, front/aviação/recon, arte da cabine e lobby/menu responsivos. 766 testes aprovados; navegador: quatro viewports para lobby/menu e armário finito sem novas geometrias. Exterior está em desenvolvimento separado; não remover primeira pessoa ou manivelas 2D mobile. A autoridade permanece server/world.mjs e o banco local preservado. Detalhes e pendências no mesmo pedido IR-CODEX-20260913-LEAD-shared-war-followup.md.

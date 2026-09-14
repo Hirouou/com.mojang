@@ -1,4 +1,5 @@
 import { drawCapitalMaterialization } from './capital-city-view.js';
+import { pointInHexInterest } from './tactical-hex-interest.js';
 
 /**
  * Low-poly battlefield dressing for the persistent war simulation.
@@ -6,8 +7,8 @@ import { drawCapitalMaterialization } from './capital-city-view.js';
  * Angles follow Canvas convention (+X = 0); all object dimensions are metres.
  */
 export const BATTLEFIELD_PALETTE = Object.freeze({
-  ground: '#4b5142', earth: '#665d4c', ally: '#a4b4a2', enemy: '#bd9580',
-  concrete: '#737266', shadow: '#242b27', metal: '#5b6555', smoke: '#85847a'
+  ground: '#555344', earth: '#76634e', ally: '#9caeae', enemy: '#b39174',
+  concrete: '#827969', shadow: '#2c2722', metal: '#6b6153', smoke: '#8b8174'
 });
 
 const TAU = Math.PI * 2;
@@ -39,10 +40,11 @@ function ellipse(ctx, x, y, rx, ry, color) {
   ctx.fill();
 }
 
-function sideColor(team) { return team === 'enemy' ? '#b49279' : '#a1b9ad'; }
+function sideColor(team) { return team === 'enemy' ? '#be9471' : '#9eafb2'; }
 
 function observable(state, object, sector) {
-  if (object.team !== 'enemy' || object.known) return true;
+  const ownTeam = state.playerTeam || ((state.serverMamute?.faction || globalThis.ironRainEntry?.faction) === 'axis' ? 'enemy' : 'ally');
+  if (!object.team || object.team === ownTeam || object.known) return true;
   if (distance(object, state.robot) <= 850) return true;
   const intel = state.intel;
   if (intel && ((sector && intel.sector === sector) || intel.target === object || distance(object, intel.target) <= 850)) return true;
@@ -51,6 +53,7 @@ function observable(state, object, sector) {
 
 function local(ctx, object, frame, radius, draw) {
   if (!Number.isFinite(object.x) || !Number.isFinite(object.y)) return;
+  if (frame.interest && !pointInHexInterest(object, frame.interest)) return;
   if (frame.visible && !frame.visible(object.x, object.y, radius * frame.zoom + 32)) return;
   const p = frame.worldToScreen(object.x, object.y);
   ctx.save();
@@ -62,9 +65,9 @@ function local(ctx, object, frame, radius, draw) {
 
 function crate(ctx, x, y, w = 19, h = 14) {
   ctx.fillStyle = '#3b4035'; ctx.fillRect(x + 3, y + 4, w, h);
-  ctx.fillStyle = '#79765b'; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#9a9070'; ctx.fillRect(x, y, w, 3);
-  line(ctx, [[x + 3, y + 3], [x + w - 3, y + h - 3], [x + w - 3, y + 3], [x + 3, y + h - 3]], '#505341', 1.4);
+  ctx.fillStyle = '#817054'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#ad9470'; ctx.fillRect(x, y, w, 3);
+  line(ctx, [[x + 3, y + 3], [x + w - 3, y + h - 3], [x + w - 3, y + 3], [x + 3, y + h - 3]], '#554535', 1.4);
 }
 
 function sandbagRow(ctx, x, y, count, vertical = false) {
@@ -81,13 +84,15 @@ function sandbagRow(ctx, x, y, count, vertical = false) {
 function bunker(ctx, x, y, width, height, team, level = 1) {
   ctx.save(); ctx.translate(x, y);
   polygon(ctx, [[-width / 2 + 10, -height / 2 + 7], [width / 2 + 12, -height / 2 + 7], [width / 2 + 12, height / 2 + 14], [-width / 2 + 10, height / 2 + 14]], 'rgba(23,28,24,.42)');
-  ctx.fillStyle = '#494d42'; ctx.fillRect(-width / 2, -height / 2 + 9, width, height);
-  polygon(ctx, [[-width / 2, -height / 2], [width / 2 - 9, -height / 2], [width / 2, -height / 2 + 9], [width / 2, height / 2], [-width / 2 + 9, height / 2], [-width / 2, height / 2 - 9]], '#777869');
+  ctx.fillStyle = '#554d43'; ctx.fillRect(-width / 2, -height / 2 + 9, width, height);
+  polygon(ctx, [[-width / 2, -height / 2], [width / 2 - 9, -height / 2], [width / 2, -height / 2 + 9], [width / 2, height / 2], [-width / 2 + 9, height / 2], [-width / 2, height / 2 - 9]], BATTLEFIELD_PALETTE.concrete);
   polygon(ctx, [[-width / 2, -height / 2], [width / 2 - 9, -height / 2], [width / 2 - 17, -height / 2 + 9], [-width / 2 + 9, -height / 2 + 9], [-width / 2 + 9, height / 2 - 9], [-width / 2, height / 2 - 9]], '#92907a');
   line(ctx, [[-width / 2 + 15, height / 2 - 7], [width / 2 - 11, height / 2 - 7]], '#51594c', 3);
   ctx.fillStyle = '#212a24'; ctx.fillRect(-14, height / 2 - 4, 28, 9);
   ctx.fillStyle = '#423f30'; ctx.fillRect(-10, height / 2 - 4, 20, 3);
   ctx.fillStyle = sideColor(team); ctx.fillRect(-width / 2 + 13, -height / 2 + 13, 20, 3);
+  line(ctx, [[-width * .12, -height * .34], [-width * .04, -height * .19], [-width * .14, -height * .06]], '#5f574b', 1.4);
+  line(ctx, [[width * .24, height * .05], [width * .4, height * .09]], '#a49780', 2);
   for (let i = 0; i < level; i++) {
     ctx.fillStyle = '#d0c29b'; ctx.fillRect(width / 2 - 14 - i * 5, -height / 2 + 12, 2, 5);
   }
@@ -215,15 +220,17 @@ function drawTank(ctx, tank, frame) {
         ctx.fillStyle = dead ? '#3e443a' : '#667060'; ctx.fillRect(-39 + i * 8 + phase / 3, side * 24 - 6, 4, 11);
       }
     }
-    polygon(ctx, [[-37, -20], [29, -20], [41, -11], [41, 11], [29, 20], [-37, 20]], dead ? '#44483b' : enemy ? '#78725c' : '#727b60');
+    polygon(ctx, [[-37, -20], [29, -20], [41, -11], [41, 11], [29, 20], [-37, 20]], dead ? '#494238' : enemy ? '#89755d' : '#74796c');
     polygon(ctx, [[-35, -18], [27, -18], [35, -11], [-32, -11]], dead ? '#626251' : '#a09e7b');
     ctx.fillStyle = '#394337'; ctx.fillRect(-29, -10, 16, 20);
     for (let i = 0; i < 5; i++) { ctx.fillStyle = '#232f26'; ctx.fillRect(-27 + i * 3, -8, 1.5, 16); }
-    polygon(ctx, [[-8, -15], [14, -13], [22, -5], [22, 9], [11, 15], [-13, 10], [-17, -5]], dead ? '#373e32' : enemy ? '#5d614e' : '#4e604b');
-    polygon(ctx, [[-8, -15], [14, -13], [22, -5], [1, -7], [-13, 10], [-17, -5]], dead ? '#525644' : '#859071');
+    polygon(ctx, [[-8, -15], [14, -13], [22, -5], [22, 9], [11, 15], [-13, 10], [-17, -5]], dead ? '#3f382f' : enemy ? '#695746' : '#55605a');
+    polygon(ctx, [[-8, -15], [14, -13], [22, -5], [1, -7], [-13, 10], [-17, -5]], dead ? '#665848' : '#96907c');
     line(ctx, [[9, 0], [dead ? 36 : 58, dead ? 9 : 0]], '#28352a', 8);
     line(ctx, [[12, -2], [dead ? 35 : 56, dead ? 7 : -2]], dead ? '#77705a' : '#b0aa83', 4);
     ctx.fillStyle = '#303b2f'; ctx.fillRect(-7, -6, 11, 10);
+    line(ctx, [[-34, 16], [-19, 16], [-15, 14]], '#b7a487', 1.5);
+    for (const x of [-28, 28]) { ctx.fillStyle = '#aaa08c'; ctx.fillRect(x, -16, 2, 2); }
     if (!dead) {
       ctx.fillStyle = sideColor(tank.team); ctx.fillRect(-30, -20, 9, 3);
       line(ctx, [[-13, -11], [-24, -39]], '#a0a186', 1);
@@ -238,8 +245,12 @@ function drawTank(ctx, tank, frame) {
 function crew(ctx, x, y, team, angle = 0) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
   ellipse(ctx, 1, 3, 6, 4, 'rgba(20,29,22,.35)');
-  polygon(ctx, [[-5, -3], [3, -5], [7, 2], [3, 6], [-4, 5]], team === 'enemy' ? '#8c7b60' : '#7f8d71');
-  ellipse(ctx, 0, -3, 4, 3, team === 'enemy' ? '#515746' : '#445d49');
+  line(ctx, [[-2, 3], [-4, 8], [0, 10]], '#39342b', 2.5);
+  line(ctx, [[3, 3], [5, 7], [8, 8]], '#39342b', 2.5);
+  polygon(ctx, [[-5, -3], [3, -5], [7, 2], [3, 6], [-4, 5]], team === 'enemy' ? '#948167' : '#848875');
+  line(ctx, [[-3, -1], [-1, 5]], '#b3a186', 1);
+  ellipse(ctx, 0, -3, 4, 3, team === 'enemy' ? '#62503d' : '#535c50');
+  line(ctx, [[-2, -5], [2, -5]], '#a69c82', 1);
   ctx.restore();
 }
 
@@ -252,8 +263,8 @@ function drawTruck(ctx, truck, frame) {
     if (moving) {
       for (let i = 0; i < 3; i++) ellipse(ctx, -43 - i * 17, Math.sin(frame.time * 2.5 + i) * 4, 11 + i * 7, 7 + i * 3, `rgba(157,145,108,${.105 - i * .025})`);
     }
-    const body = enemy ? '#6d6955' : '#64725b';
-    const light = enemy ? '#91886b' : '#899377';
+    const body = enemy ? '#7e6850' : '#6e7568';
+    const light = enemy ? '#aa8a64' : '#969980';
     ctx.fillStyle = '#293129';
     for (const x of [-24, 20]) for (const y of [-19, 19]) ellipse(ctx, x, y, 8, 5, '#252d26');
     ctx.fillStyle = body; ctx.fillRect(-39, -15, 50, 30);
@@ -262,6 +273,9 @@ function drawTruck(ctx, truck, frame) {
     polygon(ctx, [[18, -13], [29, -13], [36, -7], [19, -7]], '#9ca080');
     ctx.fillStyle = '#303a31'; ctx.fillRect(26, 1, 14, 9);
     ctx.fillStyle = sideColor(truck.team); ctx.fillRect(14, 10, 17, 3);
+    ctx.fillStyle = '#dfc690'; ctx.fillRect(39, -9, 3, 3); ctx.fillRect(39, 8, 3, 3);
+    line(ctx, [[44, -9], [44, 12]], '#38312a', 3);
+    for (let slat = 0; slat < 4; slat++) line(ctx, [[-31 + slat * 11, -12], [-31 + slat * 11, 11]], '#504b3e', 1);
     line(ctx, [[-35, -15], [-35, 15], [8, 15], [8, -15]], '#343d32', 2);
 
     const passengers = Math.max(0, Math.floor(finite(truck.assets?.troops)));
@@ -314,21 +328,61 @@ function aircraftShape(ctx, color, wingColor) {
 function drawAircraft(ctx, aircraft, frame) {
   local(ctx, aircraft, frame, 260, () => {
     const angle = finite(aircraft.angle);
+    const scout = aircraft.type === 'recon', fighter = aircraft.type === 'fighter';
+    const size = fighter ? .68 : scout ? .74 : 1;
     ctx.save(); ctx.translate(56, 91); ctx.rotate(angle); ctx.scale(1.04, 1.04);
-    aircraftShape(ctx, 'rgba(24,31,26,.14)', 'rgba(24,31,26,.14)'); ctx.restore();
+    ctx.scale(size, size); aircraftShape(ctx, 'rgba(35,28,21,.19)', 'rgba(35,28,21,.19)'); ctx.restore();
     ctx.rotate(angle);
-    aircraftShape(ctx, '#9b9d88', aircraft.team === 'enemy' ? '#686e5e' : '#75836e');
+    ctx.scale(size, size);
+    aircraftShape(ctx, '#b0a38e', aircraft.team === 'enemy' ? '#82715a' : '#788378');
     polygon(ctx, [[-14, -64], [4, -75], [12, -23], [-10, -24]], '#8e9580');
     polygon(ctx, [[-14, 66], [4, 75], [12, 23], [-10, 24]], '#536553');
     polygon(ctx, [[37, -5], [50, -4], [56, 0], [49, 4], [37, 4]], '#344940');
-    for (const y of [-33, 33]) {
+    for (const y of fighter || scout ? [0] : [-33, 33]) {
       ctx.fillStyle = '#4b584c'; ctx.fillRect(-4, y - 6, 27, 12);
       ctx.fillStyle = '#b6b49a'; ctx.fillRect(3, y - 6, 16, 3);
       line(ctx, [[24, y - 17], [24, y + 17]], `rgba(213,208,175,${.21 + Math.sin(frame.time * 58) * .1})`, 2);
     }
     ctx.fillStyle = sideColor(aircraft.team); ctx.fillRect(-5, -52, 9, 3); ctx.fillRect(-5, 49, 9, 3);
     line(ctx, [[-41, -4], [-41, 4]], '#ddd4b0', 2);
+    if (finite(aircraft.hp, 90) < 35) damageSmoke(ctx, { ...aircraft, maxHp: 90 }, frame.time, .8);
   });
+}
+
+function drawAntiAir(ctx, battery, frame) {
+  local(ctx, battery, frame, 94, () => {
+    const dead = battery.alive === false;
+    ellipse(ctx, 10, 13, 45, 29, 'rgba(35,28,21,.35)');
+    sandbagRow(ctx, -42, -37, 6); sandbagRow(ctx, -42, -23, 4, true);
+    for (const side of [-1, 1]) line(ctx, [[side * 30, -23], [-side * 30, 27]], '#625a4b', 6);
+    ellipse(ctx, 0, 1, 21, 17, '#51493e');
+    ctx.save(); ctx.rotate(finite(battery.angle, battery.team === 'enemy' ? Math.PI : 0));
+    polygon(ctx, [[-18, -16], [16, -12], [21, 13], [-15, 16]], dead ? '#473a2f' : '#8b7b60');
+    for (const y of [-7, 7]) { line(ctx, [[-2, y], [43, y]], '#312d29', 6); line(ctx, [[0, y - 1], [40, y - 1]], '#b1a189', 2); }
+    ctx.fillStyle = sideColor(battery.team); ctx.fillRect(-13, 9, 12, 3);
+    if (!dead && finite(battery.flash) > 0) polygon(ctx, [[43, -10], [58, -5], [46, 0], [59, 7], [43, 11]], '#f0c773');
+    ctx.restore();
+    crate(ctx, -25, 27, 22, 14); damageSmoke(ctx, battery, frame.time);
+  });
+}
+
+function drawAirEffect(ctx, effect, frame) {
+  if (finite(effect.life) <= 0) return;
+  const target = { x: finite(effect.x2, effect.x), y: finite(effect.y2, effect.y) };
+  const midpoint = { x: (effect.x + target.x) / 2, y: (effect.y + target.y) / 2 };
+  if (frame.visible && !frame.visible(midpoint.x, midpoint.y, distance(effect, target) * frame.zoom / 2 + 60)) return;
+  const from = frame.worldToScreen(effect.x, effect.y), to = frame.worldToScreen(target.x, target.y);
+  ctx.save();
+  ctx.globalAlpha *= clamp(effect.life / Math.max(.01, finite(effect.max, .7)), 0, 1);
+  if (effect.type === 'air-tracer' || effect.type === 'flak') {
+    line(ctx, [[from.x, from.y], [to.x, to.y]], effect.type === 'flak' ? '#d2a167' : '#f4d793', Math.max(1, frame.zoom * 2));
+    const r = Math.max(2, frame.zoom * (effect.type === 'flak' ? 18 : 7));
+    ellipse(ctx, to.x, to.y, r, r * .8, effect.type === 'flak' ? '#726052' : '#f8e4b3');
+    ellipse(ctx, to.x - r * .25, to.y - r * .25, r * .4, r * .35, '#f1c17c');
+  } else if (effect.type === 'air-crash') {
+    local(ctx, effect, frame, 140, () => { damageSmoke(ctx, { ...effect, hp: 0, maxHp: 1 }, frame.time, 1.7); polygon(ctx, [[-12, 0], [0, -25], [5, -8], [18, 5], [0, 20]], '#d17a39'); });
+  }
+  ctx.restore();
 }
 
 function drawSupportProjectile(ctx, shot, frame) {
@@ -357,16 +411,17 @@ function roadHash(road) {
   return hash >>> 0;
 }
 
-function roadPolyline(road, frame, roadWidth) {
-  const a = frame.worldToScreen(road.from.x, road.from.y), b = frame.worldToScreen(road.to.x, road.to.y);
+export function strategicRoadWorldPolyline(road) {
+  const a = road?.from, b = road?.to;
+  if (![a?.x, a?.y, b?.x, b?.y].every(Number.isFinite)) return [];
   const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
-  if (length < 1) return [a, b];
+  if (length < 1) return [{ ...a }, { ...b }];
   const nx = -dy / length, ny = dx / length;
   const hash = roadHash(road);
   const phase = ((hash & 0xffff) / 0xffff) * TAU;
   const bias = (((hash >>> 16) & 0xff) / 255 - .5) * .34;
-  const amplitude = Math.min(length * .115, roadWidth * .56);
-  const steps = clamp(Math.ceil(length / 72), 9, 24);
+  const amplitude = Math.min(length * .115, 58 * .56);
+  const steps = clamp(Math.ceil(length / 350), 9, 24);
   const points = [];
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
@@ -404,9 +459,10 @@ function drawStrategicRoad(ctx, road, frame) {
 
   // Keep the canonical logistics segment, but dress it as a broad, imperfect dirt road.
   // The meander stays inside the widened corridor so canonical convoy positions remain visibly on-road.
-  const roadWidth = Math.max(30, 58 * frame.zoom);
-  const points = roadPolyline(road, frame, roadWidth);
-  const shoulder = roadWidth + Math.max(11, roadWidth * .34);
+  const roadWidth = 58 * frame.zoom;
+  const worldPoints = strategicRoadWorldPolyline(road);
+  const points = worldPoints.map(point => frame.worldToScreen(point.x, point.y));
+  const shoulder = roadWidth * 1.34;
   const rutOffset = roadWidth * .23;
   const leftRut = offsetRoadPolyline(points, -rutOffset), rightRut = offsetRoadPolyline(points, rutOffset);
   const hash = roadHash(road);
@@ -440,8 +496,8 @@ function drawStrategicRoad(ctx, road, frame) {
     const side = seed(hash * .00011 + i * 4.17) > .5 ? 1 : -1;
     const edge = roadWidth * (.38 + seed(hash * .00023 + i) * .08);
     const x = point.x + nx * edge * side, y = point.y + ny * edge * side;
-    const rx = Math.max(2.5, roadWidth * (.055 + seed(hash * .00031 + i) * .045));
-    const ry = Math.max(1.4, rx * (.34 + seed(hash * .00047 + i) * .25));
+    const rx = roadWidth * (.055 + seed(hash * .00031 + i) * .045);
+    const ry = rx * (.34 + seed(hash * .00047 + i) * .25);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.atan2(dy, dx));
@@ -461,10 +517,10 @@ function drawStrategicRoad(ctx, road, frame) {
  */
 export function drawWarInfrastructure(ctx, state, options) {
   if (!ctx || !state || typeof options?.worldToScreen !== 'function') return;
-  const frame = { ...options, zoom: Math.max(.01, finite(options.zoom, state.cam?.zoom || 1)), time: finite(options.time, finite(state.time)) };
+  const frame = { ...options, interest: state.warSimulation?.renderInterest, zoom: Math.max(.01, finite(options.zoom, state.cam?.zoom || 1)), time: finite(options.time, finite(state.time)) };
   ctx.save();
   ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
-  for (const road of (state.warSimulation?.strategicRoads || []).slice(0, 48)) drawStrategicRoad(ctx, road, frame);
+  for (const road of (state.warSimulation?.strategicRoads || [])) drawStrategicRoad(ctx, road, frame);
   drawCapitalMaterialization(ctx, state, frame);
   for (const sector of (state.sectors || [])) {
     const war = sector.war;
@@ -478,11 +534,19 @@ export function drawWarInfrastructure(ctx, state, options) {
     if (traffic.kind === 'armor' || finite(traffic.assets?.tanks) > 0) drawTank(ctx, { ...traffic, type: 'tank' }, frame);
     else drawTruck(ctx, traffic, frame);
   }
+  // The authority already filtered the air snapshot by friendly observers.
+  // Re-filtering it as if every player were Allied would hide valid Axis intel.
+  const serverAircraft = state.serverAirWar?.aircraft || [];
+  const airIds = new Set(serverAircraft.map(plane => plane.id));
   for (const shot of (state.warSimulation?.support || []).slice(0, 96)) {
+    if (shot.type === 'bomber' && airIds.has(shot.id)) continue;
     if (finite(shot.life, 1) <= 0 || !observable(state, shot, shot.sector)) continue;
     if (shot.type === 'bomber') drawAircraft(ctx, shot, frame);
     else if (['bomb', 'mortar', 'tank-shell'].includes(shot.type)) drawSupportProjectile(ctx, shot, frame);
   }
+  for (const battery of state.serverAirWar?.batteries || []) drawAntiAir(ctx, battery, frame);
+  for (const plane of serverAircraft) if (finite(plane.life, 1) > 0 && plane.alive !== false) drawAircraft(ctx, plane, frame);
+  for (const effect of state.serverAirWar?.effects || []) drawAirEffect(ctx, effect, frame);
   ctx.restore();
 }
 

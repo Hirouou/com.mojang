@@ -8,3 +8,130 @@
 @media(max-width:500px){.war-map-toolbar span{display:none}.war-map-toolbar{justify-content:space-between}.strategic-war[data-canonical-navigation].show-details .strategic-war-main{grid-template-columns:1fr!important;grid-template-rows:minmax(0,1fr) 155px!important}.war-location-bar{flex-wrap:wrap;gap:4px 12px}.crew-invite{grid-template-columns:1fr}.crew-invite code{font-size:14px}}
 
 @media(min-width:501px){.crew-invite{grid-template-columns:minmax(0,1fr) auto auto;padding:8px;margin:8px 0}.crew-invite button{grid-column:auto;padding:6px 12px}.crew-invite code{font-size:13px}.crew-invite b{font-size:11px}}
+
+/* The briefing and in-vehicle menu use ordinary layout rows. Header/tabs stay
+   readable while their contents scroll naturally, including a phone keyboard. */
+.server-lobby{
+  padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  background:linear-gradient(120deg,#17221dee,#111814f5),repeating-linear-gradient(45deg,#a7a48118 0 1px,transparent 1px 30px);
+  touch-action:pan-y;overscroll-behavior:contain;
+}
+.server-lobby-card{
+  width:min(880px,100%);max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height:0;padding:22px;gap:14px;grid-template-rows:auto auto minmax(0,1fr) auto;
+  border-color:#a1977190;border-radius:3px;
+  background:linear-gradient(140deg,#20291ff5,#101915);box-shadow:0 25px 85px #0007,inset 0 3px #958365;
+  overflow:hidden;
+}
+.server-lobby-head{display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:0;}
+.server-lobby-brand{display:flex;align-items:center;gap:15px;min-width:0;}
+.server-lobby-brand svg{width:64px;height:49px;flex:none;color:#b4a176;}
+.server-lobby-brand small{font-size:9px;letter-spacing:2.4px;color:#a7ab97;}
+.server-lobby h1{font-size:30px;line-height:1;letter-spacing:4px;margin:5px 0 0;color:#e9dcbb;}
+.server-lobby-seal{display:grid;gap:4px;text-align:right;border-left:1px solid #a1977140;padding-left:20px;color:#beb79b;}
+.server-lobby-seal b{font-size:13px;letter-spacing:3px;}
+.server-lobby-seal span{font-size:8px;letter-spacing:1.4px;color:#a3a98f;}
+.server-lobby [data-server-notice]{
+  position:relative;padding:9px 12px;border:1px solid #76856945;border-left:3px solid #bd915e;
+  background:#0d1811;font-size:10px;line-height:1.5;color:#c3c7ab;
+}
+.server-lobby[data-connected="true"] [data-server-notice]{border-left-color:#78aa88;}
+.server-lobby-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;min-height:0;overflow-y:auto;touch-action:pan-y;scrollbar-width:none;overscroll-behavior:contain;}
+.server-deploy,.server-enlist{min-width:0;display:flex;flex-direction:column;gap:10px;}
+.server-enlist{padding-left:22px;border-left:1px solid #a1977130;}
+.server-lobby h2{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:1px;margin:0 0 2px;color:#c7c9b0;}
+.server-lobby h2>span{font-size:10px;color:#c8ae79;padding:4px 6px;background:#a2997020;}
+.server-lobby label{gap:6px;letter-spacing:1px;font-size:9px;color:#b4baa3;}
+.server-lobby button,.server-lobby select,.server-lobby input{
+  border-radius:2px;min-height:44px;box-shadow:none;max-width:100%;
+  transition:background-color .12s,border-color .12s;
+}
+.server-lobby button{font-size:11px;letter-spacing:.4px;}
+.server-lobby button:hover:not(:disabled){background:#35432e;border-color:#c5b68a;}
+.server-lobby button:focus-visible,.server-lobby select:focus-visible,.server-lobby input:focus-visible{outline:2px solid #dbbe80;outline-offset:2px;}
+.server-factions{gap:8px;}
+.server-factions button{display:grid;gap:5px;align-content:center;justify-items:start;border-left:3px solid #608daa;background:#182725;}
+.server-factions button[data-server-faction="axis"]{border-left-color:#759370;background:#20291f;}
+.server-factions b{font-size:13px;letter-spacing:1px;}
+.server-factions small{font-size:8px;color:#98afa6;letter-spacing:1px;}
+.server-lobby .server-factions button.active{border-width:1px 1px 1px 3px;border-color:#d8c69a;background:#3a4230;box-shadow:inset 0 0 0 1px #d8c69a35;}
+.server-lobby select{width:100%;font-size:11px;background:#101a14;color:#e1d5af;}
+.server-lobby input{min-width:0;width:100%;font-size:16px;user-select:text;-webkit-user-select:text;touch-action:manipulation;letter-spacing:1px;}
+.server-lobby [data-server-create]{display:grid;gap:4px;justify-content:center;min-height:52px;background:#b5a176;color:#101911;border-color:#d3c292;}
+.server-lobby [data-server-create]:hover:not(:disabled){background:#d4bf8d;}
+.server-lobby [data-server-create] span{font-size:8px;letter-spacing:1.3px;font-weight:500;}
+.server-lobby [data-server-resume]{background:#394831;border-color:#a8ac80;}
+.server-code-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:6px;}
+.server-code-entry button{padding-inline:14px;}
+.server-lobby .server-vehicles-title{margin-top:2px;color:#9ba68e;font-size:8px;letter-spacing:1.5px;}
+.server-lobby [data-server-list]{max-height:158px;min-height:64px;gap:6px;touch-action:pan-y;overscroll-behavior:contain;}
+.server-lobby .server-list-empty{font-size:11px;line-height:1.65;padding:12px;border:1px dashed #8f957c40;color:#a6ae96;background:#111b143f;}
+.server-lobby [data-server-join]{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;text-align:left;padding:8px 10px;}
+.server-lobby [data-server-join] b{font-size:13px;color:#dec899;letter-spacing:1px;}
+.server-lobby [data-server-join] small{grid-column:1;font-size:8px;color:#a3af96;}
+.server-lobby [data-server-join] span{grid-column:2;grid-row:1 / 3;align-self:center;font-size:9px;}
+.server-lobby-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:10px;border-top:1px solid #a1977130;}
+.server-lobby-foot small{font-size:8px;letter-spacing:.8px;color:#9da38f;}
+.server-lobby-foot button{flex-shrink:0;}
+.server-lobby-body::-webkit-scrollbar,#menu .menu-card::-webkit-scrollbar,#menu [data-settings-panel]::-webkit-scrollbar{display:none;}
+
+#menu{touch-action:pan-y;}
+#menu .menu-card{
+  width:min(680px,100%)!important;max-width:680px!important;max-height:100%!important;
+  min-height:0;gap:10px;padding:16px!important;border:1px solid #a1977180!important;border-radius:3px;
+  background:linear-gradient(140deg,#222b20f7,#0e1712fa)!important;box-shadow:0 22px 70px #0008;
+  scrollbar-width:none;touch-action:pan-y;
+}
+#menu .sheet-head{padding:0 0 10px;margin:0;min-height:45px;flex-shrink:0;}
+#menu .sheet-head b{font-size:16px;letter-spacing:2px;color:#e7d6aa;}
+#menu .sheet-head small{font-size:8px;letter-spacing:1.1px;color:#99a48b;}
+#menu .sheet-head button{height:44px;background:#0d1811;border-color:#89917460;}
+#menu .settings-tabs{grid-template-columns:repeat(3,minmax(0,1fr));padding:0 0 8px;gap:6px;}
+#menu .settings-tabs button{min-height:44px!important;font-size:11px;letter-spacing:1.3px;border-radius:2px;}
+#menu .settings-tabs button.active{background:#b5a176;color:#101911;border-color:#d3c292;}
+#app.input-touch #menu .settings-tabs{grid-template-columns:repeat(2,minmax(0,1fr));}
+#menu [data-settings-panel]{min-height:0;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;scrollbar-width:none;padding:0 2px 2px;}
+#menu .menu-grid{gap:8px;}
+#menu .menu-grid button{min-height:46px!important;font-size:11px!important;line-height:1.25!important;padding:10px 12px!important;background:#263324;border-color:#81917350;border-radius:2px;}
+#menu .menu-grid button:hover{background:#35442d;}
+#menu .crew-invite{margin:0 0 10px;padding:10px;border-color:#a5997045;background:#0d1711;}
+#menu .crew-invite small{letter-spacing:1px;font-size:8px;}
+#menu .crew-invite b{font-size:13px;letter-spacing:1.4px;color:#d7c28e;}
+#menu .crew-invite code{font-size:16px;color:#f0db9f;user-select:all;-webkit-user-select:all;}
+#menu .crew-invite button{min-height:44px;border-radius:2px;padding:8px;font-size:9px;}
+
+@media(max-width:600px){
+  .server-lobby{padding:10px;}
+  .server-lobby-card{padding:16px;gap:12px;max-height:calc(100dvh - 20px);}
+  .server-lobby-body{grid-template-columns:1fr;gap:18px;}
+  .server-enlist{border-left:0;padding-left:0;border-top:1px solid #a1977130;padding-top:16px;}
+  .server-lobby-brand{gap:10px;}.server-lobby-brand svg{width:48px;height:40px;}
+  .server-lobby h1{font-size:24px;letter-spacing:2px;}.server-lobby-brand small{font-size:8px;letter-spacing:1.4px;}
+  .server-lobby-seal{padding-left:10px;}.server-lobby-seal b{font-size:10px;letter-spacing:1px;}.server-lobby-seal span{font-size:7px;letter-spacing:.2px;}
+  .server-lobby [data-server-list]{max-height:130px;}
+  .server-lobby-foot small{font-size:7px;line-height:1.6;letter-spacing:.3px;}
+  #menu .menu-card{padding:12px!important;gap:9px;}
+  #menu .sheet-head em{display:none;}
+  #menu .crew-invite{grid-template-columns:minmax(0,1fr) auto;gap:8px;}
+  #menu .crew-invite button{grid-column:1 / -1;}
+}
+@media(max-height:500px) and (orientation:landscape){
+  .server-lobby{padding:8px;place-items:center;}
+  .server-lobby-card{padding:12px 16px;gap:8px;max-height:calc(100dvh - 16px);}
+  .server-lobby-brand svg{width:46px;height:36px;}.server-lobby h1{font-size:23px;letter-spacing:3px;}
+  .server-lobby-brand small{font-size:7px;}.server-lobby [data-server-notice]{padding:5px 9px;font-size:9px;}
+  .server-lobby-body{grid-template-columns:1fr 1fr;gap:16px;}
+  .server-deploy,.server-enlist{gap:7px;}.server-enlist{border-top:0;border-left:1px solid #a1977130;padding:0 0 0 16px;}
+  .server-factions button{min-height:44px;padding:6px 9px;gap:3px;}.server-factions b{font-size:11px;}.server-factions small{font-size:7px;}
+  .server-lobby h2{font-size:9px;}.server-lobby h2>span{padding:3px 5px;}
+  .server-lobby [data-server-create]{min-height:46px;}.server-lobby label{font-size:8px;gap:4px;}
+  .server-lobby [data-server-list]{min-height:56px;max-height:92px;}.server-lobby .server-list-empty{font-size:9px;padding:9px;}
+  .server-lobby-foot{padding-top:7px;}.server-lobby-foot small{font-size:7px;}
+  #menu .menu-card{width:min(720px,100%)!important;padding:10px 14px!important;gap:6px;}
+  #menu .sheet-head{padding-bottom:5px;min-height:44px;}.menu-card .sheet-head small{font-size:7px;}
+  #menu .settings-tabs{padding-bottom:5px;}
+  #menu .crew-invite{grid-template-columns:minmax(0,1fr) auto auto;padding:7px 9px;margin-bottom:8px;}
+  #menu .crew-invite button{grid-column:auto;padding:7px 10px;}
+  #menu .menu-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+  #menu .menu-grid button{font-size:10px!important;padding:8px 10px!important;}
+}

@@ -6,6 +6,8 @@ import { strategicFrontPath } from './strategic-front-pressure.js';
 import { applyAuthoritativeSectorControl } from './strategic-capture-state.js';
 import { createPersistentWarClock } from './persistent-war-clock.js';
 import { THEATRE_SIZE, lineSnapshot } from './theatre-control.js';
+import { createConvoyPresentation } from './tactical-hex-interest.js';
+import { earnedReconContacts, drawEarnedRecon, reconSourceLabel, reconContactLabel } from './war-recon-view.js';
 
 const COLOR = Object.freeze({
   ally: '#4caef5',
@@ -107,6 +109,60 @@ export function makeTheatre(saved = null) {
   const logistics = createStrategicLogistics({ nodes: logisticNodes, routes, restore: saved?.logistics });
   const sources = logisticNodes.filter(node => node.kind === 'depot').map(node => node.id);
   const inFlight = new Map(saved?.inFlight || []);
+  let economyRouteInfo = () => null;
+
+  function routeIndex(current) {
+    // One topology per economy tick, one shortest-path tree per source. Stocks
+    // remain live below; only graph connectivity and earned route intel are
+    // shared by the hundreds of development/supply queries in this tick.
+    const graphs = new Map(), trees = new Map();
+    const nodes = new Map(current.nodes.map(node => [node.id, node]));
+    for (const route of current.routes) {
+      const a = nodes.get(route.from), b = nodes.get(route.to);
+      if (!route.open || !route.team || !a?.alive || !b?.alive || a.team !== route.team || b.team !== route.team) continue;
+      if (!graphs.has(route.team)) graphs.set(route.team, new Map());
+      const graph = graphs.get(route.team);
+      if (!graph.has(route.from)) graph.set(route.from, []);
+      if (!graph.has(route.to)) graph.set(route.to, []);
+      graph.get(route.from).push({ id: route.to, route });
+      graph.get(route.to).push({ id: route.from, route });
+    }
+    return (team, from, to) => {
+      if (from === to) return { length: 0, threat: 0 };
+      const key = `${team}:${from}`;
+      if (!trees.has(key)) {
+        const graph = graphs.get(team), tree = new Map(), best = new Map([[from, 0]]);
+        const frontier = [{ id: from, cost: 0, length: 0, threat: 0 }];
+        while (frontier.length) {
+          frontier.sort((a, b) => a.cost - b.cost);
+          const item = frontier.shift();
+          if (tree.has(item.id)) continue;
+          tree.set(item.id, { length: item.length, threat: item.threat });
+          for (const edge of graph?.get(item.id) || []) {
+            const threat = Number(edge.route.knownThreat) || 0;
+            const cost = item.cost + edge.route.distance * (1 + threat);
+            if ((best.get(edge.id) ?? Infinity) <= cost) continue;
+            best.set(edge.id, cost);
+            frontier.push({ id: edge.id, cost, length: item.length + edge.route.distance, threat: Math.max(item.threat, threat) });
+          }
+        }
+        trees.set(key, tree);
+      }
+      return trees.get(key).get(to) || null;
+    };
+  }
+
+  function supplyRouteThreat(team, destination) {
+    let best = null;
+    for (const id of sources) {
+      const source = logistics.getNode(id);
+      if (!source || source.team !== team) continue;
+      if (id === destination) return 0;
+      const path = economyRouteInfo(team, id, destination);
+      if (path && (!best || path.length < best.length)) best = path;
+    }
+    return clamp(best?.threat || 0, 0, 1);
+  }
 
   function rememberFlight(key, sent) {
     if (sent?.ok && sent.status !== 'arrived' && sent.convoyId) inFlight.set(key, sent.convoyId);
@@ -133,9 +189,9 @@ export function makeTheatre(saved = null) {
       if (!source || source.team !== team || source.id === destination) continue;
       if (!['materials', 'ammo', 'fuel'].every(key => (source.stock[key] || 0) >= (cargo[key] || 0))) continue;
       if (!['trucks', 'tanks', 'troops'].every(key => (source.assets?.[key] || 0) >= (assets[key] || 0))) continue;
-      const path = logistics.route(team, id, destination);
+      const path = economyRouteInfo(team, id, destination);
       if (!path) continue;
-      const length = path.reduce((sum, leg) => sum + leg.distance, 0);
+      const length = path.length;
       if (!best || length < best.length) best = { id, length };
     }
     return best?.id || null;
@@ -147,9 +203,9 @@ export function makeTheatre(saved = null) {
       if (id === from) continue;
       const source = logistics.getNode(id);
       if (!source || source.team !== team) continue;
-      const path = logistics.route(team, from, id);
+      const path = economyRouteInfo(team, from, id);
       if (!path) continue;
-      const length = path.reduce((sum, leg) => sum + leg.distance, 0);
+      const length = path.length;
       if (!best || length < best.length) best = { id, length };
     }
     return best?.id || null;
@@ -184,13 +240,16 @@ export function makeTheatre(saved = null) {
     if(economyAcc < 1)return;
     elapsed=economyAcc;economyAcc=0;
     const logisticsSnapshot = logistics.snapshot();
+    // Rebuild after movement/events so capture, route cuts, repair and expiring
+    // threat reports cannot survive in a cache from the previous simulation tick.
+    economyRouteInfo = routeIndex(logisticsSnapshot);
     for (const [id, node] of territory) {
       const record = records.get(id), endpoint = logistics.getNode(id);
       if (!record || !endpoint) continue;
       syncTerritoryAssets(node, endpoint);
       const routeOpen = Boolean(node.owner && sources.some(sourceId => {
         const source = logistics.getNode(sourceId);
-        return source?.team === node.owner && (sourceId === id || Boolean(logistics.route(node.owner, sourceId, id)));
+        return source?.team === node.owner && (sourceId === id || Boolean(economyRouteInfo(node.owner, sourceId, id)));
       }));
       const development = stepTerritoryDevelopment(node, elapsed, { routeOpen, contested: node.contested });
       stageProducedVehicle(node, endpoint, development?.vehicleBuilt);
@@ -199,7 +258,7 @@ export function makeTheatre(saved = null) {
 
       const effects = territoryOperationalEffects(node);
       const pressure = clamp((1 - frontDistance(record.sector) / 15_000) * (.75 - effects.defensiveCover), 0, 1);
-      const routeThreat = knownSupplyRouteThreat({ team: node.owner, destination: id, sources, logistics, snapshot: logisticsSnapshot });
+      const routeThreat = supplyRouteThreat(node.owner, id);
       const projectPlan = chooseTerritoryProject(node, {
         routeOpen,
         routeThreat,
@@ -327,8 +386,18 @@ export function installNotebookBridge(locate) {
 export function installStrategicWarLive({ app = document.getElementById('app') } = {}) {
   if (!app || document.getElementById('strategicWarBtn')) return null;
   installStyles();
-  let theatre = makeTheatre();
   const serverRuntime=globalThis.ironRainEntry?.runtime?.isAuthoritativeClient?globalThis.ironRainEntry.runtime:null;
+  function clientTheatre(data = {}) {
+    const hexes = data.hexes || createStrategicHexMap();
+    const records = new Map(hexes.flatMap(hex => hex.sectors.map(sector => [sector.id, { hex, sector }])));
+    const logistics = data.logistics || { nodes: [], routes: [], convoys: [] };
+    const nodes = new Map((logistics.nodes || []).map(node => [node.id, node]));
+    return { hexes, records, territory: new Map(data.territory || []), summary: data.summary,
+      logistics: { snapshot: () => logistics, getNode: id => nodes.get(String(id)) || null } };
+  }
+  // The authoritative client only holds projections; it does not seed a second economy.
+  let theatre = serverRuntime ? clientTheatre(serverRuntime.snapshot()?.strategic) : makeTheatre();
+  const convoyPresentation = createConvoyPresentation({ limit: 192 });
   const button = document.createElement('button');
   button.id = 'strategicWarBtn';
   button.className = 'menu-war-map';
@@ -350,6 +419,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
       <div class="war-kpis" data-kpis></div>
       <div class="war-legend"><span><i style="background:${COLOR.ally}"></i>ALIADOS</span><span><i style="background:${COLOR.enemy}"></i>EIXO</span><span><i style="background:${COLOR.neutral}"></i>NEUTRO</span><span><i style="background:${COLOR.contested}"></i>DISPUTADO</span></div>
       <div class="war-rule"></div>
+      <div data-recon aria-live="polite"></div>
       <div data-detail><h3>MAPA DA GUERRA</h3><p>Selecione um setor. Regiões grandes contêm sete setores. A linha tracejada é a frente contínua; a faixa cinza/amarela é terra neutra e disputada.</p></div>
     </aside>
   </div><div class="war-location-bar" data-locate></div>`;
@@ -361,6 +431,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
   const kpis = root.querySelector('[data-kpis]');
   const balance = root.querySelector('[data-balance]');
   const locateBox = root.querySelector('[data-locate]');
+  const reconBox = root.querySelector('[data-recon]');
   let open = false, selected = null, width = 1, height = 1, dpr = 1, raf = 0;
 
   const view = { scale: 1, ox: 0, oy: 0 };
@@ -446,12 +517,11 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
 
   window.ironRainStrategicMap = Object.freeze({ locate, combatReserveContext, claimAsset, assetCount, applySectorControl, open: () => setOpen(true) });
   const stopNotebookBridge = installNotebookBridge(locate);
+  let lastStrategic = null;
   const offServer = serverRuntime?.subscribeSnapshots(snapshot=>{
-    if(!snapshot.strategic)return;
-    const data=snapshot.strategic;
-    const records=new Map();for(const hex of data.hexes)for(const sector of hex.sectors)records.set(sector.id,{hex,sector});
-    const nodes=new Map(data.logistics.nodes.map(n=>[n.id,n]));
-    theatre={hexes:data.hexes,records,territory:new Map(data.territory),logistics:{snapshot:()=>data.logistics,getNode:id=>nodes.get(String(id))||null}};
+    if(!snapshot.strategic || snapshot.strategic === lastStrategic)return;
+    lastStrategic = snapshot.strategic;
+    theatre = clientTheatre(snapshot.strategic);
     if(open)updatePanels();
   });
   const warClock = createPersistentWarClock({ stepSeconds: .25, maxCatchUpSeconds: 5 });
@@ -472,7 +542,18 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
   }
 
   function currentLocation() {
-    return locate(parseMamutePosition());
+    return locate(serverRuntime?.snapshot()?.mamute?.robot || globalThis.ironRainWarBridge?.position || parseMamutePosition());
+  }
+
+  function reconContacts() {
+    const snapshot = serverRuntime?.snapshot(), bridge = globalThis.ironRainWarBridge;
+    return earnedReconContacts(snapshot?.recon || bridge?.recon, { team: playerTeam(), now: Number(snapshot?.time ?? bridge?.time) || 0 });
+  }
+
+  function updateReconPanel(contacts = reconContacts()) {
+    const relevant = selected ? contacts.filter(contact => locate(contact)?.sector.id === selected) : contacts;
+    const shown = relevant.slice(0, 6);
+    reconBox.innerHTML = `<h3>RÁDIO / RECONHECIMENTO</h3>${shown.length ? `<p>${shown.map(contact => `<strong>${reconContactLabel(contact)}</strong>${contact.count > 1 ? ` ×${contact.count}` : ''} · ${reconSourceLabel(contact.source)} · ${Math.floor(contact.age)}s<br><small>Última posição: ${Math.round(contact.x)} / ${Math.round(contact.y)}</small>`).join('<br>')}</p>` : '<p>Sem contato recente confirmado neste setor.</p>'}<p>◇ Última observação recebida. Aproxime o mapa para ver origem e idade.</p><div class="war-rule"></div>`;
   }
 
   function updatePanels() {
@@ -487,10 +568,11 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     const t = playerTeam();
     const mine = nodes.filter(node => node.owner === t);
     const logistics = theatre.logistics.snapshot();
-    const convoys = logistics.convoys.filter(convoy => convoy.team === t && ['moving', 'blocked'].includes(convoy.status));
+    const convoys = (logistics.convoys || []).filter(convoy => convoy.team === t && ['moving', 'blocked'].includes(convoy.status));
     const tanks = logistics.nodes.filter(node => node.team === t).reduce((sum, node) => sum + (node.assets?.tanks || 0), 0);
     const troops = logistics.nodes.filter(node => node.team === t).reduce((sum, node) => sum + (node.assets?.troops || 0), 0);
-    kpis.innerHTML = `<div><b>${mine.length}</b><small>SETORES DA FACÇÃO</small></div><div><b>${convoys.length}</b><small>COMBOIOS</small></div><div><b>${tanks}</b><small>BLINDADOS EM ESTOQUE</small></div><div><b>${troops}</b><small>REFORÇOS EM TRÂNSITO/BASE</small></div>`;
+    const summary = theatre.summary?.[t];
+    kpis.innerHTML = `<div><b>${summary?.sectors ?? mine.length}</b><small>SETORES DA FACÇÃO</small></div><div><b>${summary?.convoys ?? convoys.length}</b><small>COMBOIOS</small></div><div><b>${summary?.tanks ?? tanks}</b><small>BLINDADOS EM ESTOQUE</small></div><div><b>${summary?.troops ?? troops}</b><small>REFORÇOS EM TRÂNSITO/BASE</small></div>`;
 
     if (current) {
       locateBox.innerHTML = `<small>POSIÇÃO ATUAL DO M-47</small><b>★ ${current.hex.name} · ${current.sector.name}</b><small>X ${Math.round(current.position.x).toString().padStart(5, '0')} · Y ${Math.round(current.position.y).toString().padStart(5, '0')}</small><br><button type="button" data-select-current>SELECIONAR MEU SETOR</button>`;
@@ -498,9 +580,11 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     } else locateBox.innerHTML = `<small>POSIÇÃO ATUAL DO M-47</small><b>AGUARDANDO COORDENADAS</b>`;
 
     if (!selected && current) selected = current.sector.id;
+    updateReconPanel();
     if (!selected) return;
     const record = theatre.records.get(selected);
-    const node = territorySnapshot(theatre.territory.get(selected));
+    const rawNode = theatre.territory.get(selected);
+    const node = rawNode ? territorySnapshot(rawNode) : null;
     const endpoint = theatre.logistics.getNode(selected);
     if (!record || !node) return;
     const relation = current?.hex.id === record.hex.id ? '<strong>VOCÊ ESTÁ NESTA REGIÃO</strong><br>' : '';
@@ -577,7 +661,7 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     ctx.restore();
   }
 
-  function draw() {
+  function draw(dt = 0) {
     drawTerrain();
     drawFront();
     const t = playerTeam(), logistics = theatre.logistics.snapshot();
@@ -619,12 +703,19 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
       ctx.strokeStyle = isSelected ? '#fff' : '#0b120d'; ctx.lineWidth = isSelected ? 1.5 : .8; ctx.stroke();
     }
 
-    for (const convoy of logistics.convoys) {
-      if (convoy.team !== t || !['moving', 'blocked'].includes(convoy.status)) continue;
-      if (!convoy.position) continue;
+    const localLogistics = serverRuntime?.snapshot()?.localLogistics;
+    const traffic = new Map((logistics.convoys || []).map(convoy => [convoy.id, convoy]));
+    for (const convoy of localLogistics?.convoys || []) traffic.set(convoy.id, convoy);
+    const visibleTraffic = [...traffic.values()].filter(convoy => {
+      if (convoy.team !== t || !['moving', 'blocked'].includes(convoy.status) || !convoy.position) return false;
+      const p = toScreen(convoy.position); return p.x > -20 && p.y > -20 && p.x < width + 20 && p.y < height + 20;
+    });
+    for (const convoy of convoyPresentation.step(visibleTraffic, dt)) {
       const p = toScreen(convoy.position);
       drawConvoy(convoy, p, Number(convoy.position.heading) || 0);
     }
+
+    drawEarnedRecon(ctx, reconContacts(), { toScreen, scale: view.scale, hexes: theatre.hexes, width, height });
 
     for(const m of serverRuntime?.snapshot()?.mamutes||[]){
       if(m.id===serverRuntime.snapshot()?.mamute?.id)continue;
@@ -643,10 +734,11 @@ export function installStrategicWarLive({ app = document.getElementById('app') }
     }
   }
 
-  let drawnAt=0;
+  let drawnAt=0, panelAt=0;
   function frame(at=0) {
     if (!open) return;
-    if(at-drawnAt>=33){draw();drawnAt=at;}
+    if(at-drawnAt>=33){draw(Math.min(.25, Math.max(0, (at-drawnAt)/1000)));drawnAt=at;}
+    if(at-panelAt>=1000){updateReconPanel();panelAt=at;}
     raf = requestAnimationFrame(frame);
   }
 

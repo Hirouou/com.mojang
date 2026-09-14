@@ -1,8 +1,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 
 const DEFAULT_PALETTES = Object.freeze([
-  Object.freeze({ coat: 0x535849, gear: 0x2b302b, skin: 0x9b8067, helmet: 0x465047, accent: 0x8c7048 }),
-  Object.freeze({ coat: 0x4b5146, gear: 0x252c29, skin: 0x8d735e, helmet: 0x596052, accent: 0x6d7b67 }),
+  Object.freeze({ coat: 0x655849, gear: 0x342c25, skin: 0xa58469, helmet: 0x51483f, accent: 0x987345 }),
+  Object.freeze({ coat: 0x554c42, gear: 0x2b2825, skin: 0x8d735e, helmet: 0x6a5d4d, accent: 0x82765e }),
 ]);
 
 function finite(value, fallback = 0) {
@@ -64,13 +64,14 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
     const limbs = [];
     for (const side of [-1, 1]) {
       const arm = new THREE.Mesh(limbGeo, coat); arm.position.set(side * .24, 1.14, 0); root.add(arm);
-      const leg = new THREE.Mesh(limbGeo, gear); leg.scale.y=1.35;leg.position.set(side * .1, .5, 0); root.add(leg);
-      const boot = new THREE.Mesh(packGeo, accent); boot.scale.set(.64, 1.6, 1.65);boot.position.set(side * .1, .12, -.035); root.add(boot);
+      const leg = new THREE.Mesh(limbGeo, gear); leg.scale.y=.8;leg.position.set(side * .1, .67, 0); root.add(leg);
+      const shin = new THREE.Mesh(limbGeo, gear); shin.scale.y=.8;shin.position.set(side * .1, .28, 0); root.add(shin);
+      const boot = new THREE.Mesh(packGeo, accent); boot.scale.set(.64, 1.6, 1.65);boot.position.set(side * .1, .08, -.035); root.add(boot);
       detail(packGeo,skin,arm,[0,-.29,0],[.42,1.35,.85]);
-      limbs.push({ arm, leg });
+      limbs.push({ arm, leg, shin, boot, side });
     }
     scene.add(root);
-    return { root, headPivot, limbs, id: null, x: 0, z: 0, travelled: 0, stride: 0, assigned: false, entry: null };
+    return { root, headPivot, limbs, id: null, x: 0, z: 0, travelled: 0, stride: 0, seated: false, assigned: false, entry: null };
   }
 
   for (let i = 0; i < max; i++) slots.push(buildAvatar(i));
@@ -85,21 +86,34 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
     if (!samePeer) slot.stride = 0;
     slot.id = entry.id; slot.x = pose.x; slot.z = pose.z;
     slot.root.visible = true;
-    slot.root.position.set(pose.x, 0, pose.z);
-    slot.root.rotation.y = finite(pose.yaw);
+    slot.seated = entry.station === 'drive';
+    // The server pose still belongs to the operator's walkable approach point.
+    // Only the remote body is posed on the physical driver's seat; no camera,
+    // collision or replicated locomotion coordinates are changed.
+    slot.root.position.set(slot.seated ? -1.76 : pose.x, slot.seated ? -.31 : 0, slot.seated ? -1.91 : pose.z);
+    slot.root.rotation.y = slot.seated ? 0 : finite(pose.yaw);
+    slot.headPivot.rotation.y = slot.seated ? Math.max(-.65, Math.min(.65, finite(pose.yaw))) : 0;
     slot.headPivot.rotation.x = finite(pose.pitch) * .55;
 
     // Network samples do not arrive at a perfectly even cadence. Drive the
     // walk cycle from displacement, but ease its amplitude so a delayed or
     // stationary packet does not snap both arms/legs straight in one frame.
     const animationStep = Math.max(.001, step || .016);
-    const targetStride = Math.min(.45, moved / animationStep);
+    const targetStride = slot.seated ? 0 : Math.min(.45, moved / animationStep);
     const response = Math.min(1, animationStep * 12);
     slot.stride += (targetStride - slot.stride) * response;
     if (slot.stride < .001 && targetStride === 0) slot.stride = 0;
-    const swing = Math.sin(slot.travelled * 10) * slot.stride;
-    slot.limbs[0].arm.rotation.x = swing; slot.limbs[1].arm.rotation.x = -swing;
-    slot.limbs[0].leg.rotation.x = -swing * .7; slot.limbs[1].leg.rotation.x = swing * .7;
+    const swing = slot.seated ? 0 : Math.sin(slot.travelled * 10) * slot.stride;
+    for (const limb of slot.limbs) {
+      const gait = limb.side < 0 ? swing : -swing;
+      limb.arm.position.set(limb.side * .24, slot.seated ? 1.39 : 1.14, slot.seated ? -.11 : 0);
+      limb.arm.rotation.x = slot.seated ? 1.4 : gait;
+      limb.leg.position.set(limb.side * .1, slot.seated ? .88 : .67, slot.seated ? -.19 : 0);
+      limb.leg.rotation.x = slot.seated ? Math.PI / 2 : -gait * .7;
+      limb.shin.position.set(limb.side * .1, slot.seated ? .67 : .28, slot.seated ? -.38 : 0);
+      limb.shin.rotation.x = slot.seated ? 0 : -gait * .7;
+      limb.boot.position.set(limb.side * .1, slot.seated ? .42 : .08, slot.seated ? -.415 : -.035);
+    }
     return true;
   }
 
@@ -126,6 +140,7 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
         slot.root.visible = false;
         slot.id = null;
         slot.stride = 0;
+        slot.seated = false;
       }
       slot.entry = null;
     }
@@ -141,6 +156,7 @@ export function createCabinCrewAvatars(scene, { capacity = 2, palettes = DEFAULT
       yaw: slot.root.rotation.y,
       pitch: slot.headPivot.rotation.x,
       stride: slot.stride,
+      seated: slot.seated,
     })));
   }
 

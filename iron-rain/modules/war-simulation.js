@@ -9,6 +9,7 @@ import { combatSustainmentSupply } from './combat-sustainment.js';
 import { localConvoyMaterializationFeed } from './local-missions.js';
 import { createStrategicHexMap, strategicOwnerAt } from './strategic-hex-map.js';
 import { THEATRE_SIZE, controlLineX } from './theatre-control.js';
+import { createTacticalHexInterest, pointInHexInterest, createConvoyPresentation, TACTICAL_PRESENTATION_LIMITS } from './tactical-hex-interest.js';
 
 const canonicalHexes = createStrategicHexMap();
 const canonicalSectors = canonicalHexes.flatMap(hex => hex.sectors.map(sector => ({ ...sector, hexId: hex.id, hexName: hex.name })));
@@ -19,6 +20,7 @@ const LEGACY_GAME_SECTORS = new Set(['FALCON', 'BIRCH', 'CINDER', 'DAGGER', 'ECH
 const COMBAT_RESERVE_REAR_STEPS = Object.freeze([9_000, 12_000, 15_500, 19_000, 24_000]);
 const LOCAL_ROAD_RADIUS = 12_000;
 const LOCAL_CAPITAL_RADIUS = 6_500;
+const trafficPresentations = new WeakMap();
 
 function isLiveGameState(state) {
   if (state?.warSimulation?.strategicIntegration === true) return true;
@@ -232,6 +234,7 @@ function reconcileStrategicAssets(state, before) {
 }
 
 function strategicLogistics(state) {
+  if(state?.serverLocalLogistics)return {snapshot:()=>state.serverLocalLogistics};
   if(state?.serverStrategic?.logistics)return {snapshot:()=>state.serverStrategic.logistics};
   for (const sector of state?.sectors || []) {
     if (!sector?.strategicSectorId) continue;
@@ -246,6 +249,7 @@ function strategicLogistics(state) {
 function convoyObservedLocally(state, convoy) {
   if (!finitePoint(state?.robot) || !finitePoint(convoy?.position)) return false;
   if (Math.hypot(convoy.position.x - state.robot.x, convoy.position.y - state.robot.y) <= 950) return true;
+  if (state.projectile && finitePoint(state.cam) && Math.hypot(convoy.position.x - state.cam.x, convoy.position.y - state.cam.y) <= 900) return true;
   const target = state.intel?.target;
   if (!target) return false;
   if (target.id && target.id === convoy.id) return true;
@@ -260,11 +264,13 @@ function distanceToSegment(point, from, to) {
   return Math.hypot(point.x - (from.x + dx * t), point.y - (from.y + dy * t));
 }
 
-function localStrategicRoads(snapshot, playerPosition) {
+function localStrategicRoads(snapshot, interest) {
   const nodes = new Map((snapshot?.nodes || []).filter(finitePoint).map(node => [node.id, node]));
   return (snapshot?.routes || []).flatMap(route => {
     const from = nodes.get(route.from), to = nodes.get(route.to);
-    if (!from || !to || distanceToSegment(playerPosition, from, to) > LOCAL_ROAD_RADIUS) return [];
+    if (!from || !to || distanceToSegment(interest.focus, from, to) > LOCAL_ROAD_RADIUS) return [];
+    const midpoint = { x: (from.x + to.x) * .5, y: (from.y + to.y) * .5 };
+    if (![from, to, midpoint].some(point => pointInHexInterest(point, interest))) return [];
     return [Object.freeze({
       id: route.id,
       from: Object.freeze({ x: from.x, y: from.y }),
@@ -272,7 +278,7 @@ function localStrategicRoads(snapshot, playerPosition) {
       laneOffset: Math.max(0, Number(route.laneOffset) || 0),
       open: route.open !== false,
     })];
-  }).slice(0, 48);
+  });
 }
 
 function capitalVisualLevel(structures = []) {
@@ -290,16 +296,14 @@ function stripStrategicCapitalVisuals(state) {
   if (state?.warSimulation) state.warSimulation.strategicCapitals = [];
 }
 
-function publishStrategicCapitals(state, snapshot) {
-  const strategicMap = globalThis.ironRainStrategicMap;
-  if (!finitePoint(state?.robot) || typeof strategicMap?.locate !== 'function') return [];
+function publishStrategicCapitals(state, snapshot, interest) {
+  const records = new Map((state.serverStrategic?.hexes || canonicalHexes).flatMap(hex => hex.sectors.map(sector => [sector.id, sector])));
   const capitals = [];
   for (const node of snapshot?.nodes || []) {
-    if (!finitePoint(node) || Math.hypot(node.x - state.robot.x, node.y - state.robot.y) > LOCAL_CAPITAL_RADIUS) continue;
-    const located = strategicMap.locate(node);
-    const sector = located?.sector;
+    if (!finitePoint(node) || !pointInHexInterest(node, interest) || Math.hypot(node.x - interest.focus.x, node.y - interest.focus.y) > LOCAL_CAPITAL_RADIUS) continue;
+    const sector = records.get(node.id) || globalThis.ironRainStrategicMap?.locate?.(node)?.sector;
     if (!sector || Math.hypot(sector.x - node.x, sector.y - node.y) > 100) continue;
-    const structures = Array.isArray(sector.structures) ? [...sector.structures] : [];
+    const structures = Array.isArray(node.structures) ? [...node.structures] : Array.isArray(sector.structures) ? [...sector.structures] : [];
     capitals.push(Object.freeze({
       id: `strategic-capital:${node.id}`,
       strategicSectorId: node.id,
@@ -317,32 +321,39 @@ function publishStrategicCapitals(state, snapshot) {
   }
   // Render projections are immutable. The capital renderer consumes this list
   // directly; mixing it into tactical bases breaks supply/damage updates.
-  return capitals;
+  return capitals.sort((a, b) => Math.hypot(a.x - interest.focus.x, a.y - interest.focus.y) - Math.hypot(b.x - interest.focus.x, b.y - interest.focus.y)).slice(0, TACTICAL_PRESENTATION_LIMITS.capitals);
 }
 
-function publishStrategicTraffic(state) {
+function publishStrategicTraffic(state, dt) {
   state.warSimulation ||= {};
-  const now = Number(state.time) || 0;
-  if (now < (state.warSimulation.nextTrafficProjection || 0)) return;
-  state.warSimulation.nextTrafficProjection = now + .1;
-  stripStrategicCapitalVisuals(state);
+  let presentation = trafficPresentations.get(state);
+  if (!presentation) { presentation = { traffic: createConvoyPresentation(), clock: 0, refreshAt: 0 }; trafficPresentations.set(state, presentation); }
+  presentation.clock += Math.max(0, Math.min(.25, Number(dt) || 0));
+  const interest = createTacticalHexInterest({ position: state.robot, camera: finitePoint(state.cam) ? state.cam : state.robot });
+  state.warSimulation.renderInterest = interest;
   const logistics = strategicLogistics(state);
-  if (!logistics) { state.warSimulation.strategicTraffic = []; state.warSimulation.strategicRoads = []; state.warSimulation.strategicCapitals = []; return; }
+  if (!logistics) { presentation.traffic.step([], dt); state.warSimulation.strategicTraffic = []; state.warSimulation.strategicRoads = []; state.warSimulation.strategicCapitals = []; return; }
   const snapshot = logistics.snapshot();
-  state.warSimulation.strategicRoads = localStrategicRoads(snapshot, state.robot);
-  state.warSimulation.strategicCapitals = publishStrategicCapitals(state, snapshot);
+  const regionKey = `${interest.currentHexId}:${interest.cameraHexId}`;
+  if (presentation.snapshot !== snapshot || presentation.regionKey !== regionKey || presentation.clock >= presentation.refreshAt) {
+    if (!globalThis.ironRainEntry?.runtime?.isAuthoritativeClient) stripStrategicCapitalVisuals(state);
+    state.warSimulation.strategicRoads = localStrategicRoads(snapshot, interest);
+    state.warSimulation.strategicCapitals = publishStrategicCapitals(state, snapshot, interest);
+    presentation.snapshot = snapshot; presentation.regionKey = regionKey; presentation.refreshAt = presentation.clock + .2;
+  }
   const own = playerTeam();
   const observedEnemyIds = (snapshot.convoys || [])
     .filter(convoy => convoy?.team !== own && convoyObservedLocally(state, convoy))
     .map(convoy => convoy.id);
   const materialized = localConvoyMaterializationFeed({
-    playerPosition: state.robot,
+    playerPosition: interest.focus,
     playerTeam: own,
-    convoys: snapshot.convoys || [],
+    convoys: (snapshot.convoys || []).filter(convoy => pointInHexInterest(convoy.position, interest)),
     observedEnemyIds,
     localRadius: 9_000,
   });
-  state.warSimulation.strategicTraffic = materialized.slice(0, 40).map(convoy => Object.freeze({
+  const nearest = [...materialized].sort((a, b) => Math.hypot(a.position.x - interest.focus.x, a.position.y - interest.focus.y) - Math.hypot(b.position.x - interest.focus.x, b.position.y - interest.focus.y));
+  state.warSimulation.strategicTraffic = presentation.traffic.step(nearest, dt).map(convoy => Object.freeze({
     id: convoy.id,
     kind: convoy.kind || 'supply',
     team: convoy.team,
@@ -368,10 +379,10 @@ function routeInsideFriendly(from, to, team) {
 }
 
 function publishWorldBridge(state) {
-  if (!isLiveGameState(state) || !state?.robot) return;
+  if ((!isLiveGameState(state) && !globalThis.ironRainEntry?.runtime?.isAuthoritativeClient) || !state?.robot) return;
   const location = locateStrategic(state.robot);
   const fronts = (state.sectors || []).map(sec => { const center = sec.war ? getFrontGeometry(sec).center : sec; return { id: sec.id, name: sec.name, strategicHexId: sec.strategicHexId || null, strategicSectorId: sec.strategicSectorId || null, x: center.x, y: center.y, status: sec.status || 'stalemate', progress: Number(sec.progress) || 0, allyStrength: Number(sec.allyStrength) || 0, enemyStrength: Number(sec.enemyStrength) || 0 }; });
-  globalThis.ironRainWarBridge = { version: 4, position: { x: state.robot.x, y: state.robot.y }, location, playerTeam: playerTeam(), safeRear: Boolean(location && location.owner === playerTeam() && location.distanceToFront > 5_250), spawn: state.warSimulation?.spawnApplied || null, fronts };
+  globalThis.ironRainWarBridge = { version: 4, position: { x: state.robot.x, y: state.robot.y }, location, playerTeam: playerTeam(), safeRear: Boolean(location && location.owner === playerTeam() && location.distanceToFront > 5_250), spawn: state.warSimulation?.spawnApplied || null, fronts, recon: state.serverRecon || null, time: Number(state.time) || 0, renderInterest: state.warSimulation?.renderInterest || null };
 }
 
 function dispatchHullState(state, armorBefore) {
@@ -389,7 +400,7 @@ function dispatchHullState(state, armorBefore) {
 }
 
 export function updateWar(state, dt) {
-  if(globalThis.ironRainEntry?.runtime?.isAuthoritativeClient){publishStrategicTraffic(state);publishWorldBridge(state);return;}
+  if(globalThis.ironRainEntry?.runtime?.isAuthoritativeClient){publishStrategicTraffic(state, dt);publishWorldBridge(state);return;}
   const live = isLiveGameState(state);
   if (live) { ensureStrategicAlignment(state); ensureChosenSpawn(state); refreshCombatReserveContext(state); syncCombatSustainment(state); }
   const originalMode = state?.mode, team = playerTeam(), rearSafe = Boolean(live && state?.robot && strategicOwnerAt(state.robot) === team && frontDistance(state.robot) > 5_250), armorBefore = Number(state?.robot?.armor);
@@ -400,7 +411,7 @@ export function updateWar(state, dt) {
     if (rearSafe && state) state.mode = originalMode;
     if (live) {
       reconcileStrategicAssets(state, strategicBefore);
-      publishStrategicTraffic(state);
+      publishStrategicTraffic(state, dt);
       dispatchHullState(state, armorBefore);
       publishWorldBridge(state);
     }
@@ -416,3 +427,4 @@ export function assessRoute(state, from, to) {
 }
 
 export function checkRouteAmbush(state, route, dt = 4) { if (route?.strategicSafe) return null; return coreCheckRouteAmbush(state, route, dt); }
+

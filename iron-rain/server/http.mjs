@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { gzip } from 'node:zlib';
 import { openWarStore } from './store.mjs';
 import { createWarAuthority } from './world.mjs';
 
@@ -12,10 +13,19 @@ export function startWarServer({ port = 8787, host = '127.0.0.1', dbPath = 'serv
     const origin = req.headers.origin;
     if (origin && !allowed.has(origin)) { res.writeHead(403); res.end('{"ok":false,"reason":"origin-denied"}'); return; }
     if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Vary', 'Origin, Accept-Encoding'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-    const send = (value, status = 200) => { res.writeHead(status); res.end(JSON.stringify(value)); };
+    const send = (value, status = 200) => {
+      const json = JSON.stringify(value);
+      if (json.length > 2048 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+        gzip(json, { level: 1 }, (error, compressed) => {
+          if (res.destroyed) return;
+          if (!error) res.setHeader('Content-Encoding', 'gzip');
+          res.writeHead(status); res.end(error ? json : compressed);
+        });
+      } else { res.writeHead(status); res.end(json); }
+    };
     const address = req.socket.remoteAddress, bucket = rates.get(address) || { start: now(), count: 0 };
     if (now() - bucket.start > 1000) { bucket.start = now(); bucket.count = 0; }
     rates.set(address, bucket);
@@ -31,14 +41,14 @@ export function startWarServer({ port = 8787, host = '127.0.0.1', dbPath = 'serv
       const player = world.authenticate(req.headers.authorization?.replace(/^Bearer /, ''));
       if (!player) { send({ ok: false, reason: 'unauthorized' }, 401); return; }
       if (url.pathname === '/poll') {
-        const result = world.heartbeat(player, body.pose);
-        send(result.ok ? world.snapshot(player, body.after) : result); return;
+        const result = world.heartbeat(player, body.pose, body.exteriorPose);
+        send(result.ok ? world.snapshot(player, body.after, body.strategicSince) : result); return;
       }
       if (url.pathname === '/command') {
-        const presence = world.heartbeat(player, body.pose);
+        const presence = world.heartbeat(player, body.pose, body.exteriorPose);
         if (!presence.ok) { send(presence); return; }
         const result = world.command(player, body);
-        send({ ...result, snapshot: world.snapshot(player, body.after) }); return;
+        send({ ...result, snapshot: world.snapshot(player, body.after, body.strategicSince) }); return;
       }
       if (url.pathname === '/leave') { world.disconnect(player); send({ ok: true }); return; }
       send({ ok: false, reason: 'not-found' }, 404);

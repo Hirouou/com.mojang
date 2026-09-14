@@ -1,59 +1,66 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { updateWar } from '../modules/war-simulation.js';
+import { createStrategicHexMap } from '../modules/strategic-hex-map.js';
 
 const war = await readFile(new URL('../modules/war-simulation.js', import.meta.url), 'utf8');
 const view = await readFile(new URL('../modules/battlefield-view.js', import.meta.url), 'utf8');
 
-test('live war projects canonical logistics convoys into bounded local traffic without moving them', () => {
-  assert.match(war, /import \{ localConvoyMaterializationFeed \} from '\.\/local-missions\.js'/);
-  assert.match(war, /const snapshot = logistics\.snapshot\(\)/);
-  assert.match(war, /localConvoyMaterializationFeed\(\{/);
-  assert.match(war, /convoys: snapshot\.convoys \|\| \[\]/);
-  assert.match(war, /observedEnemyIds/);
-  assert.match(war, /localRadius: 9_000/);
-  assert.match(war, /x: convoy\.position\.x/);
-  assert.match(war, /y: convoy\.position\.y/);
-  assert.match(war, /angle: Number\(convoy\.position\.heading\) \|\| 0/);
-  assert.doesNotMatch(war, /convoy\.legProgress/);
-  assert.match(war, /state\.warSimulation\.strategicTraffic = materialized\.slice\(0, 40\)/);
-  assert.match(war, /publishStrategicTraffic\(state\)/);
-});
+const hexes = createStrategicHexMap();
+function fixture() {
+  const robot = { x: hexes[0].x, y: hexes[0].y };
+  return { robot, cam: { ...robot }, sectors: [], time: 10, serverStrategic: { hexes, logistics: { nodes: [], routes: [], convoys: [] } } };
+}
+function authoritative(run) {
+  const before = globalThis.ironRainEntry;
+  globalThis.ironRainEntry = { faction: 'allies', runtime: { isAuthoritativeClient: true } };
+  try { run(); } finally { globalThis.ironRainEntry = before; delete globalThis.ironRainWarBridge; }
+}
 
-test('nearby local roads reuse canonical logistics nodes and routes without leaking route ownership', () => {
-  assert.match(war, /function localStrategicRoads\(snapshot, playerPosition\)/);
-  assert.match(war, /snapshot\?\.nodes \|\| \[\]/);
-  assert.match(war, /snapshot\?\.routes \|\| \[\]/);
-  assert.match(war, /distanceToSegment\(playerPosition, from, to\) > LOCAL_ROAD_RADIUS/);
-  assert.match(war, /state\.warSimulation\.strategicRoads = localStrategicRoads\(snapshot, state\.robot\)/);
-  assert.match(war, /from: Object\.freeze\(\{ x: from\.x, y: from\.y \}\)/);
-  assert.match(war, /to: Object\.freeze\(\{ x: to\.x, y: to\.y \}\)/);
-  assert.doesNotMatch(war, /strategicRoads[^\n]*team/);
-});
+test('live war projects the nearest 40 canonical convoys without mutating authority', () => authoritative(() => {
+  const state = fixture();
+  state.serverStrategic.logistics.convoys = Array.from({ length: 70 }, (_, index) => ({ id: `truck-${index}`, team: 'ally', status: 'moving', speed: 14, position: { x: state.robot.x + 700 - index * 10, y: state.robot.y, heading: .3 } }));
+  state.serverStrategic.logistics.convoys.push({ id: 'unobserved', team: 'enemy', status: 'moving', position: { x: state.robot.x + 2000, y: state.robot.y } });
+  const before = structuredClone(state.serverStrategic);
+  updateWar(state, .016);
+  const traffic = state.warSimulation.strategicTraffic;
+  assert.equal(traffic.length, 40);
+  assert.equal(traffic[0].id, 'truck-69');
+  assert.ok(traffic.every(item => item.team === 'ally' && item.angle === .3 && Object.isFrozen(item)));
+  assert.deepEqual(state.serverStrategic, before);
+}));
 
-test('nearby canonical capitals reuse logistics node positions and live territory structures for the existing base renderer', () => {
-  assert.match(war, /const LOCAL_CAPITAL_RADIUS = 6_500/);
-  assert.match(war, /function publishStrategicCapitals\(state, snapshot\)/);
-  assert.match(war, /for \(const node of snapshot\?\.nodes \|\| \[\]\)/);
-  assert.match(war, /strategicMap\.locate\(node\)/);
-  assert.match(war, /Array\.isArray\(sector\.structures\) \? \[\.\.\.sector\.structures\] : \[\]/);
-  assert.match(war, /id: `strategic-capital:\$\{node\.id\}`/);
-  assert.match(war, /level: capitalVisualLevel\(structures\)/);
-  assert.match(war, /__strategicCapitalVisual: true/);
-  assert.doesNotMatch(war, /host\.war\.bases\.push\(\.\.\.capitals\)/);
-});
+test('roads follow the shell camera into a distant hex and preserve world endpoints', () => authoritative(() => {
+  const state = fixture(), far = hexes.at(-1);
+  state.cam = { x: far.x, y: far.y, mode: 'shell' };
+  state.serverStrategic.logistics.nodes = [{ id: 'from', x: far.x, y: far.y }, { id: 'to', x: far.x + 3300, y: far.y }];
+  state.serverStrategic.logistics.routes = [{ id: 'road', from: 'from', to: 'to', team: 'enemy', open: true }];
+  updateWar(state, .016);
+  assert.equal(state.warSimulation.renderInterest.cameraHexId, far.id);
+  const road = state.warSimulation.strategicRoads[0];
+  assert.deepEqual(road.from, { x: far.x, y: far.y });
+  assert.deepEqual(road.to, { x: far.x + 3300, y: far.y });
+  assert.equal(road.team, undefined);
+}));
 
-test('capital visuals persist between throttled strategic traffic projections instead of flickering per frame', () => {
-  const publishStart = war.indexOf('function publishStrategicTraffic(state)');
-  const throttle = war.indexOf('if (now < (state.warSimulation.nextTrafficProjection || 0)) return;', publishStart);
-  const strip = war.indexOf('stripStrategicCapitalVisuals(state);', publishStart);
-  assert.ok(publishStart >= 0 && throttle > publishStart && strip > throttle);
+test('canonical capitals use actual node position and live structures outside tactical authority', () => authoritative(() => {
+  const state = fixture(), sector = hexes[0].sectors[0];
+  state.serverStrategic.logistics.nodes = [{ ...sector, team: 'ally', structures: ['depot', 'factory'] }];
+  updateWar(state, .016);
+  const capital = state.warSimulation.strategicCapitals[0];
+  assert.equal(capital.id, `strategic-capital:${sector.id}`);
+  assert.equal(capital.x, sector.x); assert.equal(capital.y, sector.y);
+  assert.deepEqual(capital.structures, ['depot', 'factory']); assert.equal(capital.level, 4);
+  assert.equal(state.sectors.length, 0); assert.ok(Object.isFrozen(capital));
+}));
 
-  const updateStart = war.indexOf('export function updateWar(state, dt)');
-  const updateEnd = war.indexOf('export function assessRoute', updateStart);
-  assert.ok(updateStart >= 0 && updateEnd > updateStart);
-  assert.doesNotMatch(war.slice(updateStart, updateEnd), /stripStrategicCapitalVisuals\(state\);/);
-});
+test('capital visuals persist between render ticks even when server time is unchanged', () => authoritative(() => {
+  const state = fixture(); state.serverStrategic.logistics.nodes = [{ ...hexes[0].sectors[0], team: 'ally', structures: ['depot'] }];
+  updateWar(state, .016); const capitals = state.warSimulation.strategicCapitals;
+  for (let i = 0; i < 6; i++) { updateWar(state, .016); assert.equal(state.warSimulation.strategicCapitals, capitals); }
+  assert.equal(capitals.length, 1); assert.equal(state.time, 10);
+}));
 
 test('hostile convoy materialization is earned locally or by active intel target', () => {
   assert.match(war, /function convoyObservedLocally\(state, convoy\)/);

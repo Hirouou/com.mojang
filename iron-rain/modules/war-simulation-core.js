@@ -455,6 +455,7 @@ function updateDetailSelection(state) {
   const sim = state.warSimulation;
   sim.impacts = sim.impacts.filter(point => point.until > sim.clock);
   const focus = [];
+  if (state.mode === 'server') for (const point of sim.interestPoints || []) focus.push({point,priority:0});
   if (state.cam) focus.push({ point: state.cam, priority: 0 });
   if (state.robot) focus.push({ point: state.robot, priority: 200 });
   if (state.intel?.sourcePos) focus.push({ point: state.intel.sourcePos, priority: 400 });
@@ -464,7 +465,7 @@ function updateDetailSelection(state) {
   const selected = state.sectors.map(sec => ({ sec, score: Math.min(...focus.map(({ point, priority }) => {
     const distance = Math.min(dist(getFrontGeometry(sec).center, point), ...sec.war.bases.map(base => dist(base, point)));
     return distance < WAR_LIMITS.detailRadius ? distance + priority : Infinity;
-  })) })).filter(item => Number.isFinite(item.score)).sort((a, b) => a.score - b.score).slice(0, WAR_LIMITS.maxDetailedFronts).map(item => item.sec);
+  })) })).filter(item => Number.isFinite(item.score)).sort((a, b) => a.score - b.score).slice(0, state.mode === 'server' ? state.sectors.length : WAR_LIMITS.maxDetailedFronts).map(item => item.sec);
   for (const sec of state.sectors) {
     if (selected.includes(sec)) materialize(sec);
     else if (sec.war.detailed) { sec.units = []; sec.war.detailed = false; }
@@ -542,9 +543,7 @@ function updateSupport(state, dt) {
       mortar.flash = Math.max(0, mortar.flash - dt);
       if (!mortar.alive) continue;
       const force = war[mortar.team], foeTeam = otherTeam(mortar.team), target = geometry[`${foeTeam}Line`];
-      // Crews displace their support weapon behind the secured trench.
-      const home = geometry[`${mortar.team}Trench`];
-      mortar.x += clamp(home.x - teamSign(mortar.team) * 460 - mortar.x, -12 * dt, 12 * dt);
+      // A deployed mortar is an emplacement, not a vehicle following the front.
       mortar.cooldown -= dt;
       if (mortar.cooldown > 0 || sec[strengthKey(mortar.team)] < 14 || sec[strengthKey(foeTeam)] < 1 || force.ammo < .12) continue;
       const dispersion = (noise(sim.clock + war.index * 17) - .5) * 200;

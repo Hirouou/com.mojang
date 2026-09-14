@@ -11,7 +11,9 @@ export function createCabinCrewPresence({ capacity = 2 } = {}) {
   let visible = Object.freeze([]);
 
   const validId = id => (typeof id === 'string' || typeof id === 'number') && String(id).length > 0;
-  const immutableEntry = (id, pose) => Object.freeze({ id, pose });
+  const immutableEntry = (id, pose, station) => Object.freeze({ id, pose,
+    ...(['aim', 'drive', 'load', 'map', 'radio', 'engine', 'extinguisher'].includes(station) ? { station } : {}),
+  });
   const blendAlpha = (remote, fallback) => {
     const value = Number.isFinite(remote?.alpha) ? remote.alpha : fallback;
     return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
@@ -49,7 +51,7 @@ export function createCabinCrewPresence({ capacity = 2 } = {}) {
       if (!pose) continue;
 
       lastValid.set(remote.id, pose);
-      next.push(immutableEntry(remote.id, pose));
+      next.push(immutableEntry(remote.id, pose, remote.station));
     }
 
     // Peers omitted from the current remote set are hidden immediately, but the

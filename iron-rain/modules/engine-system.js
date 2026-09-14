@@ -83,7 +83,7 @@ export function serviceEngine(engine, type) {
   return done({ kind: 'started', action: actionType, message: actionType === 'extinguish' ? 'Extintor acionado. Mantenha-se junto ao motor por 3 segundos.' : 'Reparo iniciado. Mantenha-se junto ao motor por 6 segundos.' });
 }
 
-export function updateEngine(engine, dt, { nearEngine = false } = {}) {
+export function updateEngine(engine, dt, { nearEngine = false, fireDamage = true } = {}) {
   if (!normalize(engine)) return null;
   const done = result => { publishMaintenance(engine); return result; };
   const elapsed = clamp(dt, 0, 60);
@@ -91,12 +91,12 @@ export function updateEngine(engine, dt, { nearEngine = false } = {}) {
   const action = engine.action;
   if (action && (!nearEngine || (action.type === 'repair' && engine.fire > 0) || (action.type === 'extinguish' && !engine.hasExtinguisher))) {
     stop(engine);
-    if (engine.fire > 0) engine.health = Math.max(0, engine.health - FIRE_DAMAGE_PER_SECOND * engine.fire * elapsed);
+    if (fireDamage && engine.fire > 0) engine.health = Math.max(0, engine.health - FIRE_DAMAGE_PER_SECOND * engine.fire * elapsed);
     return done({ kind: 'interrupted', message: engine.fire > 0 && action.type === 'repair' ? 'Reparo interrompido. Apague o incêndio primeiro.' : 'Manutenção interrompida. Volte ao motor para continuar.' });
   }
   // When a large update finishes extinguishing, burn only until completion.
   const burnTime = action?.type === 'extinguish' ? Math.min(elapsed, action.duration - action.elapsed) : elapsed;
-  if (engine.fire > 0) engine.health = Math.max(0, engine.health - FIRE_DAMAGE_PER_SECOND * engine.fire * burnTime);
+  if (fireDamage && engine.fire > 0) engine.health = Math.max(0, engine.health - FIRE_DAMAGE_PER_SECOND * engine.fire * burnTime);
   if (!action) return done(null);
   action.elapsed = Math.min(action.duration, action.elapsed + elapsed);
   engine.repairProgress = action.type === 'repair' ? action.elapsed / action.duration : 0;
