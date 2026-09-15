@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Último Semestre +18 — Visual Novel</title>
-<link rel="stylesheet" href="style.css">
+<link rel="preload" as="image" href="assets/morgana.webp?v=7">
+<link rel="preload" as="image" href="assets/bianca.webp?v=7">
+<link rel="preload" as="image" href="assets/yumi.webp?v=7">
+<link rel="preload" as="image" href="assets/cecilia.webp?v=7">
+<link rel="preload" as="image" href="assets/helena.webp?v=7">
+<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="sprites.css?v=7">
 </head>
 <body>
 <div id="app">
@@ -12,25 +18,24 @@
 
 <section id="start" class="screen active">
  <div class="start-card">
-  <div class="kicker">Visual novel universitária +18 • comédia romântica • todos os personagens são adultos</div>
+  <div class="kicker">Visual novel universitária +18 • comédia romântica • todas as rotas são adultas</div>
   <h1>ÚLTIMO<br>SEMESTRE</h1>
   <div class="subtitle">
-   Você tem 42 dias até a formatura, um TCC questionável e cinco problemas absurdamente atraentes.
-   Converse, provoque, seja sincero, saia em encontros, sobreviva a ciúmes, festas, mensagens às três da manhã
-   e à possibilidade muito real de uma das garotas beber sangue. Cada escolha altera <b>afeição</b>,
-   <b>confiança</b> e <b>tensão</b>. Há finais individuais, rejeições memoráveis e uma rota secreta onde,
-   sendo competente o suficiente, você chega à formatura com as cinco.
+   Você tem 42 dias até a formatura, um TCC questionável e cinco desconhecidas que ainda nem sabem quem você é.
+   Converse, provoque, seja sincero, saia em encontros, sobreviva a ciúmes, festas e mensagens às três da manhã.
+   Cada escolha altera <b>afeição</b>, <b>confiança</b> e <b>tensão</b>. Há finais individuais, rejeições memoráveis
+   e uma rota secreta onde, sendo competente e honesto o suficiente, você pode chegar à formatura com as cinco.
   </div>
   <div class="warning">
    Conteúdo maduro: linguagem, bebida, flerte, beijos e situações sugestivas. Cenas íntimas são tratadas sem descrição sexual explícita.
-   Morgana tem 123 anos; as demais personagens têm entre 20 e 24 anos.
+   Você começa sem conhecer nenhuma das cinco — inclusive sem saber os nomes delas.
   </div>
   <div class="cast">
-   <div class="mini"><div class="ico">🦇</div><b>Morgana Vale, 123</b><span>Gótica. História da Arte. Sarcasmo terminal. Vampira literal e irritada quando chamam isso de “fase”.</span></div>
-   <div class="mini"><div class="ico">🏐</div><b>Bianca Rocha, 22</b><span>Capitã do vôlei. Energia de golden retriever. Academia às 6h. Fala antes de pensar e flerta pior ainda.</span></div>
-   <div class="mini"><div class="ico">💻</div><b>Yumi Aoki, 21</b><span>Computação. Gamer competitiva. Otaku sem vergonha. Tsundere por eficiência operacional, não por timidez.</span></div>
-   <div class="mini"><div class="ico">🎭</div><b>Cecília Luz, 23</b><span>Teatro. Gyaru dramática. Trata fofoca como inteligência militar e o corredor como passarela.</span></div>
-   <div class="mini"><div class="ico">👑</div><b>Helena Prado, 24</b><span>Presidente do diretório. Rica, impecável, controladora. O problema é descobrir quem existe atrás da perfeição.</span></div>
+   <div class="mini"><div class="ico">🦇</div><b>A garota de preto</b><span>Você ainda não sabe o nome dela. Estranhamente pálida, elegante e sempre perto dos livros mais suspeitos.</span></div>
+   <div class="mini"><div class="ico">🏐</div><b>A atleta</b><span>Você ainda não sabe o nome dela. Elétrica, barulhenta e quase sempre carregando uma bolsa de treino.</span></div>
+   <div class="mini"><div class="ico">💻</div><b>A garota dos fones</b><span>Você ainda não sabe o nome dela. Parece tratar o laboratório de informática como território próprio.</span></div>
+   <div class="mini"><div class="ico">🎭</div><b>A loira do teatro</b><span>Você ainda não sabe o nome dela. Age como se qualquer corredor pudesse virar um palco a qualquer momento.</span></div>
+   <div class="mini"><div class="ico">👑</div><b>A garota do diretório</b><span>Você ainda não sabe o nome dela. Parece conhecer todo mundo no campus — menos você.</span></div>
   </div>
   <div class="row">
    <input id="playerName" maxlength="18" value="Igor" placeholder="Seu nome">
@@ -51,7 +56,7 @@
  <div class="stage">
   <div class="bg" id="bg"></div>
   <div class="loc" id="loc"></div>
-  <div class="char-area"><div class="avatar" id="avatar" data-icon="🎓" data-name=""></div></div>
+  <div class="char-area"><div class="avatar" id="avatar"></div></div>
   <div class="toast" id="toast">Salvo</div>
   <div class="dialogue-wrap">
    <div class="dialogue">
@@ -81,8 +86,9 @@
 </section>
 </div>
 
-<script src="data.js"></script>
-<script src="game-a.js"></script>
-<script src="game-b.js"></script>
+<script src="data.js?v=7"></script>
+<script src="game-a.js?v=7"></script>
+<script src="sprites.js?v=7"></script>
+<script src="game-b.js?v=7"></script>
 </body>
 </html>
