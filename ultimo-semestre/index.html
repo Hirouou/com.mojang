@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Último Semestre +18 — Visual Novel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+<div class="noise"></div>
+
+<section id="start" class="screen active">
+ <div class="start-card">
+  <div class="kicker">Visual novel universitária +18 • comédia romântica • todos os personagens são adultos</div>
+  <h1>ÚLTIMO<br>SEMESTRE</h1>
+  <div class="subtitle">
+   Você tem 42 dias até a formatura, um TCC questionável e cinco problemas absurdamente atraentes.
+   Converse, provoque, seja sincero, saia em encontros, sobreviva a ciúmes, festas, mensagens às três da manhã
+   e à possibilidade muito real de uma das garotas beber sangue. Cada escolha altera <b>afeição</b>,
+   <b>confiança</b> e <b>tensão</b>. Há finais individuais, rejeições memoráveis e uma rota secreta onde,
+   sendo competente o suficiente, você chega à formatura com as cinco.
+  </div>
+  <div class="warning">
+   Conteúdo maduro: linguagem, bebida, flerte, beijos e situações sugestivas. Cenas íntimas são tratadas sem descrição sexual explícita.
+   Morgana tem 123 anos; as demais personagens têm entre 20 e 24 anos.
+  </div>
+  <div class="cast">
+   <div class="mini"><div class="ico">🦇</div><b>Morgana Vale, 123</b><span>Gótica. História da Arte. Sarcasmo terminal. Vampira literal e irritada quando chamam isso de “fase”.</span></div>
+   <div class="mini"><div class="ico">🏐</div><b>Bianca Rocha, 22</b><span>Capitã do vôlei. Energia de golden retriever. Academia às 6h. Fala antes de pensar e flerta pior ainda.</span></div>
+   <div class="mini"><div class="ico">💻</div><b>Yumi Aoki, 21</b><span>Computação. Gamer competitiva. Otaku sem vergonha. Tsundere por eficiência operacional, não por timidez.</span></div>
+   <div class="mini"><div class="ico">🎭</div><b>Cecília Luz, 23</b><span>Teatro. Gyaru dramática. Trata fofoca como inteligência militar e o corredor como passarela.</span></div>
+   <div class="mini"><div class="ico">👑</div><b>Helena Prado, 24</b><span>Presidente do diretório. Rica, impecável, controladora. O problema é descobrir quem existe atrás da perfeição.</span></div>
+  </div>
+  <div class="row">
+   <input id="playerName" maxlength="18" value="Igor" placeholder="Seu nome">
+   <button id="newGame" class="primary">Começar o caos</button>
+   <button id="continueBtn" class="ghost">Continuar save</button>
+  </div>
+  <div class="tiny">Campanha: 42 dias × 3 períodos + eventos principais. Duração estimada: 2–3h em ritmo normal de leitura; mais em replays para descobrir as rotas.</div>
+ </div>
+</section>
+
+<section id="game" class="screen">
+ <div class="topbar">
+  <div class="brand">ÚLTIMO SEMESTRE +18</div>
+  <div class="chapter" id="chapterLabel"></div>
+  <button class="icon" id="soundBtn" title="Som">♫</button>
+  <button class="icon" id="statsBtn" title="Status">☰</button>
+ </div>
+ <div class="stage">
+  <div class="bg" id="bg"></div>
+  <div class="loc" id="loc"></div>
+  <div class="char-area"><div class="avatar" id="avatar" data-icon="🎓" data-name=""></div></div>
+  <div class="toast" id="toast">Salvo</div>
+  <div class="dialogue-wrap">
+   <div class="dialogue">
+    <div class="speaker" id="speaker"></div>
+    <div class="text" id="text"></div>
+    <div class="choices" id="choices"></div>
+   </div>
+  </div>
+ </div>
+</section>
+
+<aside id="panel">
+ <div class="panel-title">Painel do protagonista</div>
+ <div id="statsBody"></div>
+ <button id="saveBtn" class="ghost" style="width:100%;margin-top:8px">Salvar agora</button>
+ <button id="restartBtn" class="danger" style="width:100%;margin-top:8px">Apagar save e recomeçar</button>
+</aside>
+
+<section id="ending" class="screen">
+ <div class="end-card">
+  <div class="kicker">Formatura</div>
+  <h2 id="endTitle"></h2>
+  <p id="endText"></p>
+  <div class="badges" id="endBadges"></div>
+  <button class="primary" onclick="location.reload()">Jogar novamente</button>
+ </div>
+</section>
+</div>
+
+
+<script src="data.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
