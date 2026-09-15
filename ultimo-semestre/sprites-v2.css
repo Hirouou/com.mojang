@@ -1,0 +1,35 @@
+/* Character presentation for the generated 2x2 expression sheets. */
+.char-area{
+  align-items:flex-end!important;
+  justify-content:center!important;
+  padding-bottom:188px!important;
+  overflow:hidden;
+}
+.avatar{
+  width:min(46vw,480px)!important;
+  height:auto!important;
+  aspect-ratio:1/1;
+  border-radius:0!important;
+  background-color:transparent!important;
+  background-repeat:no-repeat!important;
+  filter:drop-shadow(0 28px 26px rgba(0,0,0,.52));
+  transform:translateY(22px)!important;
+  transition:opacity .2s ease,transform .2s ease!important;
+}
+.avatar:before,.avatar:after{display:none!important;content:none!important}
+.cstat.unknown{opacity:.75}
+.unknown-note{font-size:10px;color:#958f9b;margin-top:7px}
+
+@media(max-width:780px){
+  .char-area{padding-bottom:262px!important}
+  .avatar{
+    width:min(84vw,390px)!important;
+    height:auto!important;
+    aspect-ratio:1/1;
+    transform:translateY(18px)!important;
+  }
+}
+@media(max-width:430px){
+  .char-area{padding-bottom:275px!important}
+  .avatar{width:min(90vw,370px)!important}
+}
