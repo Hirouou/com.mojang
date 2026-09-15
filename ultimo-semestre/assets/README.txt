@@ -1,0 +1,1 @@
+Sprite assets for visual novel build.
