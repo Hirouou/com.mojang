@@ -4,13 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Último Semestre +18 — Visual Novel</title>
-<link rel="preload" as="image" href="assets/morgana.webp?v=8">
-<link rel="preload" as="image" href="assets/bianca.webp?v=8">
-<link rel="preload" as="image" href="assets/yumi.webp?v=8">
-<link rel="preload" as="image" href="assets/cecilia.webp?v=8">
-<link rel="preload" as="image" href="assets/helena.webp?v=8">
-<link rel="stylesheet" href="style.css?v=8">
-<link rel="stylesheet" href="sprites.css?v=8">
+<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="sprites.css?v=12">
+<link rel="stylesheet" href="sprites-v2.css?v=12">
 </head>
 <body>
 <div id="app">
@@ -28,21 +24,21 @@
   </div>
   <div class="warning">
    Conteúdo maduro: linguagem, bebida, flerte, beijos e situações sugestivas. Cenas íntimas são tratadas sem descrição sexual explícita.
-   Você começa sem conhecer nenhuma das cinco — inclusive sem saber os nomes delas.
+   Todos os interesses românticos são adultos. Você começa sem conhecer nenhuma das cinco — inclusive sem saber os nomes delas.
   </div>
   <div class="cast">
-   <div class="mini"><div class="ico">🦇</div><b>A garota de preto</b><span>Você ainda não sabe o nome dela. Estranhamente pálida, elegante e sempre perto dos livros mais suspeitos.</span></div>
-   <div class="mini"><div class="ico">🏐</div><b>A atleta</b><span>Você ainda não sabe o nome dela. Elétrica, barulhenta e quase sempre carregando uma bolsa de treino.</span></div>
-   <div class="mini"><div class="ico">💻</div><b>A garota dos fones</b><span>Você ainda não sabe o nome dela. Parece tratar o laboratório de informática como território próprio.</span></div>
-   <div class="mini"><div class="ico">🎭</div><b>A loira do teatro</b><span>Você ainda não sabe o nome dela. Age como se qualquer corredor pudesse virar um palco a qualquer momento.</span></div>
-   <div class="mini"><div class="ico">👑</div><b>A garota do diretório</b><span>Você ainda não sabe o nome dela. Parece conhecer todo mundo no campus — menos você.</span></div>
+   <div class="mini"><div class="ico">🦇</div><b>???</b><span>Uma garota de preto que você nunca viu antes. Estranhamente pálida, elegante e sempre perto dos livros mais suspeitos.</span></div>
+   <div class="mini"><div class="ico">🏐</div><b>???</b><span>Uma atleta desconhecida que parece viver em outra velocidade e quase sempre carrega uma bolsa de treino.</span></div>
+   <div class="mini"><div class="ico">💻</div><b>???</b><span>Uma garota dos fones que você nunca conheceu. Parece tratar o laboratório de informática como território próprio.</span></div>
+   <div class="mini"><div class="ico">🎭</div><b>???</b><span>Uma desconhecida chamativa nos bastidores. Age como se qualquer corredor pudesse virar um palco.</span></div>
+   <div class="mini"><div class="ico">👑</div><b>???</b><span>Uma garota impecável do diretório. Parece conhecer todo mundo no campus — menos você.</span></div>
   </div>
   <div class="row">
    <input id="playerName" maxlength="18" value="Igor" placeholder="Seu nome">
    <button id="newGame" class="primary">Começar o caos</button>
    <button id="continueBtn" class="ghost">Continuar save</button>
   </div>
-  <div class="tiny">Campanha: 42 dias × 3 períodos + eventos principais. Primeira jogada: cerca de 70–120 minutos em ritmo normal de leitura; replays abrem outras rotas e finais.</div>
+  <div class="tiny">Campanha completa: 42 dias × 3 períodos + eventos principais, cinco rotas, finais individuais e rota secreta. Cerca de 2–3 horas em uma campanha exploratória; replays revelam outras escolhas e finais.</div>
  </div>
 </section>
 
@@ -86,11 +82,13 @@
 </section>
 </div>
 
-<script src="data.js?v=8"></script>
-<script src="content-extra.js?v=8"></script>
-<script src="choices-extra.js?v=8"></script>
-<script src="game-a.js?v=8"></script>
-<script src="sprites.js?v=8"></script>
-<script src="game-b.js?v=8"></script>
+<script src="save-migrate.js?v=12"></script>
+<script src="data.js?v=12"></script>
+<script src="content-extra.js?v=12"></script>
+<script src="choices-extra.js?v=12"></script>
+<script src="game-a.js?v=12"></script>
+<script src="sprites.js?v=12"></script>
+<script src="asset-loader.js?v=12"></script>
+<script src="game-b.js?v=12"></script>
 </body>
 </html>
