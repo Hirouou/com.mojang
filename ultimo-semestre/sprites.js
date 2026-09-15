@@ -1,9 +1,9 @@
 const VN_SPRITES={
- morgana:"assets/morgana.webp?v=7",
- bianca:"assets/bianca.webp?v=7",
- yumi:"assets/yumi.webp?v=7",
- cecilia:"assets/cecilia.webp?v=7",
- helena:"assets/helena.webp?v=7"
+ morgana:"assets/morgana.webp?v=8",
+ bianca:"assets/bianca.webp?v=8",
+ yumi:"assets/yumi.webp?v=8",
+ cecilia:"assets/cecilia.webp?v=8",
+ helena:"assets/helena.webp?v=8"
 };
 const VN_SPRITE_POS=["0% 0%","100% 0%","0% 100%","100% 100%"];
 const VN_UNKNOWN={
@@ -156,4 +156,31 @@ applyChoice=function(k,type){
  S.totalChoices=(S.totalChoices||0)+1;normalize();vnShowSprite(k,expr);
  pushLog(`Dia ${S.day}: ${C.name} • ${type==="kiss"?"você tentou transformar tensão em beijo":type==="sincere"?"você escolheu sinceridade":type==="tease"?"vocês trocaram provocações":"você foi ousado"}.`);
  setDialogue(C.name,result,[{label:"Continuar",go:advance}]);renderStats();save(true);
+};
+
+solo=function(){
+ const pool=(typeof VN_SOLO_SCENES!=="undefined"&&VN_SOLO_SCENES.length)?VN_SOLO_SCENES:[["biblioteca","Você escolhe produtividade e consegue avançar no TCC."]];
+ const beat=pool[((S.day-1)*3+S.slot)%pool.length];
+ S.confidence=clamp(S.confidence+3);
+ S.reputation=Math.max(-20,S.reputation-1);
+ S.totalChoices=(S.totalChoices||0)+1;
+ pushLog(`Dia ${S.day}: você escolheu cuidar da própria vida.`);
+ setScene(beat[0],null);
+ setDialogue("Narrador",`${beat[1]}<br><br><b>Resultado:</b> você ganha um pouco de confiança e mantém o semestre sob controle. Nem toda escolha importante precisa virar romance.`,[
+  {label:"Continuar",go:advance}
+ ]);
+ S.phase="scene";renderStats();save(true);
+};
+
+const vnBaseRenderStats=renderStats;
+renderStats=function(){
+ vnBaseRenderStats();
+ const body=$("#statsBody");
+ if(!body)return;
+ const known=KEYS.filter(k=>S.chars[k].known).length;
+ const progress=Math.round(((S.day-1)*3+S.slot)/(42*3)*100);
+ const summary=document.createElement("div");
+ summary.className="campaign-progress";
+ summary.innerHTML=`<div><b>Dia ${S.day}/42</b><span>${SLOTS[S.slot]} • ${Math.max(0,Math.min(100,progress))}% da campanha</span></div><div><b>${known}/5</b><span>pessoas conhecidas • ${S.totalChoices||0} escolhas feitas</span></div>`;
+ body.prepend(summary);
 };
