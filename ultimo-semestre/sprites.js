@@ -128,7 +128,12 @@ interaction=function(k){
  let base=beat[1]+"<br><br>"+pickDet(FLAVOR[k],S.day*17+S.slot*5+c.seen*13);
  if(c.aff>50)base+=`<br><br>A intimidade entre vocês já é difícil de fingir. ${C.name} percebe quando você hesita e parece esperar que você faça alguma coisa com isso.`;
  if(c.trust>60)base+=`<br><br>Mais importante: ela fala com você de um jeito que não usa com o resto do campus.`;
- const choices=[
+ const dynamic=(typeof VN_CONTEXT_CHOICES!=="undefined"&&VN_CONTEXT_CHOICES[k])?VN_CONTEXT_CHOICES[k][Math.max(0,c.seen-2)%VN_CONTEXT_CHOICES[k].length]:null;
+ const choices=dynamic?dynamic.map(([label,type])=>({
+  label,
+  hint:type==="bold"?"+ tensão • + confiança em si":type==="sincere"?"+ confiança • + afeição":"+ afeição • + tensão",
+  go:()=>applyChoice(k,type)
+ })):[
   {label:boldLabel(k),hint:"+ tensão • + confiança em si • pode reduzir confiança dela se cedo demais",go:()=>applyChoice(k,"bold")},
   {label:sincereLabel(k),hint:"+ confiança • + afeição • melhor para finais sólidos",go:()=>applyChoice(k,"sincere")},
   {label:teaseLabel(k),hint:"+ afeição • + tensão • depende da química",go:()=>applyChoice(k,"tease")}
