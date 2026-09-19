@@ -12,9 +12,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-arm64-lib:
+  build-patched-apks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -25,14 +25,33 @@ jobs:
           file sakura-lan-mod/native-build-arm64/libsakuralan.so
           readelf -d sakura-lan-mod/native-build-arm64/libsakuralan.so | grep NEEDED || true
 
+      - name: Download Sakura package
+        run: |
+          mkdir -p sakura-lan-mod/arm64/input sakura-lan-mod/arm64/xapk sakura-lan-mod/arm64/patched
+          docker run --rm             -v "$PWD/sakura-lan-mod/arm64/input:/output"             ghcr.io/efforg/apkeep:stable             -a jp.garud.ssimulator@1.048.10 /output
+          unzip -q sakura-lan-mod/arm64/input/*.xapk -d sakura-lan-mod/arm64/xapk
+          find sakura-lan-mod/arm64/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Patch and sign APK splits
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf zip
+          bash sakura-lan-mod/tools/patch_split_pack.sh             sakura-lan-mod/arm64/xapk             sakura-lan-mod/native-build-arm64/libsakuralan.so             sakura-lan-mod/arm64/patched
+          ls -lh sakura-lan-mod/arm64/patched/signed/
+
       - uses: actions/upload-artifact@v4
         with:
-          name: sakuralan-arm64-lib
-          path: sakura-lan-mod/native-build-arm64/libsakuralan.so
+          name: sakura-current-patched-apks
+          path: |
+            sakura-lan-mod/arm64/patched/signed/jp.garud.ssimulator.apk
+            sakura-lan-mod/arm64/patched/signed/config.arm64_v8a.apk
+            sakura-lan-mod/arm64/patched/signed/UnityDataAssetPack.apk
+            sakura-lan-mod/native-build-arm64/libsakuralan.so
           if-no-files-found: error
+          compression-level: 1
 
   current-arm64-patched:
-    needs: build-arm64-lib
+    needs: build-patched-apks
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 55
     steps:
@@ -40,25 +59,13 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: sakuralan-arm64-lib
+          name: sakura-current-patched-apks
           path: sakura-lan-mod/prebuilt
 
-      - name: Download native ARM64 apkeep
+      - name: Show patched package
         run: |
-          mkdir -p sakura-lan-mod/arm64/input sakura-lan-mod/arm64/xapk sakura-lan-mod/arm64/patched
-          curl -L --fail --retry 3             -o sakura-lan-mod/arm64/apkeep             https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-aarch64-unknown-linux-gnu
-          chmod +x sakura-lan-mod/arm64/apkeep
-          sakura-lan-mod/arm64/apkeep             -a jp.garud.ssimulator@1.048.10             sakura-lan-mod/arm64/input
-          unzip -q sakura-lan-mod/arm64/input/*.xapk -d sakura-lan-mod/arm64/xapk
-          find sakura-lan-mod/arm64/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+          find sakura-lan-mod/prebuilt -maxdepth 3 -type f -printf '%p %s\n' | sort
           file sakura-lan-mod/prebuilt/libsakuralan.so
-
-      - name: Patch and re-sign split APK set
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq patchelf zip
-          bash sakura-lan-mod/tools/patch_split_pack.sh             sakura-lan-mod/arm64/xapk             sakura-lan-mod/prebuilt/libsakuralan.so             sakura-lan-mod/arm64/patched
-          ls -lh sakura-lan-mod/arm64/patched/signed/
 
       - name: Enable KVM
         run: |
@@ -82,7 +89,7 @@ jobs:
           script: |
             mkdir -p sakura-lan-mod/arm64/evidence
             adb shell getprop ro.product.cpu.abilist > sakura-lan-mod/arm64/evidence/abilist.txt
-            adb install-multiple -r sakura-lan-mod/arm64/patched/signed/jp.garud.ssimulator.apk sakura-lan-mod/arm64/patched/signed/config.arm64_v8a.apk sakura-lan-mod/arm64/patched/signed/UnityDataAssetPack.apk
+            adb install-multiple -r sakura-lan-mod/prebuilt/jp.garud.ssimulator.apk sakura-lan-mod/prebuilt/config.arm64_v8a.apk sakura-lan-mod/prebuilt/UnityDataAssetPack.apk
             adb shell pm list packages | grep jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/package.txt
             adb logcat -c
             adb shell monkey -p jp.garud.ssimulator -c android.intent.category.LAUNCHER 1 || true
@@ -105,7 +112,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sakura-current-arm64-patched
-          path: |
-            sakura-lan-mod/arm64/evidence/
-            sakura-lan-mod/arm64/patched/work/libmain-signed.so
+          path: sakura-lan-mod/arm64/evidence/
           if-no-files-found: warn
