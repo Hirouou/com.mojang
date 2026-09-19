@@ -112,14 +112,10 @@ const void* image_by_name(Api& a, const char* wanted) {
     void* domain = a.domain_get();
     size_t count = 0;
     const void** assemblies = a.domain_get_assemblies(domain, &count);
-    LOGI("domain assemblies=%zu", count);
     for (size_t i = 0; i < count; ++i) {
         const void* img = a.assembly_get_image(assemblies[i]);
         const char* name = img ? a.image_get_name(img) : nullptr;
-        if (name && (std::strcmp(name, wanted) == 0 ||
-                     (std::strlen(name) > 4 && std::strncmp(name, wanted, std::strlen(wanted)) == 0))) {
-            return img;
-        }
+        if (name && std::strncmp(name, wanted, std::strlen(wanted)) == 0) return img;
     }
     return nullptr;
 }
@@ -153,22 +149,87 @@ void dump_class(Api& a, const void* image, const char* ns, const char* name) {
     }
 }
 
-void* invoke_static_1(Api& a, void* klass, const char* methodName, void* arg0) {
+std::string il2cpp_string_to_ascii(void* strObj) {
+    if (!strObj) return {};
+    auto* base = reinterpret_cast<uint8_t*>(strObj);
+    int32_t slen = *reinterpret_cast<int32_t*>(base + 16);
+    if (slen <= 0 || slen > 300) return {};
+    auto* chars = reinterpret_cast<uint16_t*>(base + 20);
+    std::string out;
+    out.reserve(static_cast<size_t>(slen));
+    for (int32_t i = 0; i < slen; ++i) {
+        const uint16_t ch = chars[i];
+        out.push_back(ch < 128 ? static_cast<char>(ch) : '?');
+    }
+    return out;
+}
+
+void* invoke0(Api& a, void* klass, void* instance, const char* methodName) {
+    const void* m = a.class_get_method_from_name(klass, methodName, 0);
+    if (!m) return nullptr;
+    void* exc = nullptr;
+    void* result = a.runtime_invoke(m, instance, nullptr, &exc);
+    if (exc) LOGE("exception invoking %s", methodName);
+    return exc ? nullptr : result;
+}
+
+void* invoke1(Api& a, void* klass, void* instance, const char* methodName, void* arg0) {
     const void* m = a.class_get_method_from_name(klass, methodName, 1);
     if (!m) return nullptr;
     void* args[1] = {arg0};
     void* exc = nullptr;
-    void* result = a.runtime_invoke(m, nullptr, args, &exc);
+    void* result = a.runtime_invoke(m, instance, args, &exc);
     if (exc) LOGE("exception invoking %s", methodName);
-    return result;
+    return exc ? nullptr : result;
+}
+
+bool playerish(const std::string& n) {
+    return n.find("Player") != std::string::npos ||
+           n.find("Chara") != std::string::npos ||
+           n.find("Character") != std::string::npos ||
+           n.find("Girl") != std::string::npos ||
+           n.find("Boku") != std::string::npos ||
+           n.find("Aida") != std::string::npos;
+}
+
+void log_components(Api& a, const void* unityCore, void* go, const std::string& goName) {
+    void* goClass = a.class_from_name(unityCore, "UnityEngine", "GameObject");
+    void* componentClass = a.class_from_name(unityCore, "UnityEngine", "Component");
+    if (!goClass || !componentClass) return;
+
+    const void* componentType = a.class_get_type(componentClass);
+    void* systemType = a.type_get_object(componentType);
+    void* comps = invoke1(a, goClass, go, "GetComponents", systemType);
+    if (!comps || !a.array_length) return;
+
+    uintptr_t count = a.array_length(comps);
+    if (!count || count > 256) return;
+    auto** vec = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(comps) + 32);
+
+    LOGI(" PLAYER_OBJECT %s components=%zu @%p", goName.c_str(), static_cast<size_t>(count), go);
+    for (uintptr_t i = 0; i < count; ++i) {
+        void* comp = vec[i];
+        if (!comp) continue;
+        void* klass = a.object_get_class(comp);
+        const char* cn = klass ? a.class_get_name(klass) : nullptr;
+        const char* ns = klass ? a.class_get_namespace(klass) : nullptr;
+        LOGI("  COMPONENT %s.%s @%p", ns ? ns : "", cn ? cn : "?", comp);
+    }
+
+    void* transform = invoke0(a, goClass, go, "get_transform");
+    if (!transform) return;
+    void* transformClass = a.object_get_class(transform);
+    if (!transformClass) return;
+    void* boxedPos = invoke0(a, transformClass, transform, "get_position");
+    if (!boxedPos) return;
+    auto* payload = reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(boxedPos) + 16);
+    LOGI("  POSITION %.3f %.3f %.3f", payload[0], payload[1], payload[2]);
 }
 
 void runtime_find_probe(Api& a, const void* unityCore) {
     void* goClass = a.class_from_name(unityCore, "UnityEngine", "GameObject");
-    if (!goClass) {
-        LOGE("UnityEngine.GameObject missing");
-        return;
-    }
+    void* objClass = a.class_from_name(unityCore, "UnityEngine", "Object");
+    if (!goClass || !objClass) return;
 
     const char* names[] = {
         "CharacterBaseManager",
@@ -181,69 +242,30 @@ void runtime_find_probe(Api& a, const void* unityCore) {
         "AidaChild1_FBX(Player",
         "AidaChild1_FBX(Player(Clone)",
     };
-
     for (const char* name : names) {
-        void* s = a.string_new(name);
-        void* obj = invoke_static_1(a, goClass, "Find", s);
-        LOGI("FIND '%s' => %p", name, obj);
+        void* obj = invoke1(a, goClass, nullptr, "Find", a.string_new(name));
+        if (obj) LOGI("FIND '%s' => %p", name, obj);
     }
 
-    // Enumerate active GameObjects through Object.FindObjectsOfType(Type).
-    void* objClass = a.class_from_name(unityCore, "UnityEngine", "Object");
-    if (!objClass || !a.class_get_type || !a.type_get_object) return;
     const void* goType = a.class_get_type(goClass);
     void* systemType = a.type_get_object(goType);
-    const void* findObjects = a.class_get_method_from_name(objClass, "FindObjectsOfType", 1);
-    if (!findObjects) {
-        LOGI("Object.FindObjectsOfType(Type) not found");
-        return;
-    }
-    void* args[1] = {systemType};
-    void* exc = nullptr;
-    void* array = a.runtime_invoke(findObjects, nullptr, args, &exc);
-    if (exc || !array) {
-        LOGE("FindObjectsOfType invocation failed");
-        return;
-    }
+    void* array = invoke1(a, objClass, nullptr, "FindObjectsOfType", systemType);
+    if (!array || !a.array_length) return;
 
-    uintptr_t length = a.array_length ? a.array_length(array) : 0;
-    LOGI("ACTIVE GAMEOBJECTS array=%p length=%zu", array, static_cast<size_t>(length));
-    if (!length || length > 20000) return;
+    uintptr_t length = a.array_length(array);
+    LOGI("ACTIVE GAMEOBJECTS length=%zu", static_cast<size_t>(length));
+    if (!length || length > 30000) return;
 
-    // 64-bit IL2CPP array layout: Il2CppObject(16), bounds(8), max_length(8), vector...
     auto** vec = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(array) + 32);
-    const void* getName = a.class_get_method_from_name(objClass, "get_name", 0);
-    if (!getName) return;
-
     int logged = 0;
-    for (uintptr_t i = 0; i < length && logged < 600; ++i) {
+    for (uintptr_t i = 0; i < length && logged < 80; ++i) {
         void* item = vec[i];
         if (!item) continue;
-        void* e = nullptr;
-        void* strObj = a.runtime_invoke(getName, item, nullptr, &e);
-        if (e || !strObj) continue;
-
-        // Il2CppString: object header 16, int32 length, UTF-16 chars.
-        auto* base = reinterpret_cast<uint8_t*>(strObj);
-        int32_t slen = *reinterpret_cast<int32_t*>(base + 16);
-        if (slen <= 0 || slen > 200) continue;
-        auto* chars = reinterpret_cast<uint16_t*>(base + 20);
-        std::string utf8;
-        utf8.reserve(static_cast<size_t>(slen));
-        for (int32_t c = 0; c < slen; ++c) {
-            uint16_t ch = chars[c];
-            utf8.push_back(ch < 128 ? static_cast<char>(ch) : '?');
-        }
-
-        if (utf8.find("Player") != std::string::npos ||
-            utf8.find("Chara") != std::string::npos ||
-            utf8.find("Character") != std::string::npos ||
-            utf8.find("Girl") != std::string::npos ||
-            utf8.find("Boku") != std::string::npos ||
-            utf8.find("Aida") != std::string::npos) {
-            LOGI(" ACTIVE_GO %s @%p", utf8.c_str(), item);
-            ++logged;
-        }
+        void* strObj = invoke0(a, objClass, item, "get_name");
+        std::string name = il2cpp_string_to_ascii(strObj);
+        if (!playerish(name)) continue;
+        log_components(a, unityCore, item, name);
+        ++logged;
     }
 }
 
@@ -257,12 +279,10 @@ void* worker(void*) {
         return nullptr;
     }
     a.thread_attach(domain);
-
     LOGI("runtime IL2CPP probe attached");
 
     const void* asmCSharp = nullptr;
     const void* unityCore = nullptr;
-
     for (int i = 0; i < 300 && (!asmCSharp || !unityCore); ++i) {
         asmCSharp = image_by_name(a, "Assembly-CSharp");
         unityCore = image_by_name(a, "UnityEngine.CoreModule");
@@ -279,8 +299,7 @@ void* worker(void*) {
     }
 
     if (unityCore) {
-        // Wait for the actual gameplay scene rather than probing only the boot scene.
-        for (int i = 0; i < 120; ++i) {
+        for (int i = 0; i < 150; ++i) {
             runtime_find_probe(a, unityCore);
             sleep(1);
         }
@@ -294,9 +313,6 @@ __attribute__((constructor))
 static void sakura_lan_init() {
     LOGI("libsakuralan loaded");
     pthread_t t{};
-    if (pthread_create(&t, nullptr, worker, nullptr) == 0) {
-        pthread_detach(t);
-    } else {
-        LOGE("pthread_create failed");
-    }
+    if (pthread_create(&t, nullptr, worker, nullptr) == 0) pthread_detach(t);
+    else LOGE("pthread_create failed");
 }
