@@ -1,0 +1,144 @@
+name: Sakura x86 Fast LAN Smoke
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-x86-fast.yml"
+  workflow_dispatch:
+
+jobs:
+  x86-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ARM64 injected library
+        run: |
+          cmake -S sakura-lan-mod/native -B sakura-lan-mod/x86-fast/native-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=24
+          cmake --build sakura-lan-mod/x86-fast/native-build --parallel
+
+      - name: Download and patch Sakura
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sakura-lan-mod/x86-fast/input sakura-lan-mod/x86-fast/xapk sakura-lan-mod/x86-fast/patched
+          docker run --rm \
+            -v "$PWD/sakura-lan-mod/x86-fast/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@1.048.10 /output
+          unzip -q sakura-lan-mod/x86-fast/input/*.xapk -d sakura-lan-mod/x86-fast/xapk
+
+          PLATFORM_JAR="$(find "$ANDROID_HOME/platforms" -maxdepth 2 -type f -name android.jar | sort -V | tail -n1)"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+          mkdir -p sakura-lan-mod/x86-fast/classes sakura-lan-mod/x86-fast/dex
+
+          javac -source 8 -target 8 \
+            -classpath "$PLATFORM_JAR" \
+            -d sakura-lan-mod/x86-fast/classes \
+            sakura-lan-mod/android/jp/garud/ssimulator/SakuraLanActivity.java
+          mapfile -t CLASS_FILES < <(find sakura-lan-mod/x86-fast/classes -type f -name '*.class' | sort)
+          "$BUILD_TOOLS/d8" --min-api 24 \
+            --output sakura-lan-mod/x86-fast/dex \
+            "${CLASS_FILES[@]}"
+
+          curl -L --fail --retry 3 \
+            -o sakura-lan-mod/x86-fast/apktool.jar \
+            https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf zip
+
+          bash sakura-lan-mod/tools/patch_split_pack.sh \
+            sakura-lan-mod/x86-fast/xapk \
+            sakura-lan-mod/x86-fast/native-build/libsakuralan.so \
+            sakura-lan-mod/x86-fast/patched \
+            sakura-lan-mod/x86-fast/dex/classes.dex \
+            sakura-lan-mod/x86-fast/apktool.jar
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm
+
+      - name: Boot x86 emulator and test two-user LAN
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: |
+            set -e
+            OUT=sakura-lan-mod/x86-fast/evidence
+            mkdir -p "$OUT"
+            adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
+            adb shell getprop ro.dalvik.vm.native.bridge | tee "$OUT/native-bridge.txt"
+            adb shell getprop ro.enable.native.bridge.exec | tee "$OUT/native-bridge-enabled.txt"
+
+            adb install-multiple -r \
+              sakura-lan-mod/x86-fast/patched/signed/jp.garud.ssimulator.apk \
+              sakura-lan-mod/x86-fast/patched/signed/config.arm64_v8a.apk \
+              sakura-lan-mod/x86-fast/patched/signed/UnityDataAssetPack.apk
+
+            adb shell pm list packages | grep jp.garud.ssimulator | tee "$OUT/package.txt"
+            adb logcat -c
+
+            adb shell am start -W --user 0 \
+              -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity \
+              --es sakuralan_mode host | tee "$OUT/host-start.txt"
+            sleep 8
+            adb exec-out screencap -p > "$OUT/host.png" || true
+            adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-host.txt" || true
+
+            CREATE="$(adb shell pm create-user SakuraClient)"
+            echo "$CREATE" | tee "$OUT/create-user.txt"
+            CLIENT_USER="$(echo "$CREATE" | sed -n 's/.* id \([0-9][0-9]*\).*/\1/p')"
+            test -n "$CLIENT_USER"
+            echo "$CLIENT_USER" > "$OUT/client-user-id.txt"
+
+            adb shell pm install-existing --user "$CLIENT_USER" jp.garud.ssimulator
+            adb shell am start-user -w "$CLIENT_USER"
+            adb shell am switch-user "$CLIENT_USER"
+            sleep 3
+
+            adb shell am start -W --user "$CLIENT_USER" \
+              -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity \
+              --es sakuralan_mode join \
+              --es sakuralan_host 127.0.0.1 \
+              --ei sakuralan_port 38556 | tee "$OUT/client-start.txt"
+            sleep 15
+
+            adb exec-out screencap -p > "$OUT/client.png" || true
+            adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
+            grep 'SakuraLAN' "$OUT/logcat.txt" | tee "$OUT/sakuralan.txt" || true
+            adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-client.txt" || true
+
+            adb shell am switch-user 0
+            sleep 3
+            adb exec-out screencap -p > "$OUT/host-after-client.png" || true
+
+            grep -q 'NET HOST OK' "$OUT/sakuralan.txt"
+            grep -q 'NET DIRECT JOIN OK' "$OUT/sakuralan.txt"
+            grep -q 'Client joined' "$OUT/sakuralan.txt"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-x86-fast-lan
+          path: sakura-lan-mod/x86-fast/evidence/
+          if-no-files-found: warn
