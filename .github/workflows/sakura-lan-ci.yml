@@ -52,6 +52,8 @@ jobs:
           sed -n '1,700p' sakura-lan-mod/analysis/unity-monoscripts.txt || true
           echo "=== gameplay object hints ==="
           sed -n '1,700p' sakura-lan-mod/analysis/unity-gameobject-hints.txt || true
+          echo "=== GameObject -> MonoBehaviour mappings ==="
+          grep -iE 'player|chara|character|menu|joystick|manager|controller' sakura-lan-mod/analysis/unity-monobehaviour-map.txt | head -n 1200 || true
 
       - name: Dump IL2CPP metadata with Cpp2IL
         shell: bash
@@ -121,6 +123,7 @@ jobs:
             sakura-lan-mod/analysis/asset-symbol-hints.txt
             sakura-lan-mod/analysis/unity-monoscripts.txt
             sakura-lan-mod/analysis/unity-gameobject-hints.txt
+            sakura-lan-mod/analysis/unity-monobehaviour-map.txt
             sakura-lan-mod/analysis/unitypy-errors.txt
             sakura-lan-mod/analysis/cpp2il-paths.txt
             sakura-lan-mod/analysis/cpp2il-processors.txt
