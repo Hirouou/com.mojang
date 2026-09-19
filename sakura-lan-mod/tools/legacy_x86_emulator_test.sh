@@ -21,6 +21,13 @@ tap_new_game() {
   adb shell input tap 900 405 || true
 }
 
+accept_rewarded_ad_prompt() {
+  # The NEW GAME tap opens Sakura's "Start the game after playing video ads"
+  # dialog. OK is centered near x=1110,y=520 on the native landscape surface.
+  sleep 2
+  adb shell input tap 1110 520 || true
+}
+
 echo "=== ABI / NATIVE BRIDGE ==="
 adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
 adb shell getprop ro.product.cpu.abilist32 | tee "$OUT/abilist32.txt"
@@ -44,7 +51,10 @@ unlock_user
 sleep 24
 adb exec-out screencap -p > "$OUT/host-main-menu.png" || true
 tap_new_game
-sleep 28
+accept_rewarded_ad_prompt
+sleep 45
+adb exec-out screencap -p > "$OUT/host-after-ad.png" || true
+sleep 12
 adb exec-out screencap -p > "$OUT/host-game-screen.png" || true
 adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-host.txt" || true
 
@@ -66,7 +76,10 @@ unlock_user
 sleep 24
 adb exec-out screencap -p > "$OUT/client-main-menu.png" || true
 tap_new_game
-sleep 28
+accept_rewarded_ad_prompt
+sleep 45
+adb exec-out screencap -p > "$OUT/client-after-ad.png" || true
+sleep 12
 adb exec-out screencap -p > "$OUT/client-game-screen.png" || true
 
 adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
