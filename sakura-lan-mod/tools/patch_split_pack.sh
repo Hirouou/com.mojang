@@ -6,6 +6,7 @@ PROBE_SO="${2:?libsakuralan.so}"
 OUT_DIR="${3:?output dir}"
 
 mkdir -p "$OUT_DIR/work" "$OUT_DIR/signed"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 WORK="$OUT_DIR/work"
 SIGNED="$OUT_DIR/signed"
 
