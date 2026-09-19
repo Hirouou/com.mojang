@@ -179,6 +179,13 @@ int sakuralan_net_connected() {
 }
 
 extern "C" __attribute__((visibility("default")))
+int sakuralan_net_local_player_id() {
+    std::lock_guard<std::mutex> lock(gSessionMutex);
+    if (gSession.mode() == sakura_lan::LanSession::Mode::Offline) return -1;
+    return static_cast<int>(gSession.localPlayerId());
+}
+
+extern "C" __attribute__((visibility("default")))
 void sakuralan_net_send_state(
     float px, float py, float pz,
     float qx, float qy, float qz, float qw,
