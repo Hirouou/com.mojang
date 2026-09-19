@@ -1,0 +1,48 @@
+name: Sakura Legacy Emulator Capability
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-legacy-emulator-capability.yml"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [28, 30, 32]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm
+
+      - name: Probe 32-bit ARM translation
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_3a
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: |
+            echo "api=${{ matrix.api }}"
+            adb shell getprop ro.product.cpu.abilist
+            adb shell getprop ro.product.cpu.abilist32
+            adb shell getprop ro.product.cpu.abilist64
+            adb shell getprop ro.dalvik.vm.native.bridge
+            adb shell ls -l /system/lib/libndk_translation.so /system/lib/libhoudini.so 2>/dev/null || true
+            adb shell ls -l /system/lib64/libndk_translation.so /system/lib64/libhoudini.so 2>/dev/null || true
