@@ -9,6 +9,12 @@
 #include <thread>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <cmath>
+#include <algorithm>
+#include <map>
+#include <vector>
+#include <tuple>
+#include "../src/LanProtocol.hpp"
 
 extern "C" {
 int sakuralan_net_connected();
@@ -18,6 +24,8 @@ void sakuralan_net_send_state(float px, float py, float pz,
                               float vx, float vy, float vz,
                               uint16_t animationId, uint8_t flags);
 int sakuralan_net_take_remote(float* out13);
+void sakuralan_net_send_visual(const sakura_lan::VisualStatePayload*);
+int sakuralan_net_take_visual(sakura_lan::VisualStatePayload*);
 }
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "SakuraLAN", __VA_ARGS__)
@@ -41,6 +49,18 @@ using ObjectGetClass = void* (*)(void*);
 using ClassGetType = const void* (*)(void*);
 using TypeGetObject = void* (*)(const void*);
 using ArrayLength = uintptr_t (*)(void*);
+using ClassGetMethods = const void* (*)(void*, void**);
+using MethodGetName = const char* (*)(const void*);
+using MethodGetParamCount = uint32_t (*)(const void*);
+using MethodGetParam = const void* (*)(const void*, uint32_t);
+using MethodIsGeneric = bool (*)(const void*);
+using TypeGetName = char* (*)(const void*);
+using Free = void (*)(void*);
+using ObjectUnbox = void* (*)(void*);
+using ObjectNew = void* (*)(void*);
+using ClassGetParent = void* (*)(void*);
+using GcHandleNew = uint32_t (*)(void*, bool);
+using GcHandleFree = void (*)(uint32_t);
 
 struct Api {
     void* lib = nullptr;
@@ -60,6 +80,18 @@ struct Api {
     ClassGetType class_get_type = nullptr;
     TypeGetObject type_get_object = nullptr;
     ArrayLength array_length = nullptr;
+    ClassGetMethods class_get_methods = nullptr;
+    MethodGetName method_get_name = nullptr;
+    MethodGetParamCount method_get_param_count = nullptr;
+    MethodGetParam method_get_param = nullptr;
+    MethodIsGeneric method_is_generic = nullptr;
+    TypeGetName type_get_name = nullptr;
+    Free free_fn = nullptr;
+    ObjectUnbox object_unbox = nullptr;
+    ObjectNew object_new = nullptr;
+    ClassGetParent class_get_parent = nullptr;
+    GcHandleNew gchandle_new = nullptr;
+    GcHandleFree gchandle_free = nullptr;
 };
 
 template <typename T>
@@ -97,6 +129,18 @@ bool load_api(Api& a) {
     ok &= load_symbol(a.lib, "il2cpp_class_get_type", a.class_get_type);
     ok &= load_symbol(a.lib, "il2cpp_type_get_object", a.type_get_object);
     ok &= load_symbol(a.lib, "il2cpp_array_length", a.array_length);
+    ok &= load_symbol(a.lib, "il2cpp_class_get_methods", a.class_get_methods);
+    ok &= load_symbol(a.lib, "il2cpp_method_get_name", a.method_get_name);
+    ok &= load_symbol(a.lib, "il2cpp_method_get_param_count", a.method_get_param_count);
+    ok &= load_symbol(a.lib, "il2cpp_method_get_param", a.method_get_param);
+    ok &= load_symbol(a.lib, "il2cpp_method_is_generic", a.method_is_generic);
+    ok &= load_symbol(a.lib, "il2cpp_type_get_name", a.type_get_name);
+    ok &= load_symbol(a.lib, "il2cpp_free", a.free_fn);
+    ok &= load_symbol(a.lib, "il2cpp_object_unbox", a.object_unbox);
+    ok &= load_symbol(a.lib, "il2cpp_object_new", a.object_new);
+    ok &= load_symbol(a.lib, "il2cpp_class_get_parent", a.class_get_parent);
+    ok &= load_symbol(a.lib, "il2cpp_gchandle_new", a.gchandle_new);
+    ok &= load_symbol(a.lib, "il2cpp_gchandle_free", a.gchandle_free);
     return ok;
 }
 
@@ -117,15 +161,38 @@ const void* find_image(Api& a, const char* prefix) {
     return nullptr;
 }
 
-void* invoke(Api& a,
-             void* klass,
-             void* instance,
-             const char* name,
-             int argc,
-             void** args = nullptr) {
-    const void* method = a.class_get_method_from_name(klass, name, argc);
-    if (!method) return nullptr;
+// Select by concrete parameter types, never by arity alone (e.g. Play has
+// both string and int overloads; GetComponents also has List overloads).
+const void* find_method(Api& a, void* klass, const char* name, int argc,
+                        const char* const* types = nullptr) {
+    std::string signature;
+    for (int i = 0; types && i < argc; ++i) signature += std::string(types[i]) + ";";
+    using Key = std::tuple<void*, std::string, int, std::string>;
+    static std::map<Key, const void*> cache;
+    const Key key{klass, name, argc, signature};
+    auto cached = cache.find(key);
+    if (cached != cache.end()) return cached->second;
+    for (void* current = klass; current; current = a.class_get_parent(current)) {
+        void* iter = nullptr;
+        while (const void* m = a.class_get_methods(current, &iter)) {
+            if (a.method_is_generic(m) || a.method_get_param_count(m) != static_cast<uint32_t>(argc) ||
+                std::strcmp(a.method_get_name(m), name) != 0) continue;
+            bool match = true;
+            for (int i = 0; types && i < argc; ++i) {
+                char* type = a.type_get_name(a.method_get_param(m, i));
+                match &= type && std::strcmp(type, types[i]) == 0;
+                if (type) a.free_fn(type);
+            }
+            if (match) return cache[key] = m;
+        }
+    }
+    return nullptr;
+}
 
+void* invoke(Api& a, void* klass, void* instance, const char* name, int argc,
+             void** args = nullptr, const char* const* types = nullptr) {
+    const void* method = find_method(a, klass, name, argc, types);
+    if (!method) return nullptr;
     void* exception = nullptr;
     void* result = a.runtime_invoke(method, instance, args, &exception);
     if (exception) {
@@ -141,10 +208,17 @@ void* invoke0(Api& a, void* klass, void* instance, const char* name) {
 
 void* invoke1(Api& a, void* klass, void* instance, const char* name, void* arg0) {
     void* args[1] = {arg0};
-    return invoke(a, klass, instance, name, 1, args);
+    const char* type = nullptr;
+    if (std::strcmp(name, "GetComponents") == 0 ||
+        std::strcmp(name, "GetComponent") == 0 ||
+        std::strcmp(name, "FindObjectsOfType") == 0 ||
+        std::strcmp(name, "FindObjectsOfTypeAll") == 0) type = "System.Type";
+    if (std::strcmp(name, "Instantiate") == 0 ||
+        std::strcmp(name, "DestroyImmediate") == 0) type = "UnityEngine.Object";
+    return invoke(a, klass, instance, name, 1, args, type ? &type : nullptr);
 }
 
-std::string string_utf8_ascii(void* str) {
+std::string string_utf8(void* str) {
     if (!str) return {};
     const auto* base = reinterpret_cast<const uint8_t*>(str);
     const size_t lengthOffset = sizeof(void*) * 2;
@@ -156,8 +230,25 @@ std::string string_utf8_ascii(void* str) {
     std::string out;
     out.reserve(static_cast<size_t>(length));
     for (int32_t i = 0; i < length; ++i) {
-        const uint16_t ch = chars[i];
-        out.push_back(ch < 0x80 ? static_cast<char>(ch) : '?');
+        uint32_t ch = chars[i];
+        if (ch >= 0xd800 && ch <= 0xdbff && i + 1 < length &&
+            chars[i + 1] >= 0xdc00 && chars[i + 1] <= 0xdfff) {
+            ch = 0x10000 + ((ch - 0xd800) << 10) + (chars[++i] - 0xdc00);
+        }
+        if (ch < 0x80) out.push_back(static_cast<char>(ch));
+        else if (ch < 0x800) {
+            out.push_back(static_cast<char>(0xc0 | (ch >> 6)));
+            out.push_back(static_cast<char>(0x80 | (ch & 63)));
+        } else if (ch < 0x10000) {
+            out.push_back(static_cast<char>(0xe0 | (ch >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((ch >> 6) & 63)));
+            out.push_back(static_cast<char>(0x80 | (ch & 63)));
+        } else {
+            out.push_back(static_cast<char>(0xf0 | (ch >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((ch >> 12) & 63)));
+            out.push_back(static_cast<char>(0x80 | ((ch >> 6) & 63)));
+            out.push_back(static_cast<char>(0x80 | (ch & 63)));
+        }
     }
     return out;
 }
@@ -199,6 +290,10 @@ void* gRemoteGameObject = nullptr;
 void* gRemoteTransform = nullptr;
 std::atomic<bool> gClientOffsetDone{false};
 std::chrono::steady_clock::time_point gLastSend{};
+std::vector<uint32_t> gPlayerHandles;
+void retain_player_object(void* object) {
+    if (object) gPlayerHandles.push_back(gApi.gchandle_new(object, false));
+}
 
 bool resolve_runtime_classes() {
     if (!gUnityCore || !gAssembly) return false;
@@ -210,8 +305,10 @@ bool resolve_runtime_classes() {
         gGameObjectClass = gApi.class_from_name(gUnityCore, "UnityEngine", "GameObject");
     if (!gBehaviourClass)
         gBehaviourClass = gApi.class_from_name(gUnityCore, "UnityEngine", "Behaviour");
-    if (!gAnimatorClass)
-        gAnimatorClass = gApi.class_from_name(gUnityCore, "UnityEngine", "Animator");
+    if (!gAnimatorClass) {
+        const void* animationImage = find_image(gApi, "UnityEngine.AnimationModule");
+        if (animationImage) gAnimatorClass = gApi.class_from_name(animationImage, "UnityEngine", "Animator");
+    }
     if (!gCharaMoveClass)
         gCharaMoveClass = gApi.class_from_name(gAssembly, "", "CharaMove");
 
@@ -226,7 +323,7 @@ bool cache_local_player(void* self) {
     if (!go) return false;
 
     const std::string name =
-        string_utf8_ascii(invoke0(gApi, gObjectClass, go, "get_name"));
+        string_utf8(invoke0(gApi, gObjectClass, go, "get_name"));
 
     if (name.find("Player") == std::string::npos ||
         name.find("SAKURA_LAN_REMOTE") != std::string::npos) {
@@ -242,6 +339,9 @@ bool cache_local_player(void* self) {
         return false;
     }
 
+    retain_player_object(self);
+    retain_player_object(go);
+    retain_player_object(transform);
     gLocalGameObject = go;
     gLocalTransform = transform;
     LOGI("ARMHOOK LOCAL name=%s move=%p go=%p transform=%p",
@@ -249,76 +349,147 @@ bool cache_local_player(void* self) {
     return true;
 }
 
-void disable_remote_behaviours(void* clone) {
-    if (!clone || !gBehaviourClass) return;
+template <typename T>
+bool unbox_value(void* boxed, T& out) {
+    if (!boxed) return false;
+    void* value = gApi.object_unbox(boxed);
+    if (!value) return false;
+    std::memcpy(&out, value, sizeof(T));
+    return true;
+}
 
-    const void* behaviourType = gApi.class_get_type(gBehaviourClass);
-    void* systemType = behaviourType ? gApi.type_get_object(behaviourType) : nullptr;
-    if (!systemType) return;
-
-    void* components =
-        invoke1(gApi, gGameObjectClass, clone, "GetComponents", systemType);
-    if (!components) return;
-
-    const uintptr_t count = gApi.array_length(components);
-    if (!count || count > 128) return;
-
+std::vector<void*> array_objects(void* array) {
+    if (!array) return {};
+    const uintptr_t n = gApi.array_length(array);
+    if (n > 8192) return {};
     auto** items = reinterpret_cast<void**>(
-        reinterpret_cast<uint8_t*>(components) + sizeof(void*) * 4);
+        static_cast<uint8_t*>(array) + sizeof(void*) * 4);
+    return std::vector<void*>(items, items + n);
+}
 
-    for (uintptr_t i = 0; i < count; ++i) {
-        void* component = items[i];
+std::vector<void*> child_components(void* go, void* klass) {
+    if (!klass || !go) return {};
+    void* type = gApi.type_get_object(gApi.class_get_type(klass));
+    bool includeInactive = true;
+    void* args[]{type, &includeInactive};
+    const char* types[]{"System.Type", "System.Boolean"};
+    return array_objects(invoke(gApi, gGameObjectClass, go,
+                                "GetComponentsInChildren", 2, args, types));
+}
+
+bool derives_from(void* klass, const char* name) {
+    for (; klass; klass = gApi.class_get_parent(klass)) {
+        if (std::strcmp(gApi.class_get_name(klass), name) == 0) return true;
+    }
+    return false;
+}
+
+bool unity_alive(void* object) {
+    bool alive = false;
+    return object && unbox_value(invoke1(gApi, gObjectClass, nullptr,
+                                         "op_Implicit", object), alive) && alive;
+}
+
+void make_visual_replica(void* clone, bool stripScripts) {
+    for (void* component : child_components(clone, gComponentClass)) {
         if (!component) continue;
-
         void* klass = gApi.object_get_class(component);
-        const char* className = klass ? gApi.class_get_name(klass) : nullptr;
-        if (className && std::strcmp(className, "Animator") == 0) continue;
-
-        uint8_t disabled = 0;
-        invoke1(gApi, gBehaviourClass, component, "set_enabled", &disabled);
+        const char* name = gApi.class_get_name(klass);
+        bool off = false;
+        if (std::strcmp(name, "Animator") == 0) {
+            invoke1(gApi, klass, component, "set_applyRootMotion", &off);
+        } else if (derives_from(klass, "MonoBehaviour")) {
+            if (stripScripts) invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
+            else invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
+        } else if (std::strcmp(name, "Camera") == 0 ||
+                   std::strcmp(name, "AudioListener") == 0 ||
+                   std::strcmp(name, "AudioSource") == 0) {
+            invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
+        } else if (stripScripts && derives_from(klass, "Collider")) {
+            invoke1(gApi, klass, component, "set_enabled", &off);
+        } else if (std::strcmp(name, "Rigidbody") == 0) {
+            bool on = true;
+            invoke1(gApi, klass, component, "set_isKinematic", &on);
+            if (stripScripts) invoke1(gApi, klass, component, "set_detectCollisions", &off);
+        }
     }
 }
 
 bool create_remote_avatar() {
-    if (gRemoteGameObject && gRemoteTransform) return true;
+    if (gRemoteGameObject && gRemoteTransform) {
+        if (unity_alive(gRemoteGameObject)) return true;
+        gRemoteGameObject = gRemoteTransform = nullptr;
+    }
     if (!gLocalGameObject || !resolve_runtime_classes()) return false;
 
-    void* clone = invoke1(
-        gApi, gObjectClass, nullptr, "Instantiate", gLocalGameObject);
+    // Instantiate beneath an inactive staging parent. This prevents copied
+    // gameplay Awake/OnEnable methods from running before scripts are removed.
+    void* stage = gApi.object_new(gGameObjectClass);
+    if (!stage) return false;
+    invoke1(gApi, gGameObjectClass, stage, ".ctor", gApi.string_new("SAKURA_LAN_STAGING"));
+    if (!unity_alive(stage)) return false;
+    bool off = false;
+    invoke1(gApi, gGameObjectClass, stage, "SetActive", &off);
+    void* parent = invoke0(gApi, gGameObjectClass, stage, "get_transform");
+    bool active = true;
+    if (!parent || !unbox_value(invoke0(gApi, gGameObjectClass, stage, "get_activeSelf"), active) || active) {
+        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
+        return false;
+    }
+    void* args[]{gLocalGameObject, parent, &off};
+    const char* types[]{"UnityEngine.Object", "UnityEngine.Transform", "System.Boolean"};
+    void* clone = invoke(gApi, gObjectClass, nullptr, "Instantiate", 3, args, types);
     if (!clone) {
+        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
         LOGE("ARMHOOK remote Instantiate failed");
         return false;
     }
-
-    void* remoteName = gApi.string_new("SAKURA_LAN_REMOTE");
-    invoke1(gApi, gObjectClass, clone, "set_name", remoteName);
-    disable_remote_behaviours(clone);
-
+    invoke1(gApi, gObjectClass, clone, "set_name", gApi.string_new("SAKURA_LAN_REMOTE"));
+    make_visual_replica(clone, true);
     void* transform = invoke0(gApi, gGameObjectClass, clone, "get_transform");
     if (!transform) {
-        LOGE("ARMHOOK remote transform missing");
+        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
         return false;
     }
-
-    gRemoteGameObject = clone;
-    gRemoteTransform = transform;
-
     void* transformClass = gApi.object_get_class(transform);
     Vec3 local{};
-    if (transformClass &&
-        boxed_vec3(invoke0(gApi, transformClass, gLocalTransform, "get_position"),
-                   local)) {
-        Vec3 initial{local.x + 2.0f, local.y, local.z};
-        invoke1(gApi, transformClass, transform, "set_position", &initial);
+    if (boxed_vec3(invoke0(gApi, transformClass, gLocalTransform, "get_position"), local)) {
+        local.x += 2.25f;
+        invoke1(gApi, transformClass, transform, "set_position", &local);
     }
-
-    LOGI("ARMHOOK REMOTE CREATED go=%p transform=%p",
-         gRemoteGameObject, gRemoteTransform);
+    bool worldPositionStays = true;
+    void* parentArgs[]{nullptr, &worldPositionStays};
+    const char* parentTypes[]{"UnityEngine.Transform", "System.Boolean"};
+    invoke(gApi, transformClass, transform, "SetParent", 2, parentArgs, parentTypes);
+    if (invoke0(gApi, transformClass, transform, "get_parent")) {
+        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
+        return false;
+    }
+    invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
+    gRemoteGameObject = clone;
+    gRemoteTransform = transform;
+    retain_player_object(clone);
+    retain_player_object(transform);
+    LOGI("ARMHOOK REMOTE CREATED go=%p transform=%p", clone, transform);
     return true;
 }
 
+#include "VisualRuntimeSync.inc"
+
 void multiplayer_tick(void* self) {
     if (!sakuralan_net_connected()) return;
+    if (gLocalGameObject && !unity_alive(gLocalGameObject)) {
+        reset_visual_sync();
+        if (unity_alive(gRemoteGameObject))
+            invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteGameObject);
+        for (uint32_t handle : gPlayerHandles) gApi.gchandle_free(handle);
+        gPlayerHandles.clear();
+        gLocalMove = nullptr;
+        gLocalGameObject = gLocalTransform = nullptr;
+        gRemoteGameObject = gRemoteTransform = nullptr;
+        gClientOffsetDone = false;
+        gLastSend = {};
+    }
 
     void* selected = gLocalMove.load();
     if (!selected) {
@@ -331,17 +502,19 @@ void multiplayer_tick(void* self) {
     if (!transformClass) return;
 
     if (sakuralan_net_local_player_id() == 1 &&
-        !gClientOffsetDone.exchange(true)) {
+        !gClientOffsetDone.load()) {
         Vec3 p{};
         if (boxed_vec3(
                 invoke0(gApi, transformClass, gLocalTransform, "get_position"), p)) {
             p.x += 2.25f;
             invoke1(gApi, transformClass, gLocalTransform, "set_position", &p);
+            gClientOffsetDone = true;
             LOGI("ARMHOOK CLIENT OFFSET %.2f %.2f %.2f", p.x, p.y, p.z);
         }
     }
 
     if (!create_remote_avatar()) return;
+    visual_sync_tick();
 
     const auto now = std::chrono::steady_clock::now();
     if (gLastSend.time_since_epoch().count() == 0 ||
@@ -367,6 +540,10 @@ void multiplayer_tick(void* self) {
     void* remoteTransformClass = gApi.object_get_class(gRemoteTransform);
     if (!remoteTransformClass) return;
 
+    for (int i = 0; i < 7; ++i) if (!std::isfinite(remote[i])) return;
+    const float norm = remote[3]*remote[3] + remote[4]*remote[4] +
+                       remote[5]*remote[5] + remote[6]*remote[6];
+    if (norm < 0.5f || norm > 1.5f) return;
     Vec3 p{remote[0], remote[1], remote[2]};
     Quat q{remote[3], remote[4], remote[5], remote[6]};
     invoke1(gApi, remoteTransformClass, gRemoteTransform, "set_position", &p);
@@ -403,7 +580,7 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     if (!target || !hook || !trampolineOut) return false;
 
     const uintptr_t targetAddr = reinterpret_cast<uintptr_t>(target);
-    if (targetAddr & 1u) {
+    if (targetAddr & 3u) {
         LOGE("ARMHOOK target is Thumb; unsupported target=%p", target);
         return false;
     }
@@ -413,18 +590,11 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     LOGI("ARMHOOK prologue %08x %08x %08x %08x",
          first[0], first[1], first[2], first[3]);
 
-    // We replay 8 bytes in the trampoline. IL2CPP ARM32 functions normally begin
-    // with PUSH/SUB register prologue instructions which are safe to replay.
-    // Reject obvious ARM branches or PC-relative literal loads in those 2 words.
-    for (int i = 0; i < 2; ++i) {
-        const uint32_t insn = first[i];
-        const bool branch = (insn & 0x0E000000u) == 0x0A000000u;
-        const bool pcLiteralLoad =
-            (insn & 0x0F7F0000u) == 0x051F0000u;
-        if (branch || pcLiteralLoad) {
-            LOGE("ARMHOOK unsafe prologue word[%d]=%08x", i, insn);
-            return false;
-        }
+    // Verified 1.043.04 ARM32 prologue: PUSH + VPUSH, neither reads PC.
+    // Fail closed on another build rather than pretending to relocate ARM.
+    if (first[0] != 0xe92d4bf0u || first[1] != 0xed2d8b06u) {
+        LOGE("ARMHOOK unsupported CharaMove.Update prologue");
+        return false;
     }
 
     const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
@@ -554,7 +724,11 @@ void* worker(void*) {
 
     if (!load_api(gApi)) return nullptr;
 
-    void* domain = gApi.domain_get();
+    void* domain = nullptr;
+    for (int i = 0; i < 600 && !domain; ++i) {
+        domain = gApi.domain_get();
+        if (!domain) usleep(100000);
+    }
     if (!domain) {
         LOGE("ARMHOOK domain unavailable");
         return nullptr;

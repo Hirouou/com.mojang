@@ -22,3 +22,11 @@ The build is **not** considered ready until all of these are true:
 - Player-state packets at a 20 Hz target.
 - Game-specific access isolated behind `GameBridge`.
 - CI analysis of the exact Android package to determine Mono vs IL2CPP and locate Unity metadata.
+
+## Correções da integração 1.043.04
+
+Consulte [STATUS.md](STATUS.md) para alterações e limites atuais do protocolo v2.
+Ambos os APKs precisam ser recompilados. A nova integração visual ainda aguarda
+validação em Android; não comprova sincronização de todo o mundo ou das interações.
+Por solicitação do usuário, esta etapa faz apenas correções com `[skip ci]`;
+os próximos testes devem ser autorizados em outra conversa.

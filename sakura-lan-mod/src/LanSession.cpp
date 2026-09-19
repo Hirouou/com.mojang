@@ -43,6 +43,7 @@ void LanSession::stop() {
     connected_ = false;
     sessionId_ = 0;
     peer_ = {};
+    hasRemoteStateSequence_ = false;
 }
 
 void LanSession::sendPacket(UdpTransport& tx, const Endpoint& to, PacketType type, const void* payload, uint32_t payloadBytes) {
@@ -82,6 +83,7 @@ bool LanSession::discover(uint32_t nonce, std::vector<RoomInfo>& rooms, int wait
         if (!decodePayload(payload, h.payloadBytes, a) || a.nonce != nonce) continue;
 
         RoomInfo r;
+        a.roomName[sizeof(a.roomName) - 1] = 0;
         r.name = a.roomName;
         r.endpoint = {d->from.ip, a.port};
         r.sessionId = a.sessionId;
@@ -151,19 +153,36 @@ void LanSession::pump(int timeoutMs) {
     if (mode_ == Mode::Host && h.type == PacketType::JoinRequest) {
         JoinRequestPayload req{};
         if (!decodePayload(payload, h.payloadBytes, req)) return;
+        if (connected_ && (peer_.ip != d->from.ip || peer_.port != d->from.port)) return;
         peer_ = {d->from.ip, d->from.port};
         connected_ = true;
         JoinAcceptPayload a{};
         a.sessionId = sessionId_;
         a.playerId = 1;
         sendPacket(game_, peer_, PacketType::JoinAccept, &a, sizeof(a));
+        req.playerName[sizeof(req.playerName) - 1] = 0;
         log(std::string("Client joined: ") + req.playerName);
         return;
     }
 
+    if (connected_ && (d->from.ip != peer_.ip || d->from.port != peer_.port)) return;
+    if (h.type == PacketType::VisualState && connected_) {
+        VisualStatePayload s{};
+        if (!decodePayload(payload, h.payloadBytes, s) || s.sessionId != sessionId_ ||
+            s.playerId == localPlayerId_ || s.playerId > 1 || s.npc > 1 ||
+            (s.npc && (mode_ != Mode::Client || s.playerId != 0))) return;
+        if (!std::memchr(s.entity, 0, sizeof(s.entity)) ||
+            !std::memchr(s.node, 0, sizeof(s.node)) ||
+            !std::memchr(s.asset, 0, sizeof(s.asset))) return;
+        if (onVisualState) onVisualState(s);
+    }
     if (h.type == PacketType::PlayerState && connected_) {
         PlayerStatePayload s{};
-        if (!decodePayload(payload, h.payloadBytes, s) || s.sessionId != sessionId_) return;
+        if (!decodePayload(payload, h.payloadBytes, s) || s.sessionId != sessionId_ ||
+            s.playerId == localPlayerId_ || s.playerId > 1) return;
+        if (hasRemoteStateSequence_ && static_cast<int32_t>(h.sequence - remoteStateSequence_) <= 0) return;
+        hasRemoteStateSequence_ = true;
+        remoteStateSequence_ = h.sequence;
         if (onRemoteState) onRemoteState(s);
     }
 }
@@ -175,6 +194,15 @@ void LanSession::sendLocalState(const PlayerStatePayload& in) {
     s.playerId = localPlayerId_;
     s.tickMs = nowMs();
     sendPacket(game_, peer_, PacketType::PlayerState, &s, sizeof(s));
+}
+
+void LanSession::sendVisualState(const VisualStatePayload& in) {
+    if (!connected_ || mode_ == Mode::Offline || (in.npc && mode_ != Mode::Host)) return;
+    VisualStatePayload s = in;
+    s.sessionId = sessionId_;
+    s.playerId = localPlayerId_;
+    s.sequence = sequence_;
+    sendPacket(game_, peer_, PacketType::VisualState, &s, sizeof(s));
 }
 
 } // namespace sakura_lan

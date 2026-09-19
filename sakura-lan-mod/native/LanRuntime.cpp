@@ -4,6 +4,8 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <map>
+#include <tuple>
 #include <string>
 #include <thread>
 #include <vector>
@@ -18,6 +20,9 @@ std::mutex gRemoteMutex;
 sakura_lan::LanSession gSession;
 sakura_lan::PlayerStatePayload gRemote{};
 std::atomic<bool> gHasRemote{false};
+using VisualKey = std::tuple<uint8_t, std::string, std::string, uint8_t, int32_t>;
+std::map<VisualKey, sakura_lan::VisualStatePayload> gVisualPending;
+std::map<VisualKey, uint32_t> gVisualSequence;
 std::atomic<bool> gCallbacksConfigured{false};
 std::atomic<bool> gPumpRunning{false};
 
@@ -26,6 +31,18 @@ void ensure_callbacks() {
 
     gSession.onLog = [](const std::string& s) {
         LOGI("NET %s", s.c_str());
+    };
+
+    gSession.onVisualState = [](const sakura_lan::VisualStatePayload& state) {
+        std::lock_guard<std::mutex> lock(gRemoteMutex);
+        VisualKey key{state.npc, state.entity, state.node,
+                      static_cast<uint8_t>(state.kind), state.layer};
+        auto previous = gVisualSequence.find(key);
+        if (previous != gVisualSequence.end() &&
+            static_cast<int32_t>(state.sequence - previous->second) <= 0) return;
+        if (previous == gVisualSequence.end() && gVisualSequence.size() >= 4096) return;
+        gVisualSequence[key] = state.sequence;
+        gVisualPending[key] = state; // Coalesce; never call Unity from UDP thread.
     };
 
     gSession.onRemoteState = [](const sakura_lan::PlayerStatePayload& state) {
@@ -54,7 +71,9 @@ void ensure_pump_thread() {
             {
                 std::lock_guard<std::mutex> lock(gSessionMutex);
                 if (gSession.mode() != sakura_lan::LanSession::Mode::Offline) {
-                    gSession.pump(2);
+                    // Drain snapshots in bursts; one receive per sleep capped
+                    // throughput below the NPC/animation update rate.
+                    for (int i = 0; i < 32; ++i) gSession.pump(0);
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(4));
@@ -64,9 +83,18 @@ void ensure_pump_thread() {
     }).detach();
 }
 
+void reset_remote_state() {
+    std::lock_guard<std::mutex> lock(gRemoteMutex);
+    gHasRemote = false;
+    gRemote = {};
+    gVisualPending.clear();
+    gVisualSequence.clear();
+}
+
 bool ensure_client_locked() {
     ensure_callbacks();
     if (gSession.mode() == sakura_lan::LanSession::Mode::Client) return true;
+    reset_remote_state();
     if (!gSession.startClient()) return false;
     ensure_pump_thread();
     return true;
@@ -82,6 +110,7 @@ int sakuralan_net_host(const char* roomName, uint32_t sessionId) {
     const std::string room =
         (roomName && *roomName) ? roomName : "Sakura LAN";
 
+    reset_remote_state();
     const bool ok =
         gSession.startHost(room, sessionId ? sessionId : 0x53414B55u);
 
@@ -206,10 +235,28 @@ void sakuralan_net_send_state(
 }
 
 extern "C" __attribute__((visibility("default")))
-int sakuralan_net_take_remote(float* out13) {
-    if (!out13 || !gHasRemote.exchange(false)) return 0;
+void sakuralan_net_send_visual(const sakura_lan::VisualStatePayload* state) {
+    if (!state) return;
+    std::lock_guard<std::mutex> lock(gSessionMutex);
+    gSession.sendVisualState(*state);
+}
 
+extern "C" __attribute__((visibility("default")))
+int sakuralan_net_take_visual(sakura_lan::VisualStatePayload* state) {
+    if (!state) return 0;
     std::lock_guard<std::mutex> lock(gRemoteMutex);
+    if (gVisualPending.empty()) return 0;
+    auto it = gVisualPending.begin();
+    *state = it->second;
+    gVisualPending.erase(it);
+    return 1;
+}
+
+extern "C" __attribute__((visibility("default")))
+int sakuralan_net_take_remote(float* out13) {
+    if (!out13) return 0;
+    std::lock_guard<std::mutex> lock(gRemoteMutex);
+    if (!gHasRemote.exchange(false)) return 0;
     const auto state = gRemote;
 
     out13[0] = state.position.x;
