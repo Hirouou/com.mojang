@@ -25,6 +25,9 @@ int sakuralan_net_take_remote(float* out13);
 
 namespace {
 
+constexpr size_t kIl2CppObjectHeader = sizeof(void*) * 2;
+constexpr size_t kIl2CppArrayVectorOffset = sizeof(void*) * 4;
+
 using DomainGet = void* (*)();
 using ThreadAttach = void* (*)(void*);
 using DomainGetAssemblies = const void** (*)(const void*, size_t*);
@@ -165,9 +168,9 @@ void dump_class(Api& a, const void* image, const char* ns, const char* name) {
 std::string il2cpp_string_to_ascii(void* strObj) {
     if (!strObj) return {};
     auto* base = reinterpret_cast<uint8_t*>(strObj);
-    int32_t slen = *reinterpret_cast<int32_t*>(base + 16);
+    int32_t slen = *reinterpret_cast<int32_t*>(base + kIl2CppObjectHeader);
     if (slen <= 0 || slen > 300) return {};
-    auto* chars = reinterpret_cast<uint16_t*>(base + 20);
+    auto* chars = reinterpret_cast<uint16_t*>(base + kIl2CppObjectHeader + sizeof(int32_t));
     std::string out;
     out.reserve(static_cast<size_t>(slen));
     for (int32_t i = 0; i < slen; ++i) {
@@ -217,7 +220,7 @@ void log_components(Api& a, const void* unityCore, void* go, const std::string& 
 
     uintptr_t count = a.array_length(comps);
     if (!count || count > 256) return;
-    auto** vec = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(comps) + 32);
+    auto** vec = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(comps) + kIl2CppArrayVectorOffset);
 
     LOGI(" PLAYER_OBJECT %s components=%zu @%p", goName.c_str(), static_cast<size_t>(count), go);
     for (uintptr_t i = 0; i < count; ++i) {
@@ -235,7 +238,7 @@ void log_components(Api& a, const void* unityCore, void* go, const std::string& 
     if (!transformClass) return;
     void* boxedPos = invoke0(a, transformClass, transform, "get_position");
     if (!boxedPos) return;
-    auto* payload = reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(boxedPos) + 16);
+    auto* payload = reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(boxedPos) + kIl2CppObjectHeader);
     LOGI("  POSITION %.3f %.3f %.3f", payload[0], payload[1], payload[2]);
 }
 
@@ -269,7 +272,7 @@ void runtime_find_probe(Api& a, const void* unityCore) {
     LOGI("ACTIVE GAMEOBJECTS length=%zu", static_cast<size_t>(length));
     if (!length || length > 30000) return;
 
-    auto** vec = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(array) + 32);
+    auto** vec = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(array) + kIl2CppArrayVectorOffset);
     int logged = 0;
     for (uintptr_t i = 0; i < length && logged < 80; ++i) {
         void* item = vec[i];
@@ -301,7 +304,7 @@ std::chrono::steady_clock::time_point gLastNetSend{};
 bool read_vec3_box(void* boxed, Float3& out) {
     if (!boxed) return false;
     const auto* v = reinterpret_cast<const float*>(
-        reinterpret_cast<const uint8_t*>(boxed) + 16);
+        reinterpret_cast<const uint8_t*>(boxed) + kIl2CppObjectHeader);
     out = {v[0], v[1], v[2]};
     return true;
 }
@@ -309,7 +312,7 @@ bool read_vec3_box(void* boxed, Float3& out) {
 bool read_quat_box(void* boxed, Float4& out) {
     if (!boxed) return false;
     const auto* v = reinterpret_cast<const float*>(
-        reinterpret_cast<const uint8_t*>(boxed) + 16);
+        reinterpret_cast<const uint8_t*>(boxed) + kIl2CppObjectHeader);
     out = {v[0], v[1], v[2], v[3]};
     return true;
 }
