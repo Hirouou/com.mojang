@@ -15,7 +15,9 @@ app = root.find("application")
 if app is None:
     raise SystemExit("application element not found")
 
-# Remove MAIN/LAUNCHER from the original launcher activity/alias.
+# Remove MAIN/LAUNCHER from the original launcher activity/alias, but remember
+# the original target so the LAN menu can launch the real Unity activity.
+original_launcher = None
 for tag in ("activity", "activity-alias"):
     for node in list(app.findall(tag)):
         for intent in list(node.findall("intent-filter")):
@@ -28,7 +30,20 @@ for tag in ("activity", "activity-alias"):
                 for c in intent.findall("category")
             )
             if has_main and has_launcher:
+                if original_launcher is None:
+                    original_launcher = node.get(A + "targetActivity") or node.get(A + "name")
                 node.remove(intent)
+
+if not original_launcher:
+    original_launcher = "com.unity3d.player.UnityPlayerActivity"
+
+meta_name = "jp.garud.ssimulator.SAKURA_ORIGINAL_ACTIVITY"
+for old in list(app.findall("meta-data")):
+    if old.get(A + "name") == meta_name:
+        app.remove(old)
+meta = ET.SubElement(app, "meta-data")
+meta.set(A + "name", meta_name)
+meta.set(A + "value", original_launcher)
 
 # Reuse or add our Activity.
 launcher = None
@@ -64,3 +79,4 @@ for perm in wanted_permissions:
 
 tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 print("launcher patched:", launcher_name)
+print("original launcher:", original_launcher)
