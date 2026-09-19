@@ -22,6 +22,7 @@ public final class SakuraLanActivity extends Activity {
 
     private static native int nativeHost();
     private static native int nativeJoin();
+    private static native int nativeJoinAddress(String host, int port);
     private static native int nativeConnected();
 
     private LinearLayout root;
@@ -30,6 +31,9 @@ public final class SakuraLanActivity extends Activity {
     private Button joinButton;
     private ProgressBar progress;
 
+    private String debugJoinHost;
+    private int debugJoinPort = 38556;
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -37,7 +41,11 @@ public final class SakuraLanActivity extends Activity {
 
         // CI/debug shortcut: allows two automated Android instances to choose
         // Host or Join without relying on fragile screen-coordinate taps.
-        final String mode = getIntent().getStringExtra("sakuralan_mode");
+        final Intent intent = getIntent();
+        final String mode = intent.getStringExtra("sakuralan_mode");
+        debugJoinHost = intent.getStringExtra("sakuralan_host");
+        debugJoinPort = intent.getIntExtra("sakuralan_port", 38556);
+
         if ("host".equalsIgnoreCase(mode)) {
             root.postDelayed(this::createRoom, 350);
         } else if ("join".equalsIgnoreCase(mode)) {
@@ -134,9 +142,19 @@ public final class SakuraLanActivity extends Activity {
     }
 
     private void joinRoom() {
-        setBusy(true, "Procurando sala na rede...");
+        setBusy(true,
+                debugJoinHost != null && !debugJoinHost.isEmpty()
+                        ? "Conectando à sala..."
+                        : "Procurando sala na rede...");
+
         new Thread(() -> {
-            final int ok = nativeJoin();
+            final int ok;
+            if (debugJoinHost != null && !debugJoinHost.isEmpty()) {
+                ok = nativeJoinAddress(debugJoinHost, debugJoinPort);
+            } else {
+                ok = nativeJoin();
+            }
+
             runOnUiThread(() -> {
                 if (ok == 1) {
                     status.setText("Conectado! Abrindo o jogo...");
