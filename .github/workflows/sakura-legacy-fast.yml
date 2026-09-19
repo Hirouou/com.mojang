@@ -1,0 +1,99 @@
+name: Sakura Legacy 1.043 LAN Smoke
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-legacy-fast.yml"
+      - "sakura-lan-mod/tools/legacy_x86_emulator_test.sh"
+      - "sakura-lan-mod/tools/patch_split_pack_legacy.sh"
+  workflow_dispatch:
+
+jobs:
+  legacy-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ARMv7 injected library
+        run: |
+          cmake -S sakura-lan-mod/native -B sakura-lan-mod/legacy-fast/native-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=armeabi-v7a \
+            -DANDROID_PLATFORM=24
+          cmake --build sakura-lan-mod/legacy-fast/native-build --parallel
+          file sakura-lan-mod/legacy-fast/native-build/libsakuralan.so
+
+      - name: Download Sakura 1.043.04
+        run: |
+          mkdir -p sakura-lan-mod/legacy-fast/input sakura-lan-mod/legacy-fast/xapk sakura-lan-mod/legacy-fast/patched
+          docker run --rm \
+            -v "$PWD/sakura-lan-mod/legacy-fast/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@1.043.04 /output
+          unzip -q sakura-lan-mod/legacy-fast/input/*.xapk -d sakura-lan-mod/legacy-fast/xapk
+          find sakura-lan-mod/legacy-fast/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+          test -f sakura-lan-mod/legacy-fast/xapk/config.armeabi_v7a.apk
+
+      - name: Build LAN launcher DEX
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLATFORM_JAR="$(find "$ANDROID_HOME/platforms" -maxdepth 2 -type f -name android.jar | sort -V | tail -n1)"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
+          mkdir -p sakura-lan-mod/legacy-fast/classes sakura-lan-mod/legacy-fast/dex
+          javac -source 8 -target 8 \
+            -classpath "$PLATFORM_JAR" \
+            -d sakura-lan-mod/legacy-fast/classes \
+            sakura-lan-mod/android/jp/garud/ssimulator/SakuraLanActivity.java
+          mapfile -t CLASS_FILES < <(find sakura-lan-mod/legacy-fast/classes -type f -name '*.class' | sort)
+          "$BUILD_TOOLS/d8" --min-api 24 \
+            --output sakura-lan-mod/legacy-fast/dex \
+            "${CLASS_FILES[@]}"
+          curl -L --fail --retry 3 \
+            -o sakura-lan-mod/legacy-fast/apktool.jar \
+            https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+
+      - name: Patch and sign legacy split set
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf zip
+          bash sakura-lan-mod/tools/patch_split_pack_legacy.sh \
+            sakura-lan-mod/legacy-fast/xapk \
+            sakura-lan-mod/legacy-fast/native-build/libsakuralan.so \
+            sakura-lan-mod/legacy-fast/patched \
+            sakura-lan-mod/legacy-fast/dex/classes.dex \
+            sakura-lan-mod/legacy-fast/apktool.jar
+          find sakura-lan-mod/legacy-fast/patched/signed -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm
+
+      - name: Boot API30 and test legacy LAN
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_3a
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: bash sakura-lan-mod/tools/legacy_x86_emulator_test.sh
+
+      - name: Upload legacy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-legacy-104304-lan
+          path: sakura-lan-mod/legacy-fast/evidence/
+          if-no-files-found: warn
