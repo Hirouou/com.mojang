@@ -36,6 +36,10 @@ jobs:
           python3 sakura-lan-mod/tools/analyze_package.py sakura-lan-mod/analysis/input
           cat sakura-lan-mod/analysis/package-report.txt
 
+      - name: Probe Android package
+        run: |
+          bash sakura-lan-mod/tools/probe_android_package.sh sakura-lan-mod/analysis/unpacked sakura-lan-mod/analysis/android-package-probe.txt
+
       - name: Scan Unity asset strings
         run: |
           python3 sakura-lan-mod/tools/scan_unity_assets.py sakura-lan-mod/analysis/unpacked
@@ -119,6 +123,7 @@ jobs:
           name: sakura-package-analysis
           path: |
             sakura-lan-mod/analysis/package-report.txt
+            sakura-lan-mod/analysis/android-package-probe.txt
             sakura-lan-mod/analysis/asset-path-hints.txt
             sakura-lan-mod/analysis/asset-symbol-hints.txt
             sakura-lan-mod/analysis/unity-monoscripts.txt
