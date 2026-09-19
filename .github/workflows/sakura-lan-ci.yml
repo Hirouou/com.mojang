@@ -1,0 +1,41 @@
+name: Sakura LAN CI
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - "sakura-lan-mod/**"
+      - ".github/workflows/sakura-lan-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  core-and-package-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build LAN core
+        working-directory: sakura-lan-mod
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          ctest --test-dir build --output-on-failure
+
+      - name: Download target package from APKPure
+        run: |
+          mkdir -p sakura-lan-mod/analysis/input
+          docker run --rm             -v "$PWD/sakura-lan-mod/analysis/input:/output"             ghcr.io/efforg/apkeep:stable             -a jp.garud.ssimulator@1.048.10 /output
+
+      - name: Inspect Unity package
+        run: |
+          python3 sakura-lan-mod/tools/analyze_package.py sakura-lan-mod/analysis/input
+          cat sakura-lan-mod/analysis/package-report.txt
+
+      - name: Upload analysis only
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-package-analysis
+          path: sakura-lan-mod/analysis/package-report.txt
+          if-no-files-found: error
