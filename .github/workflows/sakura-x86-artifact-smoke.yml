@@ -1,0 +1,64 @@
+name: Sakura x86 Artifact LAN Smoke
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-x86-artifact-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  x86-artifact-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reuse already-built patched APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: sakura-current-patched-apks
+          path: sakura-lan-mod/x86-fast/patched/signed
+          repository: Hirouou/com.mojang
+          run-id: 35461940539
+          github-token: ${{ github.token }}
+
+      - name: Show artifact layout
+        run: |
+          find sakura-lan-mod/x86-fast/patched/signed -maxdepth 3 -type f -printf '%p %s\n' | sort
+          test -f sakura-lan-mod/x86-fast/patched/signed/jp.garud.ssimulator.apk
+          test -f sakura-lan-mod/x86-fast/patched/signed/config.arm64_v8a.apk
+          test -f sakura-lan-mod/x86-fast/patched/signed/UnityDataAssetPack.apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm
+
+      - name: Boot x86 emulator and test two-user LAN
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: bash sakura-lan-mod/tools/x86_fast_emulator_test.sh
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-x86-artifact-lan
+          path: sakura-lan-mod/x86-fast/evidence/
+          if-no-files-found: warn
