@@ -11,6 +11,12 @@ unlock_user() {
   sleep 2
 }
 
+tap_new_game() {
+  # Sakura 1.043.04 main menu on the Pixel 3a test profile is landscape.
+  # Tap the large NEW GAME button near screen center.
+  adb shell input tap 900 405 || true
+}
+
 echo "=== ABI / NATIVE BRIDGE ==="
 adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
 adb shell getprop ro.product.cpu.abilist32 | tee "$OUT/abilist32.txt"
@@ -26,17 +32,16 @@ adb shell am start -W --user 0   -n jp.garud.ssimulator/jp.garud.ssimulator.Saku
 unlock_user
 sleep 3
 adb exec-out screencap -p > "$OUT/lan-menu.png" || true
-adb shell uiautomator dump /sdcard/lan-menu.xml >/dev/null 2>&1 || true
-adb pull /sdcard/lan-menu.xml "$OUT/lan-menu.xml" >/dev/null 2>&1 || true
 adb shell am force-stop --user 0 jp.garud.ssimulator
 
 echo "=== START HOST USER 0 ==="
 adb shell am start -W --user 0   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   --es sakuralan_mode host | tee "$OUT/host-start.txt"
 unlock_user
-sleep 35
+sleep 24
+adb exec-out screencap -p > "$OUT/host-main-menu.png" || true
+tap_new_game
+sleep 28
 adb exec-out screencap -p > "$OUT/host-game-screen.png" || true
-adb shell uiautomator dump /sdcard/host-ui.xml >/dev/null 2>&1 || true
-adb pull /sdcard/host-ui.xml "$OUT/host-ui.xml" >/dev/null 2>&1 || true
 adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-host.txt" || true
 
 echo "=== CREATE CLIENT USER ==="
@@ -54,10 +59,11 @@ unlock_user
 echo "=== START CLIENT USER $CLIENT_USER ==="
 adb shell am start -W --user "$CLIENT_USER"   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   --es sakuralan_mode join   --es sakuralan_host 127.0.0.1   --ei sakuralan_port 38556 | tee "$OUT/client-start.txt"
 unlock_user
-sleep 35
+sleep 24
+adb exec-out screencap -p > "$OUT/client-main-menu.png" || true
+tap_new_game
+sleep 28
 adb exec-out screencap -p > "$OUT/client-game-screen.png" || true
-adb shell uiautomator dump /sdcard/client-ui.xml >/dev/null 2>&1 || true
-adb pull /sdcard/client-ui.xml "$OUT/client-ui.xml" >/dev/null 2>&1 || true
 
 adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
 grep 'SakuraLAN' "$OUT/logcat.txt" | tee "$OUT/sakuralan.txt" || true
@@ -68,7 +74,7 @@ echo "=== SWITCH BACK TO HOST ==="
 adb shell am switch-user 0
 sleep 4
 unlock_user
-sleep 8
+sleep 12
 adb exec-out screencap -p > "$OUT/host-after-client.png" || true
 
 grep -E 'MINBRIDGE (READY|UPDATE|LOCAL|REMOTE CREATED|REMOTE APPLY|CLIENT OFFSET)'   "$OUT/sakuralan.txt" > "$OUT/minbridge.txt" || true
