@@ -8,7 +8,9 @@ on:
       - ".github/workflows/sakura-current-arm64-patched.yml"
       - "sakura-lan-mod/native/**"
       - "sakura-lan-mod/src/**"
-      - "sakura-lan-mod/tools/patch_split_pack.sh"\n      - "sakura-lan-mod/tools/patch_launcher_manifest.py"\n      - "sakura-lan-mod/android/**"
+      - "sakura-lan-mod/tools/patch_split_pack.sh"
+      - "sakura-lan-mod/tools/patch_launcher_manifest.py"
+      - "sakura-lan-mod/android/**"
   workflow_dispatch:
 
 jobs:
