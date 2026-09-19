@@ -12,6 +12,7 @@
 
 extern "C" {
 int sakuralan_net_connected();
+int sakuralan_net_local_player_id();
 void sakuralan_net_send_state(float px, float py, float pz,
                               float qx, float qy, float qz, float qw,
                               float vx, float vy, float vz,
@@ -290,6 +291,7 @@ Api gBridgeApi{};
 const void* gBridgeUnityCore = nullptr;
 const void* gBridgeAssembly = nullptr;
 std::atomic<void*> gLocalCharaMove{nullptr};
+std::atomic<bool> gClientSpawnAdjusted{false};
 void* gLocalGameObject = nullptr;
 void* gLocalTransform = nullptr;
 void* gRemoteGameObject = nullptr;
@@ -422,10 +424,27 @@ void network_player_tick(void* self) {
     if (selected != self || !gLocalTransform) return;
     if (!sakuralan_net_connected()) return;
 
-    if (!ensure_remote_avatar()) return;
-
     void* transformClass = gBridgeApi.object_get_class(gLocalTransform);
     if (!transformClass) return;
+
+    // Both game instances normally spawn at the exact same coordinates.
+    // Put player 2 beside player 1 once so the multiplayer pair is visible
+    // immediately and does not occupy the same collision volume.
+    if (sakuralan_net_local_player_id() == 1 &&
+        !gClientSpawnAdjusted.exchange(true)) {
+        Float3 spawn{};
+        if (read_vec3_box(
+                invoke0(gBridgeApi, transformClass, gLocalTransform,
+                        "get_position"), spawn)) {
+            spawn.x += 2.25f;
+            invoke1(gBridgeApi, transformClass, gLocalTransform,
+                    "set_position", &spawn);
+            LOGI("MAINBRIDGE client spawn offset applied pos=%.2f %.2f %.2f",
+                 spawn.x, spawn.y, spawn.z);
+        }
+    }
+
+    if (!ensure_remote_avatar()) return;
 
     const auto now = std::chrono::steady_clock::now();
     if (gLastNetSend.time_since_epoch().count() == 0 ||
