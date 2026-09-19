@@ -8,8 +8,7 @@
 #include <string>
 #include <thread>
 #include <unistd.h>
-
-#include <dobby.h>
+#include <sys/mman.h>
 
 extern "C" {
 int sakuralan_net_connected();
@@ -64,7 +63,7 @@ struct Api {
 template <typename T>
 bool load_symbol(void* lib, const char* name, T& out) {
     out = reinterpret_cast<T>(dlsym(lib, name));
-    if (!out) LOGE("SAFEHOOK missing export %s", name);
+    if (!out) LOGE("ARMHOOK missing export %s", name);
     return out != nullptr;
 }
 
@@ -75,7 +74,7 @@ bool load_api(Api& a) {
         usleep(100000);
     }
     if (!a.lib) {
-        LOGE("SAFEHOOK libil2cpp unavailable");
+        LOGE("ARMHOOK libil2cpp unavailable");
         return false;
     }
 
@@ -127,7 +126,7 @@ void* invoke(Api& a,
     void* exception = nullptr;
     void* result = a.runtime_invoke(method, instance, args, &exception);
     if (exception) {
-        LOGE("SAFEHOOK exception invoking %s/%d", name, argc);
+        LOGE("ARMHOOK exception invoking %s/%d", name, argc);
         return nullptr;
     }
     return result;
@@ -242,7 +241,7 @@ bool cache_local_player(void* self) {
 
     gLocalGameObject = go;
     gLocalTransform = transform;
-    LOGI("SAFEHOOK LOCAL name=%s move=%p go=%p transform=%p",
+    LOGI("ARMHOOK LOCAL name=%s move=%p go=%p transform=%p",
          name.c_str(), self, go, transform);
     return true;
 }
@@ -274,8 +273,6 @@ void disable_remote_behaviours(void* clone) {
 
         uint8_t disabled = 0;
         invoke1(gApi, gBehaviourClass, component, "set_enabled", &disabled);
-        LOGI("SAFEHOOK REMOTE disabled %s",
-             className ? className : "Behaviour");
     }
 }
 
@@ -286,7 +283,7 @@ bool create_remote_avatar() {
     void* clone = invoke1(
         gApi, gObjectClass, nullptr, "Instantiate", gLocalGameObject);
     if (!clone) {
-        LOGE("SAFEHOOK remote Instantiate failed");
+        LOGE("ARMHOOK remote Instantiate failed");
         return false;
     }
 
@@ -296,7 +293,7 @@ bool create_remote_avatar() {
 
     void* transform = invoke0(gApi, gGameObjectClass, clone, "get_transform");
     if (!transform) {
-        LOGE("SAFEHOOK remote transform missing");
+        LOGE("ARMHOOK remote transform missing");
         return false;
     }
 
@@ -312,7 +309,7 @@ bool create_remote_avatar() {
         invoke1(gApi, transformClass, transform, "set_position", &initial);
     }
 
-    LOGI("SAFEHOOK REMOTE CREATED go=%p transform=%p",
+    LOGI("ARMHOOK REMOTE CREATED go=%p transform=%p",
          gRemoteGameObject, gRemoteTransform);
     return true;
 }
@@ -337,7 +334,7 @@ void multiplayer_tick(void* self) {
                 invoke0(gApi, transformClass, gLocalTransform, "get_position"), p)) {
             p.x += 2.25f;
             invoke1(gApi, transformClass, gLocalTransform, "set_position", &p);
-            LOGI("SAFEHOOK CLIENT OFFSET %.2f %.2f %.2f", p.x, p.y, p.z);
+            LOGI("ARMHOOK CLIENT OFFSET %.2f %.2f %.2f", p.x, p.y, p.z);
         }
     }
 
@@ -375,7 +372,7 @@ void multiplayer_tick(void* self) {
     static uint32_t applied = 0;
     ++applied;
     if (applied <= 20 || applied % 200 == 0) {
-        LOGI("SAFEHOOK REMOTE APPLY id=%.0f pos=%.2f %.2f %.2f",
+        LOGI("ARMHOOK REMOTE APPLY id=%.0f pos=%.2f %.2f %.2f",
              remote[12], p.x, p.y, p.z);
     }
 }
@@ -390,60 +387,138 @@ void hooked_update(void* self, const void* methodInfo) {
 
     const uint64_t n = ++gHookCalls;
     if (n <= 10 || n % 5000 == 0) {
-        LOGI("SAFEHOOK UPDATE call=%llu self=%p",
+        LOGI("ARMHOOK UPDATE call=%llu self=%p",
              static_cast<unsigned long long>(n), self);
     }
 }
+
+#if defined(__arm__)
+bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
+    if (!target || !hook || !trampolineOut) return false;
+
+    const uintptr_t targetAddr = reinterpret_cast<uintptr_t>(target);
+    if (targetAddr & 1u) {
+        LOGE("ARMHOOK target is Thumb; unsupported target=%p", target);
+        return false;
+    }
+
+    uint32_t first[4]{};
+    std::memcpy(first, target, sizeof(first));
+    LOGI("ARMHOOK prologue %08x %08x %08x %08x",
+         first[0], first[1], first[2], first[3]);
+
+    // We overwrite exactly 8 bytes. IL2CPP ARM32 functions normally begin
+    // with PUSH/SUB register prologue instructions which are safe to replay.
+    // Reject obvious ARM branches or PC-relative literal loads in those 2 words.
+    for (int i = 0; i < 2; ++i) {
+        const uint32_t insn = first[i];
+        const bool branch = (insn & 0x0E000000u) == 0x0A000000u;
+        const bool pcLiteralLoad =
+            (insn & 0x0F7F0000u) == 0x051F0000u;
+        if (branch || pcLiteralLoad) {
+            LOGE("ARMHOOK unsafe prologue word[%d]=%08x", i, insn);
+            return false;
+        }
+    }
+
+    const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    uint8_t* trampoline = reinterpret_cast<uint8_t*>(
+        mmap(nullptr, pageSize,
+             PROT_READ | PROT_WRITE | PROT_EXEC,
+             MAP_PRIVATE | MAP_ANONYMOUS,
+             -1, 0));
+    if (trampoline == MAP_FAILED) {
+        LOGE("ARMHOOK mmap trampoline failed");
+        return false;
+    }
+
+    std::memcpy(trampoline, target, 8);
+
+    // ARM: LDR pc, [pc, #-4] ; literal(target+8)
+    const uint32_t jumpInsn = 0xE51FF004u;
+    std::memcpy(trampoline + 8, &jumpInsn, 4);
+    const uint32_t resume =
+        static_cast<uint32_t>(targetAddr + 8u);
+    std::memcpy(trampoline + 12, &resume, 4);
+    __builtin___clear_cache(
+        reinterpret_cast<char*>(trampoline),
+        reinterpret_cast<char*>(trampoline + 16));
+
+    const uintptr_t page =
+        targetAddr & ~(static_cast<uintptr_t>(pageSize) - 1u);
+    if (mprotect(reinterpret_cast<void*>(page), pageSize,
+                 PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+        LOGE("ARMHOOK mprotect target failed");
+        munmap(trampoline, pageSize);
+        return false;
+    }
+
+    std::memcpy(reinterpret_cast<void*>(targetAddr), &jumpInsn, 4);
+    const uint32_t hookAddr =
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(hook));
+    std::memcpy(reinterpret_cast<void*>(targetAddr + 4u), &hookAddr, 4);
+    __builtin___clear_cache(
+        reinterpret_cast<char*>(targetAddr),
+        reinterpret_cast<char*>(targetAddr + 8u));
+
+    mprotect(reinterpret_cast<void*>(page), pageSize, PROT_READ | PROT_EXEC);
+
+    *trampolineOut = trampoline;
+    LOGI("ARMHOOK inline installed target=%p hook=%p trampoline=%p",
+         target, hook, trampoline);
+    return true;
+}
+#endif
 
 bool install_chara_update_hook() {
     if (!gAssembly) return false;
 
     gCharaMoveClass = gApi.class_from_name(gAssembly, "", "CharaMove");
     if (!gCharaMoveClass) {
-        LOGE("SAFEHOOK CharaMove class missing");
+        LOGE("ARMHOOK CharaMove class missing");
         return false;
     }
 
     const void* method =
         gApi.class_get_method_from_name(gCharaMoveClass, "Update", 0);
     if (!method) {
-        LOGE("SAFEHOOK CharaMove.Update missing");
+        LOGE("ARMHOOK CharaMove.Update missing");
         return false;
     }
 
     void* target = *reinterpret_cast<void* const*>(method);
     if (!target) {
-        LOGE("SAFEHOOK CharaMove.Update target null");
+        LOGE("ARMHOOK CharaMove.Update target null");
         return false;
     }
 
+#if defined(__arm__)
     void* trampoline = nullptr;
-    const int rc = DobbyHook(
-        target,
-        reinterpret_cast<void*>(hooked_update),
-        &trampoline);
-
-    if (rc != 0 || !trampoline) {
-        LOGE("SAFEHOOK DobbyHook failed rc=%d target=%p trampoline=%p",
-             rc, target, trampoline);
+    if (!install_arm32_hook(
+            target,
+            reinterpret_cast<void*>(hooked_update),
+            &trampoline)) {
         return false;
     }
-
     gOriginalUpdate = reinterpret_cast<CharaUpdate>(trampoline);
-    LOGI("SAFEHOOK INSTALLED target=%p trampoline=%p hook=%p",
+    LOGI("ARMHOOK READY target=%p original=%p hook=%p",
          target, trampoline, reinterpret_cast<void*>(hooked_update));
     return true;
+#else
+    LOGE("ARMHOOK unsupported ABI for legacy hook");
+    return false;
+#endif
 }
 
 void* worker(void*) {
-    LOGI("SAFEHOOK worker delayed");
-    sleep(6);
+    LOGI("ARMHOOK worker delayed");
+    sleep(12);
 
     if (!load_api(gApi)) return nullptr;
 
     void* domain = gApi.domain_get();
     if (!domain) {
-        LOGE("SAFEHOOK domain unavailable");
+        LOGE("ARMHOOK domain unavailable");
         return nullptr;
     }
     gApi.thread_attach(domain);
@@ -455,11 +530,17 @@ void* worker(void*) {
         usleep(100000);
     }
 
-    LOGI("SAFEHOOK IMAGES csharp=%p unity=%p", gAssembly, gUnityCore);
+    LOGI("ARMHOOK IMAGES csharp=%p unity=%p", gAssembly, gUnityCore);
     if (!gAssembly || !gUnityCore) return nullptr;
 
+    for (int i = 0; i < 600 && !sakuralan_net_connected(); ++i) {
+        usleep(100000);
+    }
+    LOGI("ARMHOOK network connected=%d", sakuralan_net_connected());
+    if (!sakuralan_net_connected()) return nullptr;
+
+    sleep(4);
     if (!install_chara_update_hook()) return nullptr;
-    LOGI("SAFEHOOK READY");
     return nullptr;
 }
 
@@ -467,11 +548,11 @@ void* worker(void*) {
 
 __attribute__((constructor))
 static void sakura_lan_safe_bridge_init() {
-    LOGI("SAFEHOOK library bridge init");
+    LOGI("ARMHOOK library bridge init");
     pthread_t t{};
     if (pthread_create(&t, nullptr, worker, nullptr) == 0) {
         pthread_detach(t);
     } else {
-        LOGE("SAFEHOOK pthread_create failed");
+        LOGE("ARMHOOK pthread_create failed");
     }
 }
