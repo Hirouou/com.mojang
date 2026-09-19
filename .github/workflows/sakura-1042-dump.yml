@@ -1,0 +1,101 @@
+name: Sakura 1.042 IL2CPP Dump
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-1042-dump.yml"
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download 1.042.00
+        run: |
+          mkdir -p work/input work/xapk work/unpacked
+          docker run --rm \
+            -v "$PWD/work/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@1.042.00 /output
+          unzip -q work/input/*.xapk -d work/xapk
+          for a in work/xapk/*.apk; do
+            d="work/unpacked/$(basename "$a" .apk)"
+            mkdir -p "$d"
+            unzip -q "$a" -d "$d" || true
+          done
+          find work/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Run Cpp2IL
+        shell: bash
+        run: |
+          set -eux
+          curl -L --fail --retry 3 \
+            -o work/Cpp2IL \
+            https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL-2022.1.0-pre-release.21-Linux
+          chmod +x work/Cpp2IL
+
+          META="$(find "$PWD/work/unpacked" -type f -name global-metadata.dat | head -n1)"
+          IL2CPP="$(find "$PWD/work/unpacked" -type f -path '*/arm64-v8a/libil2cpp.so' | head -n1)"
+          test -n "$META"
+          test -n "$IL2CPP"
+
+          mkdir -p work/cpp2il-out
+          set +e
+          NO_COLOR=1 work/Cpp2IL \
+            --force-binary-path="$IL2CPP" \
+            --force-metadata-path="$META" \
+            --force-unity-version=2020.3.48f1 \
+            --output-as dummydll \
+            --output-to="$PWD/work/cpp2il-out" \
+            --verbose \
+            > work/cpp2il.log 2>&1
+          CODE=$?
+          set -e
+          echo "$CODE" > work/cpp2il-exit.txt
+          tail -n 250 work/cpp2il.log
+          find work/cpp2il-out -maxdepth 3 -type f -printf '%p %s\n' | sort > work/cpp2il-files.txt
+          test -f work/cpp2il-out/Assembly-CSharp.dll
+
+      - name: Decompile game assembly
+        run: |
+          dotnet tool install --global ilspycmd
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          mkdir -p work/decompiled
+          ilspycmd work/cpp2il-out/Assembly-CSharp.dll -p -o work/decompiled
+          find work/decompiled -type f -name '*.cs' -printf '%p\n' | sort > work/decompiled-files.txt
+
+          for n in CharaMove CharacterBaseManager CharaMakeTPCManager CanvasJoystickManager; do
+            echo "===== $n =====" >> work/target-symbols.txt
+            grep -RniE --include='*.cs' "class[[:space:]]+$n|$n" work/decompiled \
+              | head -n 250 >> work/target-symbols.txt || true
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          names = ["CharaMove", "CharacterBaseManager", "CharaMakeTPCManager", "CanvasJoystickManager"]
+          root = Path("work/decompiled")
+          out = Path("work/target-source")
+          out.mkdir(exist_ok=True)
+          for n in names:
+              matches = list(root.rglob(n + ".cs"))
+              for i,p in enumerate(matches[:5]):
+                  (out / f"{n}-{i}.cs").write_text(p.read_text(errors="ignore"), encoding="utf-8")
+          PY
+
+          sed -n '1,1200p' work/target-symbols.txt || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sakura-1042-dump
+          path: |
+            work/cpp2il.log
+            work/cpp2il-exit.txt
+            work/cpp2il-files.txt
+            work/target-symbols.txt
+            work/target-source/
+          if-no-files-found: error
