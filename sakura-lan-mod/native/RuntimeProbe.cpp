@@ -544,6 +544,12 @@ bool patch_chara_update_method_pointer(Api& a, const void* asmCSharp) {
 }
 
 void* worker(void*) {
+    // The LAN launcher loads libsakuralan before UnityPlayerActivity starts.
+    // Waiting here avoids racing Android's native bridge while libil2cpp.so
+    // and its dependencies are still being loaded into the translated process.
+    sleep(6);
+    LOGI("runtime probe delayed start");
+
     Api a;
     if (!load_api(a)) return nullptr;
 
