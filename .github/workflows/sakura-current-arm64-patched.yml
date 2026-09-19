@@ -8,7 +8,7 @@ on:
       - ".github/workflows/sakura-current-arm64-patched.yml"
       - "sakura-lan-mod/native/**"
       - "sakura-lan-mod/src/**"
-      - "sakura-lan-mod/tools/patch_split_pack.sh"
+      - "sakura-lan-mod/tools/patch_split_pack.sh"\n      - "sakura-lan-mod/tools/patch_launcher_manifest.py"\n      - "sakura-lan-mod/android/**"
   workflow_dispatch:
 
 jobs:
@@ -39,6 +39,23 @@ jobs:
           unzip -q sakura-lan-mod/arm64/input/*.xapk -d sakura-lan-mod/arm64/xapk
           find sakura-lan-mod/arm64/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
 
+      - name: Build Host Join launcher DEX
+        run: |
+          PLATFORM_JAR="$(find "$ANDROID_HOME/platforms" -maxdepth 2 -type f -name android.jar | sort -V | tail -n1)"
+          BUILD_TOOLS="$(ls -1d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)"
+          mkdir -p sakura-lan-mod/android-build/classes sakura-lan-mod/android-build/dex
+          javac -source 8 -target 8 \
+            -classpath "$PLATFORM_JAR" \
+            -d sakura-lan-mod/android-build/classes \
+            sakura-lan-mod/android/jp/garud/ssimulator/SakuraLanActivity.java
+          "$BUILD_TOOLS/d8" --min-api 24 \
+            --output sakura-lan-mod/android-build/dex \
+            $(find sakura-lan-mod/android-build/classes -type f -name '*.class')
+          test -s sakura-lan-mod/android-build/dex/classes.dex
+          curl -L --fail --retry 3 \
+            -o sakura-lan-mod/android-build/apktool.jar \
+            https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar
+
       - name: Patch and sign APK splits
         run: |
           sudo apt-get update -qq
@@ -46,7 +63,9 @@ jobs:
           bash sakura-lan-mod/tools/patch_split_pack.sh \
             sakura-lan-mod/arm64/xapk \
             sakura-lan-mod/native-build-arm64/libsakuralan.so \
-            sakura-lan-mod/arm64/patched
+            sakura-lan-mod/arm64/patched \
+            sakura-lan-mod/android-build/dex/classes.dex \
+            sakura-lan-mod/android-build/apktool.jar
           ls -lh sakura-lan-mod/arm64/patched/signed/
 
       - uses: actions/upload-artifact@v4
