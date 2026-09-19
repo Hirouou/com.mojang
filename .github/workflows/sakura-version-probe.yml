@@ -1,0 +1,110 @@
+name: Sakura Historical Version Probe
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-version-probe.yml"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - "1.043.04"
+          - "1.042.00"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download version
+        run: |
+          mkdir -p work/input work/xapk work/unpacked
+          docker run --rm \
+            -v "$PWD/work/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@${{ matrix.version }} /output
+          ls -lh work/input
+          unzip -q work/input/*.xapk -d work/xapk || true
+          if ls work/input/*.apk >/dev/null 2>&1; then
+            cp work/input/*.apk work/xapk/
+          fi
+          find work/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Extract and inspect
+        shell: bash
+        run: |
+          set -e
+          for a in work/xapk/*.apk; do
+            d="work/unpacked/$(basename "$a" .apk)"
+            mkdir -p "$d"
+            unzip -q "$a" -d "$d" || true
+          done
+
+          META="$(find work/unpacked -type f -name global-metadata.dat | head -n1 || true)"
+          IL2CPP="$(find work/unpacked -type f -name libil2cpp.so | head -n1 || true)"
+          UNITY="$(find work/unpacked -type f -name libunity.so | head -n1 || true)"
+
+          {
+            echo "version=${{ matrix.version }}"
+            echo "metadata=$META"
+            if [ -n "$META" ]; then
+              echo -n "metadata_magic="
+              xxd -p -l 16 "$META"
+              echo "metadata_size=$(stat -c%s "$META")"
+            fi
+            echo "libil2cpp=$IL2CPP"
+            if [ -n "$IL2CPP" ]; then
+              echo "libil2cpp_size=$(stat -c%s "$IL2CPP")"
+              echo "il2cpp_export_count=$(nm -D --defined-only "$IL2CPP" 2>/dev/null | grep -c ' il2cpp_' || true)"
+              nm -D --defined-only "$IL2CPP" 2>/dev/null | grep ' il2cpp_' | head -n 80 || true
+            fi
+            echo "libunity=$UNITY"
+            if [ -n "$UNITY" ]; then
+              echo "libunity_size=$(stat -c%s "$UNITY")"
+            fi
+            echo "protection_libs:"
+            find work/unpacked -type f \( -name 'libpairipcore.so' -o -name 'libpglarmor.so' -o -name 'libnms.so' \) -printf '%f %s\n' | sort
+          } | tee "work/version-${{ matrix.version }}.txt"
+
+      - name: Cpp2IL metadata sanity
+        shell: bash
+        run: |
+          META="$(find work/unpacked -type f -name global-metadata.dat | head -n1 || true)"
+          IL2CPP="$(find work/unpacked -type f -name libil2cpp.so | head -n1 || true)"
+          if [ -z "$META" ] || [ -z "$IL2CPP" ]; then exit 0; fi
+
+          curl -L --fail --retry 2 \
+            -o work/Cpp2IL \
+            https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL-2022.1.0-pre-release.21-Linux
+          chmod +x work/Cpp2IL
+
+          VERSION="$(strings -a "$(find work/unpacked -type f -name libunity.so | head -n1)" | grep -Eo '20[0-9]{2}\.[0-9]+\.[0-9]+f[0-9]+' | head -n1 || true)"
+          echo "unity_guess=$VERSION" | tee -a "work/version-${{ matrix.version }}.txt"
+
+          set +e
+          timeout 60s work/Cpp2IL \
+            --force-binary-path="$IL2CPP" \
+            --force-metadata-path="$META" \
+            --force-unity-version="${VERSION:-2021.3.0f1}" \
+            --skip-analysis \
+            --disable-registration-prompts \
+            > "work/cpp2il-${{ matrix.version }}.log" 2>&1
+          CODE=$?
+          set -e
+          echo "cpp2il_exit=$CODE" | tee -a "work/version-${{ matrix.version }}.txt"
+          grep -E 'Initializing Metadata|metadata version|Invalid or corrupt metadata|magic number|Successfully|Fail|Exception' \
+            "work/cpp2il-${{ matrix.version }}.log" | tail -n 80 | tee -a "work/version-${{ matrix.version }}.txt" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sakura-version-${{ matrix.version }}
+          path: |
+            work/version-${{ matrix.version }}.txt
+            work/cpp2il-${{ matrix.version }}.log
+          if-no-files-found: warn
