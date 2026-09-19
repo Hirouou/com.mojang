@@ -36,6 +36,14 @@ jobs:
           python3 sakura-lan-mod/tools/analyze_package.py sakura-lan-mod/analysis/input
           cat sakura-lan-mod/analysis/package-report.txt
 
+      - name: Scan Unity asset names
+        run: |
+          python3 sakura-lan-mod/tools/scan_unity_assets.py sakura-lan-mod/analysis/unpacked
+          echo "=== asset path hints ==="
+          head -n 300 sakura-lan-mod/analysis/asset-path-hints.txt || true
+          echo "=== asset string hints ==="
+          head -n 500 sakura-lan-mod/analysis/asset-symbol-hints.txt || true
+
       - name: Dump IL2CPP metadata with Cpp2IL
         shell: bash
         run: |
@@ -100,6 +108,8 @@ jobs:
           name: sakura-package-analysis
           path: |
             sakura-lan-mod/analysis/package-report.txt
+            sakura-lan-mod/analysis/asset-path-hints.txt
+            sakura-lan-mod/analysis/asset-symbol-hints.txt
             sakura-lan-mod/analysis/cpp2il-paths.txt
             sakura-lan-mod/analysis/cpp2il-processors.txt
             sakura-lan-mod/analysis/cpp2il-formats.txt
