@@ -1,4 +1,5 @@
-#include "../src/LanSession.hpp"\n#include <jni.h>
+#include "../src/LanSession.hpp"
+#include <jni.h>
 #include <android/log.h>
 #include <atomic>
 #include <cstring>
