@@ -7,15 +7,41 @@ on:
     paths:
       - ".github/workflows/sakura-current-arm64-patched.yml"
       - "sakura-lan-mod/native/**"
+      - "sakura-lan-mod/src/**"
       - "sakura-lan-mod/tools/patch_split_pack.sh"
   workflow_dispatch:
 
 jobs:
+  build-arm64-lib:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build injected ARM64 library
+        run: |
+          cmake -S sakura-lan-mod/native -B sakura-lan-mod/native-build-arm64             -DCMAKE_BUILD_TYPE=Release             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake"             -DANDROID_ABI=arm64-v8a             -DANDROID_PLATFORM=24
+          cmake --build sakura-lan-mod/native-build-arm64 --parallel
+          file sakura-lan-mod/native-build-arm64/libsakuralan.so
+          readelf -d sakura-lan-mod/native-build-arm64/libsakuralan.so | grep NEEDED || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sakuralan-arm64-lib
+          path: sakura-lan-mod/native-build-arm64/libsakuralan.so
+          if-no-files-found: error
+
   current-arm64-patched:
+    needs: build-arm64-lib
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sakuralan-arm64-lib
+          path: sakura-lan-mod/prebuilt
 
       - name: Download native ARM64 apkeep
         run: |
@@ -25,18 +51,13 @@ jobs:
           sakura-lan-mod/arm64/apkeep             -a jp.garud.ssimulator@1.048.10             sakura-lan-mod/arm64/input
           unzip -q sakura-lan-mod/arm64/input/*.xapk -d sakura-lan-mod/arm64/xapk
           find sakura-lan-mod/arm64/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
-
-      - name: Build ARM64 runtime probe
-        run: |
-          cmake -S sakura-lan-mod/native -B sakura-lan-mod/native-build-arm64             -DCMAKE_BUILD_TYPE=Release             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake"             -DANDROID_ABI=arm64-v8a             -DANDROID_PLATFORM=24
-          cmake --build sakura-lan-mod/native-build-arm64 --parallel
-          file sakura-lan-mod/native-build-arm64/libsakuralan.so
+          file sakura-lan-mod/prebuilt/libsakuralan.so
 
       - name: Patch and re-sign split APK set
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq patchelf zip
-          bash sakura-lan-mod/tools/patch_split_pack.sh             sakura-lan-mod/arm64/xapk             sakura-lan-mod/native-build-arm64/libsakuralan.so             sakura-lan-mod/arm64/patched
+          bash sakura-lan-mod/tools/patch_split_pack.sh             sakura-lan-mod/arm64/xapk             sakura-lan-mod/prebuilt/libsakuralan.so             sakura-lan-mod/arm64/patched
           ls -lh sakura-lan-mod/arm64/patched/signed/
 
       - name: Enable KVM
@@ -65,13 +86,13 @@ jobs:
             adb shell pm list packages | grep jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/package.txt
             adb logcat -c
             adb shell monkey -p jp.garud.ssimulator -c android.intent.category.LAUNCHER 1 || true
-            sleep 75
+            sleep 90
             adb shell pidof jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/pid.txt || true
             adb shell dumpsys activity activities > sakura-lan-mod/arm64/evidence/activities.txt || true
             adb logcat -d -v threadtime > sakura-lan-mod/arm64/evidence/logcat.txt || true
             adb exec-out screencap -p > sakura-lan-mod/arm64/evidence/patched-current.png || true
-            grep 'SakuraLAN' sakura-lan-mod/arm64/evidence/logcat.txt | tail -n 5000 > sakura-lan-mod/arm64/evidence/sakuralan-log.txt || true
-            grep -Ei 'FATAL EXCEPTION|SIGABRT|SIGSEGV|UnsatisfiedLinkError|INSTALL_FAILED|integrity|pairip|pgl' sakura-lan-mod/arm64/evidence/logcat.txt | tail -n 500 > sakura-lan-mod/arm64/evidence/fatal-log.txt || true
+            grep 'SakuraLAN' sakura-lan-mod/arm64/evidence/logcat.txt | tail -n 10000 > sakura-lan-mod/arm64/evidence/sakuralan-log.txt || true
+            grep -Ei 'FATAL EXCEPTION|SIGABRT|SIGSEGV|UnsatisfiedLinkError|INSTALL_FAILED|integrity|pairip|pgl' sakura-lan-mod/arm64/evidence/logcat.txt | tail -n 1000 > sakura-lan-mod/arm64/evidence/fatal-log.txt || true
             echo "=== PID ==="
             cat sakura-lan-mod/arm64/evidence/pid.txt || true
             echo "=== SakuraLAN runtime probe ==="
