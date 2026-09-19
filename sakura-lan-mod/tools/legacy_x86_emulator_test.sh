@@ -12,8 +12,12 @@ unlock_user() {
 }
 
 tap_new_game() {
-  # Sakura 1.043.04 main menu on the Pixel 3a test profile is landscape.
-  # Tap the large NEW GAME button near screen center.
+  # Pixel 3a AVD reports its native input surface around 2220x1080 in
+  # landscape while screencap is scaled down. NEW GAME is near center.
+  adb shell wm size || true
+  adb shell input tap 1110 500 || true
+  sleep 1
+  # Fallback for scaled/overridden surfaces used by some emulator revisions.
   adb shell input tap 900 405 || true
 }
 
