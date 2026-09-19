@@ -1,4 +1,5 @@
-#include <android/log.h>\n#include <dobby.h>\n#include <atomic>
+#include <android/log.h>
+#include <atomic>
 #include <dlfcn.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -269,45 +270,6 @@ void runtime_find_probe(Api& a, const void* unityCore) {
     }
 }
 
-using CharaUpdateFn = void (*)(void*, const void*);
-CharaUpdateFn gOriginalCharaUpdate = nullptr;
-std::atomic<uint64_t> gCharaUpdateTicks{0};
-
-void hooked_chara_update(void* self, const void* method) {
-    if (gOriginalCharaUpdate) gOriginalCharaUpdate(self, method);
-    const uint64_t tick = ++gCharaUpdateTicks;
-    if (tick <= 12 || tick % 600 == 0) {
-        LOGI("MAIN_THREAD CharaMove.Update self=%p tick=%llu",
-             self, static_cast<unsigned long long>(tick));
-    }
-}
-
-bool install_chara_update_hook(Api& a, const void* asmCSharp) {
-    void* klass = a.class_from_name(asmCSharp, "", "CharaMove");
-    if (!klass) {
-        LOGE("HOOK CharaMove class missing");
-        return false;
-    }
-    const void* method = a.class_get_method_from_name(klass, "Update", 0);
-    if (!method) {
-        LOGE("HOOK CharaMove.Update missing");
-        return false;
-    }
-
-    void* target = *reinterpret_cast<void* const*>(method);
-    if (!target) {
-        LOGE("HOOK CharaMove.Update target null");
-        return false;
-    }
-
-    const int rc = DobbyHook(target,
-                             reinterpret_cast<void*>(hooked_chara_update),
-                             reinterpret_cast<void**>(&gOriginalCharaUpdate));
-    LOGI("HOOK CharaMove.Update target=%p rc=%d original=%p",
-         target, rc, reinterpret_cast<void*>(gOriginalCharaUpdate));
-    return rc == 0 && gOriginalCharaUpdate;
-}
-
 void* worker(void*) {
     Api a;
     if (!load_api(a)) return nullptr;
@@ -334,7 +296,7 @@ void* worker(void*) {
         dump_class(a, asmCSharp, "", "CharaMove");
         dump_class(a, asmCSharp, "", "CharacterBaseManager");
         dump_class(a, asmCSharp, "", "CharaMakeTPCManager");
-        dump_class(a, asmCSharp, "", "CanvasJoystickManager");\n        install_chara_update_hook(a, asmCSharp);
+        dump_class(a, asmCSharp, "", "CanvasJoystickManager");
     }
 
     if (unityCore) {
