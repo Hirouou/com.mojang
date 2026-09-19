@@ -12,7 +12,7 @@ on:
 jobs:
   core-and-package-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -26,16 +26,59 @@ jobs:
       - name: Download target package from APKPure
         run: |
           mkdir -p sakura-lan-mod/analysis/input
-          docker run --rm             -v "$PWD/sakura-lan-mod/analysis/input:/output"             ghcr.io/efforg/apkeep:stable             -a jp.garud.ssimulator@1.048.10 /output
+          docker run --rm \
+            -v "$PWD/sakura-lan-mod/analysis/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@1.048.10 /output
 
       - name: Inspect Unity package
         run: |
           python3 sakura-lan-mod/tools/analyze_package.py sakura-lan-mod/analysis/input
           cat sakura-lan-mod/analysis/package-report.txt
 
+      - name: Probe IL2CPP metadata with Cpp2IL
+        shell: bash
+        run: |
+          set -u
+          mkdir -p sakura-lan-mod/analysis/cpp2il
+          curl -L --fail --retry 3 \
+            -o sakura-lan-mod/analysis/cpp2il/Cpp2IL \
+            https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL-2022.1.0-pre-release.21-Linux
+          chmod +x sakura-lan-mod/analysis/cpp2il/Cpp2IL
+
+          IL2CPP="$(find "$PWD/sakura-lan-mod/analysis/unpacked" -type f -name libil2cpp.so | head -n1)"
+          META="$(find "$PWD/sakura-lan-mod/analysis/unpacked" -type f -name global-metadata.dat | head -n1)"
+          echo "lib=$IL2CPP" > sakura-lan-mod/analysis/cpp2il-paths.txt
+          echo "meta=$META" >> sakura-lan-mod/analysis/cpp2il-paths.txt
+
+          sakura-lan-mod/analysis/cpp2il/Cpp2IL --help > sakura-lan-mod/analysis/cpp2il-help.txt 2>&1 || true
+
+          mkdir -p sakura-lan-mod/analysis/cpp2il/run
+          cd sakura-lan-mod/analysis/cpp2il/run
+          set +e
+          ../Cpp2IL \
+            --force-binary-path="$IL2CPP" \
+            --force-metadata-path="$META" \
+            --force-unity-version=2022.3.62f3 \
+            --skip-analysis \
+            --disable-registration-prompts \
+            > ../cpp2il.log 2>&1
+          CODE=$?
+          set -e
+          echo "$CODE" > ../cpp2il-exit-code.txt
+          find . -maxdepth 4 -type f -printf '%p\n' | sort > ../cpp2il-output-files.txt
+          tail -n 250 ../cpp2il.log || true
+          exit 0
+
       - name: Upload analysis only
         uses: actions/upload-artifact@v4
         with:
           name: sakura-package-analysis
-          path: sakura-lan-mod/analysis/package-report.txt
+          path: |
+            sakura-lan-mod/analysis/package-report.txt
+            sakura-lan-mod/analysis/cpp2il-paths.txt
+            sakura-lan-mod/analysis/cpp2il-help.txt
+            sakura-lan-mod/analysis/cpp2il/cpp2il.log
+            sakura-lan-mod/analysis/cpp2il/cpp2il-exit-code.txt
+            sakura-lan-mod/analysis/cpp2il/cpp2il-output-files.txt
           if-no-files-found: error
