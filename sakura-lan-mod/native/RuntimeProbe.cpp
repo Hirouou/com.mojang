@@ -83,7 +83,7 @@ bool sym(void* lib, const char* name, T& out) {
 }
 
 bool load_api(Api& a) {
-    for (int i = 0; i < 300; ++i) {
+    for (int i = 0; i < 6000; ++i) {
         a.lib = dlopen("libil2cpp.so", RTLD_NOW | RTLD_NOLOAD);
         if (a.lib) break;
         usleep(100000);
