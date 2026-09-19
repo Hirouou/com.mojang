@@ -28,13 +28,22 @@ OUT="${2:?report path required}"
   fi
   echo
   echo "BASE MANIFEST / ACTIVITY"
-  BASE="$(find "$ROOT" -type f -name '*.apk' | grep -vE 'config_|AssetPack' | head -n1 || true)"
+  BASE="$(find "$ROOT" -type f -name 'jp.garud.ssimulator.apk' | head -n1 || true)"
+  if [ -z "$BASE" ]; then
+    BASE="$(find "$ROOT" -type f -name '*.apk' | grep -vE 'config_|AssetPack' | head -n1 || true)"
+  fi
   echo "base=$BASE"
   if [ -n "$BASE" ]; then
-    if command -v aapt2 >/dev/null; then
-      aapt2 dump badging "$BASE" | grep -E "^(package:|launchable-activity:|sdkVersion:|targetSdkVersion:|native-code:)" || true
-    elif command -v aapt >/dev/null; then
-      aapt dump badging "$BASE" | grep -E "^(package:|launchable-activity:|sdkVersion:|targetSdkVersion:|native-code:)" || true
+    AAPT=""
+    if command -v aapt2 >/dev/null; then AAPT="$(command -v aapt2)"; fi
+    if [ -z "$AAPT" ] && command -v aapt >/dev/null; then AAPT="$(command -v aapt)"; fi
+    if [ -z "$AAPT" ] && [ -n "${ANDROID_HOME:-}" ]; then
+      AAPT="$(find "$ANDROID_HOME/build-tools" -type f \( -name aapt2 -o -name aapt \) | sort -V | tail -n1 || true)"
+    fi
+    if [ -n "$AAPT" ]; then
+      "$AAPT" dump badging "$BASE" | grep -E "^(package:|launchable-activity:|sdkVersion:|targetSdkVersion:|native-code:)" || true
+    else
+      echo "aapt unavailable"
     fi
   fi
 } > "$OUT"
