@@ -12,7 +12,7 @@ on:
 jobs:
   core-and-package-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -36,38 +36,62 @@ jobs:
           python3 sakura-lan-mod/tools/analyze_package.py sakura-lan-mod/analysis/input
           cat sakura-lan-mod/analysis/package-report.txt
 
-      - name: Probe IL2CPP metadata with Cpp2IL
+      - name: Dump IL2CPP metadata with Cpp2IL
         shell: bash
         run: |
           set -u
-          mkdir -p sakura-lan-mod/analysis/cpp2il
+          TOOL="$PWD/sakura-lan-mod/analysis/cpp2il"
+          mkdir -p "$TOOL/Plugins" "$TOOL/run"
+
           curl -L --fail --retry 3 \
-            -o sakura-lan-mod/analysis/cpp2il/Cpp2IL \
+            -o "$TOOL/Cpp2IL" \
             https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL-2022.1.0-pre-release.21-Linux
-          chmod +x sakura-lan-mod/analysis/cpp2il/Cpp2IL
+          curl -L --fail --retry 3 \
+            -o "$TOOL/Plugins/Cpp2IL.Plugin.StrippedCodeRegSupport.dll" \
+            https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL.Plugin.StrippedCodeRegSupport.dll
+          chmod +x "$TOOL/Cpp2IL"
 
           IL2CPP="$(find "$PWD/sakura-lan-mod/analysis/unpacked" -type f -name libil2cpp.so | head -n1)"
           META="$(find "$PWD/sakura-lan-mod/analysis/unpacked" -type f -name global-metadata.dat | head -n1)"
-          echo "lib=$IL2CPP" > sakura-lan-mod/analysis/cpp2il-paths.txt
-          echo "meta=$META" >> sakura-lan-mod/analysis/cpp2il-paths.txt
+          echo "lib=$IL2CPP" > "$PWD/sakura-lan-mod/analysis/cpp2il-paths.txt"
+          echo "meta=$META" >> "$PWD/sakura-lan-mod/analysis/cpp2il-paths.txt"
 
-          sakura-lan-mod/analysis/cpp2il/Cpp2IL --help > sakura-lan-mod/analysis/cpp2il-help.txt 2>&1 || true
+          "$TOOL/Cpp2IL" --list-processors > "$PWD/sakura-lan-mod/analysis/cpp2il-processors.txt" 2>&1 || true
+          "$TOOL/Cpp2IL" --list-output-formats > "$PWD/sakura-lan-mod/analysis/cpp2il-formats.txt" 2>&1 || true
 
-          mkdir -p sakura-lan-mod/analysis/cpp2il/run
-          cd sakura-lan-mod/analysis/cpp2il/run
+          cd "$TOOL/run"
           set +e
-          ../Cpp2IL \
+          NO_COLOR=1 ../Cpp2IL \
             --force-binary-path="$IL2CPP" \
             --force-metadata-path="$META" \
             --force-unity-version=2022.3.62f3 \
-            --skip-analysis \
-            --disable-registration-prompts \
+            --output-as dummydll \
+            --output-to="$PWD/out" \
+            --verbose \
             > ../cpp2il.log 2>&1
           CODE=$?
           set -e
           echo "$CODE" > ../cpp2il-exit-code.txt
-          find . -maxdepth 4 -type f -printf '%p\n' | sort > ../cpp2il-output-files.txt
-          tail -n 250 ../cpp2il.log || true
+          find . -maxdepth 5 -type f -printf '%p\n' | sort > ../cpp2il-output-files.txt
+
+          ASSEMBLY="$(find "$PWD/out" -type f -name Assembly-CSharp.dll | head -n1 || true)"
+          echo "assembly=$ASSEMBLY" > ../assembly-path.txt
+          if [ -n "$ASSEMBLY" ]; then
+            dotnet tool install --global ilspycmd
+            export PATH="$PATH:$HOME/.dotnet/tools"
+            mkdir -p ../decompiled
+            ilspycmd "$ASSEMBLY" -p -o ../decompiled > ../ilspy.log 2>&1 || true
+            find ../decompiled -type f -name '*.cs' -printf '%p\n' | sort > ../decompiled-files.txt
+            grep -RniE --include='*.cs' \
+              'class .*([Pp]layer|[Cc]hara|[Cc]haracter|[Hh]uman|[Gg]irl|[Bb]oy|[Cc]ontroller)|([Pp]layer|[Cc]hara|[Cc]haracter).*(Move|Anim|Vehicle|Car|Transform)' \
+              ../decompiled | head -n 1200 > ../candidate-player-symbols.txt || true
+          else
+            : > ../ilspy.log
+            : > ../decompiled-files.txt
+            : > ../candidate-player-symbols.txt
+          fi
+
+          tail -n 300 ../cpp2il.log || true
           exit 0
 
       - name: Upload analysis only
@@ -77,8 +101,13 @@ jobs:
           path: |
             sakura-lan-mod/analysis/package-report.txt
             sakura-lan-mod/analysis/cpp2il-paths.txt
-            sakura-lan-mod/analysis/cpp2il-help.txt
+            sakura-lan-mod/analysis/cpp2il-processors.txt
+            sakura-lan-mod/analysis/cpp2il-formats.txt
             sakura-lan-mod/analysis/cpp2il/cpp2il.log
             sakura-lan-mod/analysis/cpp2il/cpp2il-exit-code.txt
             sakura-lan-mod/analysis/cpp2il/cpp2il-output-files.txt
+            sakura-lan-mod/analysis/cpp2il/assembly-path.txt
+            sakura-lan-mod/analysis/cpp2il/ilspy.log
+            sakura-lan-mod/analysis/cpp2il/decompiled-files.txt
+            sakura-lan-mod/analysis/cpp2il/candidate-player-symbols.txt
           if-no-files-found: error
