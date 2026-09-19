@@ -48,7 +48,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
           script: |
-            set -euxo pipefail
+            set -eux
             mkdir -p sakura-lan-mod/emulator/out
             adb shell getprop ro.product.cpu.abilist | tee sakura-lan-mod/emulator/out/abilist.txt
             adb shell getprop ro.dalvik.vm.native.bridge | tee sakura-lan-mod/emulator/out/native-bridge.txt
