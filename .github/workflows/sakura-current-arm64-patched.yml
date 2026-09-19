@@ -1,0 +1,90 @@
+name: Sakura Current ARM64 Patched Runtime
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-current-arm64-patched.yml"
+      - "sakura-lan-mod/native/**"
+      - "sakura-lan-mod/tools/patch_split_pack.sh"
+  workflow_dispatch:
+
+jobs:
+  current-arm64-patched:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download native ARM64 apkeep
+        run: |
+          mkdir -p sakura-lan-mod/arm64/input sakura-lan-mod/arm64/xapk sakura-lan-mod/arm64/patched
+          curl -L --fail --retry 3             -o sakura-lan-mod/arm64/apkeep             https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-aarch64-unknown-linux-gnu
+          chmod +x sakura-lan-mod/arm64/apkeep
+          sakura-lan-mod/arm64/apkeep             -a jp.garud.ssimulator@1.048.10             sakura-lan-mod/arm64/input
+          unzip -q sakura-lan-mod/arm64/input/*.xapk -d sakura-lan-mod/arm64/xapk
+          find sakura-lan-mod/arm64/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Build ARM64 runtime probe
+        run: |
+          cmake -S sakura-lan-mod/native -B sakura-lan-mod/native-build-arm64             -DCMAKE_BUILD_TYPE=Release             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake"             -DANDROID_ABI=arm64-v8a             -DANDROID_PLATFORM=24
+          cmake --build sakura-lan-mod/native-build-arm64 --parallel
+          file sakura-lan-mod/native-build-arm64/libsakuralan.so
+
+      - name: Patch and re-sign split APK set
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq patchelf zip
+          bash sakura-lan-mod/tools/patch_split_pack.sh             sakura-lan-mod/arm64/xapk             sakura-lan-mod/native-build-arm64/libsakuralan.so             sakura-lan-mod/arm64/patched
+          ls -lh sakura-lan-mod/arm64/patched/signed/
+
+      - name: Enable KVM
+        run: |
+          uname -a
+          lscpu
+          ls -l /dev/kvm || true
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Boot native ARM64 emulator and run patched Sakura
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: |
+            mkdir -p sakura-lan-mod/arm64/evidence
+            adb shell getprop ro.product.cpu.abilist > sakura-lan-mod/arm64/evidence/abilist.txt
+            adb install-multiple -r sakura-lan-mod/arm64/patched/signed/jp.garud.ssimulator.apk sakura-lan-mod/arm64/patched/signed/config.arm64_v8a.apk sakura-lan-mod/arm64/patched/signed/UnityDataAssetPack.apk
+            adb shell pm list packages | grep jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/package.txt
+            adb logcat -c
+            adb shell monkey -p jp.garud.ssimulator -c android.intent.category.LAUNCHER 1 || true
+            sleep 75
+            adb shell pidof jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/pid.txt || true
+            adb shell dumpsys activity activities > sakura-lan-mod/arm64/evidence/activities.txt || true
+            adb logcat -d -v threadtime > sakura-lan-mod/arm64/evidence/logcat.txt || true
+            adb exec-out screencap -p > sakura-lan-mod/arm64/evidence/patched-current.png || true
+            grep 'SakuraLAN' sakura-lan-mod/arm64/evidence/logcat.txt | tail -n 5000 > sakura-lan-mod/arm64/evidence/sakuralan-log.txt || true
+            grep -Ei 'FATAL EXCEPTION|SIGABRT|SIGSEGV|UnsatisfiedLinkError|INSTALL_FAILED|integrity|pairip|pgl' sakura-lan-mod/arm64/evidence/logcat.txt | tail -n 500 > sakura-lan-mod/arm64/evidence/fatal-log.txt || true
+            echo "=== PID ==="
+            cat sakura-lan-mod/arm64/evidence/pid.txt || true
+            echo "=== SakuraLAN runtime probe ==="
+            cat sakura-lan-mod/arm64/evidence/sakuralan-log.txt || true
+            echo "=== fatal markers ==="
+            cat sakura-lan-mod/arm64/evidence/fatal-log.txt || true
+
+      - name: Upload ARM64 runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-current-arm64-patched
+          path: |
+            sakura-lan-mod/arm64/evidence/
+            sakura-lan-mod/arm64/patched/work/libmain-signed.so
+          if-no-files-found: warn
