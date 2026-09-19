@@ -233,7 +233,7 @@ jobs:
             cat "$OUT/sakuralan-two-users.txt" || true
 
             grep -q 'NET HOST OK' "$OUT/sakuralan-two-users.txt"
-            grep -q 'NET JOIN OK' "$OUT/sakuralan-two-users.txt"
+            grep -q 'NET DIRECT JOIN OK' "$OUT/sakuralan-two-users.txt"
             grep -q 'Client joined' "$OUT/sakuralan-two-users.txt"
 
       - name: Upload two-user LAN evidence
