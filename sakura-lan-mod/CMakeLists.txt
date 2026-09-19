@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.16)
+project(sakura_lan_mod LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(sakura_lan_core STATIC
+  src/UdpTransport.cpp
+  src/LanSession.cpp
+  src/ModController.cpp
+)
+target_include_directories(sakura_lan_core PUBLIC src)
+
+if(ANDROID)
+  target_link_libraries(sakura_lan_core log android)
+endif()
+
+if(NOT ANDROID)
+  add_executable(lan_integration_test tests/lan_integration_test.cpp)
+  target_link_libraries(lan_integration_test PRIVATE sakura_lan_core pthread)
+  enable_testing()
+  add_test(NAME lan_integration COMMAND lan_integration_test)
+endif()
