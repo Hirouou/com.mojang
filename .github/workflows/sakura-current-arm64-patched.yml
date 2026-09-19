@@ -1,4 +1,4 @@
-# validated with actionlint; launcher pipeline\nname: Sakura Current ARM64 Patched Runtime
+name: Sakura Current ARM64 Patched Runtime
 
 on:
   push:
@@ -42,17 +42,22 @@ jobs:
           find sakura-lan-mod/arm64/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
 
       - name: Build Host Join launcher DEX
+        shell: bash
         run: |
           PLATFORM_JAR="$(find "$ANDROID_HOME/platforms" -maxdepth 2 -type f -name android.jar | sort -V | tail -n1)"
-          BUILD_TOOLS="$(ls -1d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n1)"
           mkdir -p sakura-lan-mod/android-build/classes sakura-lan-mod/android-build/dex
+
           javac -source 8 -target 8 \
             -classpath "$PLATFORM_JAR" \
             -d sakura-lan-mod/android-build/classes \
             sakura-lan-mod/android/jp/garud/ssimulator/SakuraLanActivity.java
+
+          mapfile -t CLASS_FILES < <(find sakura-lan-mod/android-build/classes -type f -name '*.class' | sort)
           "$BUILD_TOOLS/d8" --min-api 24 \
             --output sakura-lan-mod/android-build/dex \
-            $(find sakura-lan-mod/android-build/classes -type f -name '*.class')
+            "${CLASS_FILES[@]}"
+
           test -s sakura-lan-mod/android-build/dex/classes.dex
           curl -L --fail --retry 3 \
             -o sakura-lan-mod/android-build/apktool.jar \
@@ -68,16 +73,12 @@ jobs:
             sakura-lan-mod/arm64/patched \
             sakura-lan-mod/android-build/dex/classes.dex \
             sakura-lan-mod/android-build/apktool.jar
-          ls -lh sakura-lan-mod/arm64/patched/signed/
+          find sakura-lan-mod/arm64/patched/signed -maxdepth 1 -type f -name '*.apk' -printf '%f %s\n' | sort
 
       - uses: actions/upload-artifact@v4
         with:
           name: sakura-current-patched-apks
-          path: |
-            sakura-lan-mod/arm64/patched/signed/jp.garud.ssimulator.apk
-            sakura-lan-mod/arm64/patched/signed/config.arm64_v8a.apk
-            sakura-lan-mod/arm64/patched/signed/UnityDataAssetPack.apk
-            sakura-lan-mod/native-build-arm64/libsakuralan.so
+          path: sakura-lan-mod/arm64/patched/signed/*.apk
           if-no-files-found: error
           compression-level: 1
 
@@ -97,7 +98,7 @@ jobs:
         run: |
           uname -a
           uname -m
-          find sakura-lan-mod/prebuilt -maxdepth 3 -type f -exec ls -lh {} \;
+          find sakura-lan-mod/prebuilt -maxdepth 2 -type f -exec ls -lh {} \;
           test -f sakura-lan-mod/prebuilt/jp.garud.ssimulator.apk
           test -f sakura-lan-mod/prebuilt/config.arm64_v8a.apk
           test -f sakura-lan-mod/prebuilt/UnityDataAssetPack.apk
@@ -123,8 +124,12 @@ jobs:
             adb shell pm list packages | grep jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/package.txt
             adb logcat -c
             adb shell monkey -p jp.garud.ssimulator -c android.intent.category.LAUNCHER 1 || true
-            sleep 90
+            sleep 12
+            adb exec-out screencap -p > sakura-lan-mod/arm64/evidence/lan-menu.png || true
 
+            # The smoke test does not press Host/Join yet. It validates that the
+            # patched launcher and injected native library can coexist and launch.
+            sleep 25
             adb shell pidof jp.garud.ssimulator > sakura-lan-mod/arm64/evidence/pid.txt || true
             adb shell dumpsys activity activities > sakura-lan-mod/arm64/evidence/activities.txt || true
             adb logcat -d -v threadtime > sakura-lan-mod/arm64/evidence/logcat.txt || true
@@ -134,7 +139,7 @@ jobs:
 
             echo "=== PID ==="
             cat sakura-lan-mod/arm64/evidence/pid.txt || true
-            echo "=== SakuraLAN runtime probe ==="
+            echo "=== SakuraLAN runtime ==="
             cat sakura-lan-mod/arm64/evidence/sakuralan-log.txt || true
             echo "=== fatal markers ==="
             cat sakura-lan-mod/arm64/evidence/fatal-log.txt || true
