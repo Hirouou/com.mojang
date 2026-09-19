@@ -4,7 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
-#include <mutex>
+#include <mutex>\n#include <pthread.h>\n#include <unistd.h>
 #include <thread>
 #include <string>
 #include <vector>
@@ -24,13 +24,42 @@ void ensure_callbacks() {
     if (gConfigured.exchange(true)) return;
     gSession.onLog = [](const std::string& s) { LOGI("NET %s", s.c_str()); };
     gSession.onRemoteState = [](const sakura_lan::PlayerStatePayload& state) {
-        gRemote = state;
-        gHasRemote = true;
+        {
+            std::lock_guard<std::mutex> lock(gRemoteMutex);
+            gRemote = state;
+            gHasRemote = true;
+        }
         LOGI("NET REMOTE id=%u pos=%.2f %.2f %.2f anim=%u",
              static_cast<unsigned>(state.playerId),
              state.position.x, state.position.y, state.position.z,
              static_cast<unsigned>(state.animationId));
     };
+}
+
+void* pump_worker(void*) {
+    LOGI("NET pump thread started");
+    while (gPumpRunning.load()) {
+        {
+            std::lock_guard<std::mutex> lock(gMutex);
+            if (gSession.mode() != sakura_lan::LanSession::Mode::Offline) {
+                gSession.pump(2);
+            }
+        }
+        usleep(4000);
+    }
+    return nullptr;
+}
+
+void ensure_pump_thread() {
+    bool expected = false;
+    if (!gPumpRunning.compare_exchange_strong(expected, true)) return;
+    pthread_t thread{};
+    if (pthread_create(&thread, nullptr, pump_worker, nullptr) == 0) {
+        pthread_detach(thread);
+    } else {
+        gPumpRunning = false;
+        LOGE("NET pump pthread_create failed");
+    }
 }
 
 void ensure_pump_thread() {
@@ -56,7 +85,7 @@ int sakuralan_net_host(const char* roomName, uint32_t sessionId) {
     std::lock_guard<std::mutex> lock(gMutex);
     ensure_callbacks();
     const std::string room = (roomName && *roomName) ? roomName : "Sakura LAN";
-    const bool ok = gSession.startHost(room, sessionId ? sessionId : 0x53414B55u);
+    const bool ok = gSession.startHost(room, sessionId ? sessionId : 0x53414B55u);\n    if (ok) ensure_pump_thread();
     if (ok) ensure_pump_thread();
     LOGI("NET HOST %s room=%s", ok ? "OK" : "FAIL", room.c_str());
     return ok ? 1 : 0;
@@ -66,7 +95,7 @@ extern "C" __attribute__((visibility("default")))
 int sakuralan_net_client() {
     std::lock_guard<std::mutex> lock(gMutex);
     ensure_callbacks();
-    const bool ok = gSession.startClient();
+    const bool ok = gSession.startClient();\n    if (ok) ensure_pump_thread();
     if (ok) ensure_pump_thread();
     LOGI("NET CLIENT %s", ok ? "OK" : "FAIL");
     return ok ? 1 : 0;
