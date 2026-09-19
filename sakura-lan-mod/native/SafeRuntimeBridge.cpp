@@ -19,6 +19,7 @@
 extern "C" {
 int sakuralan_net_connected();
 int sakuralan_net_local_player_id();
+int sakuralan_net_ci_pose();
 void sakuralan_net_send_state(float px, float py, float pz,
                               float qx, float qy, float qz, float qw,
                               float vx, float vy, float vz,
@@ -289,6 +290,7 @@ void* gLocalTransform = nullptr;
 void* gRemoteGameObject = nullptr;
 void* gRemoteTransform = nullptr;
 std::atomic<bool> gClientOffsetDone{false};
+std::atomic<bool> gCiFacingDone{false};
 std::chrono::steady_clock::time_point gLastSend{};
 std::vector<uint32_t> gPlayerHandles;
 void retain_player_object(void* object) {
@@ -488,6 +490,7 @@ void multiplayer_tick(void* self) {
         gLocalGameObject = gLocalTransform = nullptr;
         gRemoteGameObject = gRemoteTransform = nullptr;
         gClientOffsetDone = false;
+        gCiFacingDone = false;
         gLastSend = {};
     }
 
@@ -511,6 +514,15 @@ void multiplayer_tick(void* self) {
             gClientOffsetDone = true;
             LOGI("ARMHOOK CLIENT OFFSET %.2f %.2f %.2f", p.x, p.y, p.z);
         }
+    }
+
+    if (sakuralan_net_ci_pose() && !gCiFacingDone.exchange(true)) {
+        constexpr float kHalfSqrt2 = 0.70710678f;
+        const bool client = sakuralan_net_local_player_id() == 1;
+        Quat facing{0.0f, client ? -kHalfSqrt2 : kHalfSqrt2,
+                    0.0f, kHalfSqrt2};
+        invoke1(gApi, transformClass, gLocalTransform, "set_rotation", &facing);
+        LOGI("ARMHOOK CI FACE role=%s", client ? "client" : "host");
     }
 
     if (!create_remote_avatar()) return;

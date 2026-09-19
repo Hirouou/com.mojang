@@ -24,6 +24,7 @@ public final class SakuraLanActivity extends Activity {
     private static native int nativeJoin();
     private static native int nativeJoinAddress(String host, int port);
     private static native int nativeConnected();
+    private static native void nativeSetCiPose(boolean enabled);
 
     private LinearLayout root;
     private TextView status;
@@ -45,6 +46,7 @@ public final class SakuraLanActivity extends Activity {
         final String mode = intent.getStringExtra("sakuralan_mode");
         debugJoinHost = intent.getStringExtra("sakuralan_host");
         debugJoinPort = intent.getIntExtra("sakuralan_port", 38556);
+        nativeSetCiPose(intent.getBooleanExtra("sakuralan_ci_pose", false));
 
         if ("host".equalsIgnoreCase(mode)) {
             root.postDelayed(this::createRoom, 350);

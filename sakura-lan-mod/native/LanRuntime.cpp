@@ -25,6 +25,7 @@ std::map<VisualKey, sakura_lan::VisualStatePayload> gVisualPending;
 std::map<VisualKey, uint32_t> gVisualSequence;
 std::atomic<bool> gCallbacksConfigured{false};
 std::atomic<bool> gPumpRunning{false};
+std::atomic<bool> gCiPose{false};
 
 void ensure_callbacks() {
     if (gCallbacksConfigured.exchange(true)) return;
@@ -215,6 +216,11 @@ int sakuralan_net_local_player_id() {
 }
 
 extern "C" __attribute__((visibility("default")))
+int sakuralan_net_ci_pose() {
+    return gCiPose.load() ? 1 : 0;
+}
+
+extern "C" __attribute__((visibility("default")))
 void sakuralan_net_send_state(
     float px, float py, float pz,
     float qx, float qy, float qz, float qw,
@@ -317,4 +323,11 @@ JNIEXPORT jint JNICALL
 Java_jp_garud_ssimulator_SakuraLanActivity_nativeConnected(
     JNIEnv*, jclass) {
     return sakuralan_net_connected();
+}
+
+extern "C" __attribute__((visibility("default")))
+JNIEXPORT void JNICALL
+Java_jp_garud_ssimulator_SakuraLanActivity_nativeSetCiPose(
+    JNIEnv*, jclass, jboolean enabled) {
+    gCiPose = enabled == JNI_TRUE;
 }
