@@ -2,6 +2,8 @@ package jp.garud.ssimulator;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -142,8 +144,19 @@ public final class SakuraLanActivity extends Activity {
 
     private void launchGame() {
         try {
+            String className = "com.unity3d.player.UnityPlayerActivity";
+            ApplicationInfo info = getPackageManager().getApplicationInfo(
+                    getPackageName(), PackageManager.GET_META_DATA);
+            if (info.metaData != null) {
+                String saved = info.metaData.getString(
+                        "jp.garud.ssimulator.SAKURA_ORIGINAL_ACTIVITY");
+                if (saved != null && !saved.isEmpty()) className = saved;
+            }
+            if (className.startsWith(".")) className = getPackageName() + className;
+
             Intent game = new Intent();
-            game.setClassName(this, "com.unity3d.player.UnityPlayerActivity");
+            game.setClassName(getPackageName(), className);
+            game.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(game);
             finish();
         } catch (Throwable t) {
