@@ -2,8 +2,10 @@
 #include <jni.h>
 #include <android/log.h>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <mutex>
+#include <thread>
 #include <string>
 #include <vector>
 
@@ -16,6 +18,7 @@ sakura_lan::LanSession gSession;
 sakura_lan::PlayerStatePayload gRemote{};
 std::atomic<bool> gHasRemote{false};
 std::atomic<bool> gConfigured{false};
+std::atomic<bool> gPumpRunning{false};
 
 void ensure_callbacks() {
     if (gConfigured.exchange(true)) return;
@@ -29,6 +32,23 @@ void ensure_callbacks() {
              static_cast<unsigned>(state.animationId));
     };
 }
+
+void ensure_pump_thread() {
+    if (gPumpRunning.exchange(true)) return;
+    std::thread([] {
+        LOGI("NET pump thread started");
+        while (gPumpRunning.load()) {
+            {
+                std::lock_guard<std::mutex> lock(gMutex);
+                if (gSession.mode() != sakura_lan::LanSession::Mode::Offline) {
+                    gSession.pump(10);
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        LOGI("NET pump thread stopped");
+    }).detach();
+}
 }
 
 extern "C" __attribute__((visibility("default")))
@@ -37,6 +57,7 @@ int sakuralan_net_host(const char* roomName, uint32_t sessionId) {
     ensure_callbacks();
     const std::string room = (roomName && *roomName) ? roomName : "Sakura LAN";
     const bool ok = gSession.startHost(room, sessionId ? sessionId : 0x53414B55u);
+    if (ok) ensure_pump_thread();
     LOGI("NET HOST %s room=%s", ok ? "OK" : "FAIL", room.c_str());
     return ok ? 1 : 0;
 }
@@ -46,6 +67,7 @@ int sakuralan_net_client() {
     std::lock_guard<std::mutex> lock(gMutex);
     ensure_callbacks();
     const bool ok = gSession.startClient();
+    if (ok) ensure_pump_thread();
     LOGI("NET CLIENT %s", ok ? "OK" : "FAIL");
     return ok ? 1 : 0;
 }
@@ -104,6 +126,7 @@ void sakuralan_net_send_state(float px, float py, float pz,
 extern "C" __attribute__((visibility("default")))
 int sakuralan_net_take_remote(float* out13) {
     if (!out13 || !gHasRemote.exchange(false)) return 0;
+    std::lock_guard<std::mutex> lock(gMutex);
     const auto s = gRemote;
     out13[0] = s.position.x; out13[1] = s.position.y; out13[2] = s.position.z;
     out13[3] = s.rotation.x; out13[4] = s.rotation.y; out13[5] = s.rotation.z; out13[6] = s.rotation.w;
