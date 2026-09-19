@@ -34,6 +34,15 @@ public final class SakuraLanActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         buildUi();
+
+        // CI/debug shortcut: allows two automated Android instances to choose
+        // Host or Join without relying on fragile screen-coordinate taps.
+        final String mode = getIntent().getStringExtra("sakuralan_mode");
+        if ("host".equalsIgnoreCase(mode)) {
+            root.postDelayed(this::createRoom, 350);
+        } else if ("join".equalsIgnoreCase(mode)) {
+            root.postDelayed(this::joinRoom, 900);
+        }
     }
 
     private TextView makeText(String text, float sp, int color) {
