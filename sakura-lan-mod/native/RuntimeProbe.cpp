@@ -1,5 +1,6 @@
 #include <android/log.h>
 #include <atomic>
+#include <chrono>
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sys/mman.h>
@@ -8,6 +9,15 @@
 #include <cstring>
 #include <string>
 #include <vector>
+
+extern "C" {
+int sakuralan_net_connected();
+void sakuralan_net_send_state(float px, float py, float pz,
+                              float qx, float qy, float qz, float qw,
+                              float vx, float vy, float vz,
+                              uint16_t animationId, uint8_t flags);
+int sakuralan_net_take_remote(float* out13);
+}
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "SakuraLAN", __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "SakuraLAN", __VA_ARGS__)
@@ -272,6 +282,187 @@ void runtime_find_probe(Api& a, const void* unityCore) {
 }
 
 
+
+struct Float3 { float x, y, z; };
+struct Float4 { float x, y, z, w; };
+
+Api gBridgeApi{};
+const void* gBridgeUnityCore = nullptr;
+const void* gBridgeAssembly = nullptr;
+std::atomic<void*> gLocalCharaMove{nullptr};
+void* gLocalGameObject = nullptr;
+void* gLocalTransform = nullptr;
+void* gRemoteGameObject = nullptr;
+void* gRemoteTransform = nullptr;
+std::chrono::steady_clock::time_point gLastNetSend{};
+
+bool read_vec3_box(void* boxed, Float3& out) {
+    if (!boxed) return false;
+    const auto* v = reinterpret_cast<const float*>(
+        reinterpret_cast<const uint8_t*>(boxed) + 16);
+    out = {v[0], v[1], v[2]};
+    return true;
+}
+
+bool read_quat_box(void* boxed, Float4& out) {
+    if (!boxed) return false;
+    const auto* v = reinterpret_cast<const float*>(
+        reinterpret_cast<const uint8_t*>(boxed) + 16);
+    out = {v[0], v[1], v[2], v[3]};
+    return true;
+}
+
+bool cache_local_player(void* self) {
+    if (!gBridgeUnityCore || !self) return false;
+
+    void* componentClass =
+        gBridgeApi.class_from_name(gBridgeUnityCore, "UnityEngine", "Component");
+    void* objectClass =
+        gBridgeApi.class_from_name(gBridgeUnityCore, "UnityEngine", "Object");
+    void* gameObjectClass =
+        gBridgeApi.class_from_name(gBridgeUnityCore, "UnityEngine", "GameObject");
+    if (!componentClass || !objectClass || !gameObjectClass) return false;
+
+    void* go = invoke0(gBridgeApi, componentClass, self, "get_gameObject");
+    if (!go) return false;
+
+    std::string name =
+        il2cpp_string_to_ascii(invoke0(gBridgeApi, objectClass, go, "get_name"));
+    if (name.find("Player") == std::string::npos ||
+        name.find("SAKURA_LAN_REMOTE") != std::string::npos) {
+        return false;
+    }
+
+    void* transform =
+        invoke0(gBridgeApi, gameObjectClass, go, "get_transform");
+    if (!transform) return false;
+
+    void* expected = nullptr;
+    if (!gLocalCharaMove.compare_exchange_strong(expected, self) &&
+        gLocalCharaMove.load() != self) {
+        return false;
+    }
+
+    gLocalGameObject = go;
+    gLocalTransform = transform;
+    LOGI("MAINBRIDGE local player name=%s CharaMove=%p go=%p transform=%p",
+         name.c_str(), self, go, transform);
+    return true;
+}
+
+bool ensure_remote_avatar() {
+    if (gRemoteGameObject) return true;
+    if (!gLocalGameObject || !gBridgeUnityCore || !gBridgeAssembly) return false;
+
+    void* objectClass =
+        gBridgeApi.class_from_name(gBridgeUnityCore, "UnityEngine", "Object");
+    void* gameObjectClass =
+        gBridgeApi.class_from_name(gBridgeUnityCore, "UnityEngine", "GameObject");
+    void* behaviourClass =
+        gBridgeApi.class_from_name(gBridgeUnityCore, "UnityEngine", "Behaviour");
+    void* charaClass =
+        gBridgeApi.class_from_name(gBridgeAssembly, "", "CharaMove");
+    if (!objectClass || !gameObjectClass || !behaviourClass || !charaClass)
+        return false;
+
+    void* clone =
+        invoke1(gBridgeApi, objectClass, nullptr, "Instantiate", gLocalGameObject);
+    if (!clone) {
+        LOGE("MAINBRIDGE Object.Instantiate returned null");
+        return false;
+    }
+
+    invoke1(gBridgeApi, objectClass, clone, "set_name",
+            gBridgeApi.string_new("SAKURA_LAN_REMOTE"));
+
+    const void* charaType = gBridgeApi.class_get_type(charaClass);
+    void* systemType = charaType ? gBridgeApi.type_get_object(charaType) : nullptr;
+    if (systemType) {
+        void* cloneMove =
+            invoke1(gBridgeApi, gameObjectClass, clone, "GetComponent", systemType);
+        if (cloneMove) {
+            uint8_t disabled = 0;
+            invoke1(gBridgeApi, behaviourClass, cloneMove, "set_enabled", &disabled);
+            LOGI("MAINBRIDGE disabled remote CharaMove=%p", cloneMove);
+        }
+    }
+
+    void* transform =
+        invoke0(gBridgeApi, gameObjectClass, clone, "get_transform");
+    if (!transform) {
+        LOGE("MAINBRIDGE remote transform missing");
+        return false;
+    }
+
+    gRemoteGameObject = clone;
+    gRemoteTransform = transform;
+
+    void* transformClass = gBridgeApi.object_get_class(transform);
+    Float3 localPos{};
+    if (transformClass &&
+        read_vec3_box(invoke0(gBridgeApi, transformClass, gLocalTransform,
+                             "get_position"), localPos)) {
+        Float3 offset{localPos.x + 2.0f, localPos.y, localPos.z};
+        invoke1(gBridgeApi, transformClass, transform, "set_position", &offset);
+    }
+
+    LOGI("MAINBRIDGE remote avatar cloned go=%p transform=%p",
+         gRemoteGameObject, gRemoteTransform);
+    return true;
+}
+
+void network_player_tick(void* self) {
+    if (!gBridgeUnityCore || !gBridgeAssembly) return;
+
+    void* selected = gLocalCharaMove.load();
+    if (!selected) {
+        if (!cache_local_player(self)) return;
+        selected = self;
+    }
+    if (selected != self || !gLocalTransform) return;
+    if (!sakuralan_net_connected()) return;
+
+    if (!ensure_remote_avatar()) return;
+
+    void* transformClass = gBridgeApi.object_get_class(gLocalTransform);
+    if (!transformClass) return;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (gLastNetSend.time_since_epoch().count() == 0 ||
+        now - gLastNetSend >= std::chrono::milliseconds(50)) {
+        Float3 p{};
+        Float4 q{};
+        if (read_vec3_box(
+                invoke0(gBridgeApi, transformClass, gLocalTransform, "get_position"), p) &&
+            read_quat_box(
+                invoke0(gBridgeApi, transformClass, gLocalTransform, "get_rotation"), q)) {
+            sakuralan_net_send_state(
+                p.x, p.y, p.z,
+                q.x, q.y, q.z, q.w,
+                0.0f, 0.0f, 0.0f,
+                0, 0);
+            gLastNetSend = now;
+        }
+    }
+
+    float remote[13]{};
+    if (sakuralan_net_take_remote(remote)) {
+        void* remoteTransformClass =
+            gBridgeApi.object_get_class(gRemoteTransform);
+        if (!remoteTransformClass) return;
+
+        Float3 p{remote[0], remote[1], remote[2]};
+        Float4 q{remote[3], remote[4], remote[5], remote[6]};
+        invoke1(gBridgeApi, remoteTransformClass, gRemoteTransform,
+                "set_position", &p);
+        invoke1(gBridgeApi, remoteTransformClass, gRemoteTransform,
+                "set_rotation", &q);
+
+        LOGI("MAINBRIDGE applied remote id=%.0f pos=%.2f %.2f %.2f",
+             remote[12], p.x, p.y, p.z);
+    }
+}
+
 using CharaUpdateFn = void (*)(void*, const void*);
 std::atomic<CharaUpdateFn> gOriginalCharaUpdate{nullptr};
 std::atomic<uint64_t> gCharaUpdateCalls{0};
@@ -279,6 +470,8 @@ std::atomic<uint64_t> gCharaUpdateCalls{0};
 void hooked_chara_update(void* self, const void* method) {
     CharaUpdateFn original = gOriginalCharaUpdate.load();
     if (original) original(self, method);
+
+    network_player_tick(self);
 
     const uint64_t n = ++gCharaUpdateCalls;
     if (n <= 30 || n % 1200 == 0) {
@@ -320,9 +513,8 @@ bool patch_chara_update_method_pointer(Api& a, const void* asmCSharp) {
     gOriginalCharaUpdate.store(reinterpret_cast<CharaUpdateFn>(original));
     __atomic_store_n(slot, reinterpret_cast<void*>(hooked_chara_update), __ATOMIC_RELEASE);
 
-    mprotect(reinterpret_cast<void*>(page),
-             static_cast<size_t>(pageSize),
-             PROT_READ);
+    // Keep the metadata page writable after changing MethodInfo. Some IL2CPP
+    // builds lazily initialize neighboring method metadata later in startup.
 
     LOGI("METHODPTR PATCH installed MethodInfo=%p original=%p hook=%p",
          method, original, reinterpret_cast<void*>(hooked_chara_update));
@@ -351,6 +543,9 @@ void* worker(void*) {
     }
 
     LOGI("images Assembly-CSharp=%p UnityEngine.CoreModule=%p", asmCSharp, unityCore);
+    gBridgeApi = a;
+    gBridgeAssembly = asmCSharp;
+    gBridgeUnityCore = unityCore;
     if (asmCSharp) {
         dump_class(a, asmCSharp, "", "CharaMove");
         dump_class(a, asmCSharp, "", "CharacterBaseManager");
