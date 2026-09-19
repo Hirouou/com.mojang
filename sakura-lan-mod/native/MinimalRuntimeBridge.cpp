@@ -418,14 +418,17 @@ bool install_method_pointer_hook() {
 }
 
 void* worker(void*) {
-    LOGI("MINBRIDGE worker waiting");
-    sleep(6);
+    LOGI("MINBRIDGE worker waiting for Unity startup");
+    sleep(15);
+    LOGI("MINBRIDGE worker probing libil2cpp");
 
     if (!load_api(gApi)) return nullptr;
+    LOGI("MINBRIDGE exports loaded");
 
     void* domain = gApi.domain_get();
     if (!domain) return nullptr;
     gApi.thread_attach(domain);
+    LOGI("MINBRIDGE IL2CPP thread attached domain=%p", domain);
 
     for (int i = 0; i < 300; ++i) {
         gAssembly = find_image(gApi, "Assembly-CSharp");
