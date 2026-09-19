@@ -1,0 +1,91 @@
+name: Sakura Android Emulator Smoke
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-emulator-smoke.yml"
+      - "sakura-lan-mod/emulator/**"
+  workflow_dispatch:
+
+jobs:
+  vanilla-arm64-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download target XAPK
+        run: |
+          mkdir -p sakura-lan-mod/emulator/input
+          docker run --rm \
+            -v "$PWD/sakura-lan-mod/emulator/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@1.048.10 /output
+          mkdir -p sakura-lan-mod/emulator/xapk
+          unzip -q sakura-lan-mod/emulator/input/*.xapk -d sakura-lan-mod/emulator/xapk
+          find sakura-lan-mod/emulator/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || true
+
+      - name: Boot emulator and launch vanilla game
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: |
+            set -euxo pipefail
+            mkdir -p sakura-lan-mod/emulator/out
+            adb shell getprop ro.product.cpu.abilist | tee sakura-lan-mod/emulator/out/abilist.txt
+            adb shell getprop ro.dalvik.vm.native.bridge | tee sakura-lan-mod/emulator/out/native-bridge.txt
+            adb shell getprop ro.enable.native.bridge.exec | tee sakura-lan-mod/emulator/out/native-bridge-enabled.txt
+
+            BASE="$PWD/sakura-lan-mod/emulator/xapk/jp.garud.ssimulator.apk"
+            ABI="$PWD/sakura-lan-mod/emulator/xapk/config.arm64_v8a.apk"
+            PACK="$PWD/sakura-lan-mod/emulator/xapk/UnityDataAssetPack.apk"
+
+            adb install-multiple -r "$BASE" "$ABI" "$PACK"
+            adb shell pm list packages | grep jp.garud.ssimulator
+
+            adb logcat -c
+            adb shell monkey -p jp.garud.ssimulator -c android.intent.category.LAUNCHER 1 || true
+            sleep 45
+
+            adb shell dumpsys activity activities | grep -A 10 -B 3 jp.garud.ssimulator \
+              > sakura-lan-mod/emulator/out/activity.txt || true
+            adb logcat -d -v threadtime \
+              > sakura-lan-mod/emulator/out/logcat.txt || true
+            adb exec-out screencap -p \
+              > sakura-lan-mod/emulator/out/vanilla.png || true
+            adb shell pidof jp.garud.ssimulator \
+              > sakura-lan-mod/emulator/out/pid.txt || true
+
+            echo "=== ABI ==="
+            cat sakura-lan-mod/emulator/out/abilist.txt
+            echo "=== PID ==="
+            cat sakura-lan-mod/emulator/out/pid.txt || true
+            echo "=== likely fatal lines ==="
+            grep -Ei 'FATAL EXCEPTION|SIGABRT|SIGSEGV|UnsatisfiedLinkError|INSTALL_FAILED|pairip|pgl|integrity' \
+              sakura-lan-mod/emulator/out/logcat.txt | tail -n 120 || true
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-emulator-smoke
+          path: sakura-lan-mod/emulator/out/
+          if-no-files-found: warn
