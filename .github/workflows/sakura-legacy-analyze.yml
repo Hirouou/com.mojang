@@ -1,0 +1,98 @@
+name: Sakura Legacy IL2CPP Analysis
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-legacy-analyze.yml"
+  workflow_dispatch:
+
+jobs:
+  analyze-104304:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Sakura 1.043.04
+        run: |
+          mkdir -p legacy/input legacy/xapk legacy/unpacked
+          docker run --rm             -v "$PWD/legacy/input:/output"             ghcr.io/efforg/apkeep:stable             -a jp.garud.ssimulator@1.043.04 /output
+          unzip -q legacy/input/*.xapk -d legacy/xapk
+          for a in legacy/xapk/*.apk; do
+            d="legacy/unpacked/$(basename "$a" .apk)"
+            mkdir -p "$d"
+            unzip -q "$a" -d "$d" || true
+          done
+          find legacy/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Resolve IL2CPP inputs
+        shell: bash
+        run: |
+          IL2CPP="$(find legacy/unpacked -type f -name libil2cpp.so | head -n1)"
+          META="$(find legacy/unpacked -type f -name global-metadata.dat | head -n1)"
+          UNITY="$(find legacy/unpacked -type f -name libunity.so | head -n1)"
+          VERSION="$(strings -a "$UNITY" | grep -Eo '20[0-9]{2}\.[0-9]+\.[0-9]+f[0-9]+' | head -n1)"
+          {
+            echo "IL2CPP=$IL2CPP"
+            echo "META=$META"
+            echo "UNITY=$UNITY"
+            echo "VERSION=$VERSION"
+          } | tee legacy/env.txt
+          echo "metadata_magic=$(xxd -p -l 16 "$META")" | tee -a legacy/env.txt
+          echo "exports=$(nm -D --defined-only "$IL2CPP" | grep -c ' il2cpp_' || true)" | tee -a legacy/env.txt
+
+      - name: Run Cpp2IL
+        shell: bash
+        run: |
+          source legacy/env.txt
+          mkdir -p legacy/cpp2il/out
+          curl -L --fail --retry 3             -o legacy/cpp2il/Cpp2IL             https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL-2022.1.0-pre-release.21-Linux
+          chmod +x legacy/cpp2il/Cpp2IL
+
+          set +e
+          NO_COLOR=1 legacy/cpp2il/Cpp2IL             --force-binary-path="$IL2CPP"             --force-metadata-path="$META"             --force-unity-version="$VERSION"             --output-as dummydll             --output-to="$PWD/legacy/cpp2il/out"             --verbose             > legacy/cpp2il/cpp2il.log 2>&1
+          CODE=$?
+          set -e
+          echo "$CODE" > legacy/cpp2il/exit-code.txt
+          tail -n 300 legacy/cpp2il/cpp2il.log
+          test "$CODE" -eq 0
+
+      - name: Decompile selected gameplay types
+        shell: bash
+        run: |
+          ASM="$(find legacy/cpp2il/out -type f -name Assembly-CSharp.dll | head -n1)"
+          test -n "$ASM"
+          echo "assembly=$ASM" | tee legacy/assembly-path.txt
+
+          dotnet tool install --global ilspycmd
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          mkdir -p legacy/decompiled legacy/selected
+
+          ilspycmd "$ASM" -p -o legacy/decompiled > legacy/ilspy.log 2>&1
+
+          find legacy/decompiled -type f -name '*.cs' -printf '%p\n' | sort > legacy/decompiled-files.txt
+          grep -RniE --include='*.cs'             'class (CharaMove|CharacterBaseManager|CharaMakeTPCManager|CanvasJoystickManager)|GameObject\.Find|Instantiate\(|SetActive\(|transform\.(position|rotation)|Animator|CharacterController'             legacy/decompiled | head -n 8000 > legacy/player-symbols.txt || true
+
+          for n in CharaMove CharacterBaseManager CharaMakeTPCManager CanvasJoystickManager; do
+            p="$(find legacy/decompiled -type f -name "$n.cs" | head -n1 || true)"
+            if [ -n "$p" ]; then cp "$p" "legacy/selected/$n.cs"; fi
+          done
+
+          find legacy/selected -type f -printf '%f %s\n' | sort
+
+      - name: Upload legacy analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-legacy-104304-analysis
+          path: |
+            legacy/env.txt
+            legacy/assembly-path.txt
+            legacy/cpp2il/cpp2il.log
+            legacy/cpp2il/exit-code.txt
+            legacy/ilspy.log
+            legacy/player-symbols.txt
+            legacy/decompiled-files.txt
+            legacy/selected/
+          if-no-files-found: error
