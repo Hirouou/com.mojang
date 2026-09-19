@@ -64,6 +64,14 @@ void ensure_pump_thread() {
     }).detach();
 }
 
+bool ensure_client_locked() {
+    ensure_callbacks();
+    if (gSession.mode() == sakura_lan::LanSession::Mode::Client) return true;
+    if (!gSession.startClient()) return false;
+    ensure_pump_thread();
+    return true;
+}
+
 } // namespace
 
 extern "C" __attribute__((visibility("default")))
@@ -86,10 +94,7 @@ int sakuralan_net_host(const char* roomName, uint32_t sessionId) {
 extern "C" __attribute__((visibility("default")))
 int sakuralan_net_client() {
     std::lock_guard<std::mutex> lock(gSessionMutex);
-    ensure_callbacks();
-
-    const bool ok = gSession.startClient();
-    if (ok) ensure_pump_thread();
+    const bool ok = ensure_client_locked();
 
     LOGI("NET CLIENT %s", ok ? "OK" : "FAIL");
     return ok ? 1 : 0;
@@ -98,12 +103,7 @@ int sakuralan_net_client() {
 extern "C" __attribute__((visibility("default")))
 int sakuralan_net_discover_and_join(const char* playerName, int waitMs) {
     std::lock_guard<std::mutex> lock(gSessionMutex);
-    ensure_callbacks();
-
-    if (gSession.mode() != sakura_lan::LanSession::Mode::Client) {
-        if (!gSession.startClient()) return 0;
-        ensure_pump_thread();
-    }
+    if (!ensure_client_locked()) return 0;
 
     std::vector<sakura_lan::RoomInfo> rooms;
     if (!gSession.discover(
@@ -126,6 +126,41 @@ int sakuralan_net_discover_and_join(const char* playerName, int waitMs) {
          rooms.front().name.c_str(),
          rooms.front().endpoint.ip.c_str(),
          static_cast<unsigned>(rooms.front().endpoint.port));
+
+    return ok ? 1 : 0;
+}
+
+extern "C" __attribute__((visibility("default")))
+int sakuralan_net_join_address(
+    const char* ip,
+    uint16_t port,
+    const char* playerName) {
+
+    std::lock_guard<std::mutex> lock(gSessionMutex);
+    if (!ensure_client_locked()) return 0;
+
+    if (!ip || !*ip) {
+        LOGE("NET DIRECT JOIN missing host IP");
+        return 0;
+    }
+
+    sakura_lan::RoomInfo room;
+    room.name = "Direct LAN";
+    room.endpoint.ip = ip;
+    room.endpoint.port = port ? port : sakura_lan::kGamePort;
+    room.sessionId = 0;
+    room.currentPlayers = 1;
+
+    const std::string name =
+        (playerName && *playerName) ? playerName : "Player 2";
+
+    const bool ok =
+        gSession.join(room, name, 0x534B0003u, 2500);
+
+    LOGI("NET DIRECT JOIN %s host=%s:%u",
+         ok ? "OK" : "FAIL",
+         room.endpoint.ip.c_str(),
+         static_cast<unsigned>(room.endpoint.port));
 
     return ok ? 1 : 0;
 }
@@ -201,8 +236,26 @@ extern "C" __attribute__((visibility("default")))
 JNIEXPORT jint JNICALL
 Java_jp_garud_ssimulator_SakuraLanActivity_nativeJoin(
     JNIEnv*, jclass) {
-    if (!sakuralan_net_client()) return 0;
     return sakuralan_net_discover_and_join("Player 2", 900);
+}
+
+extern "C" __attribute__((visibility("default")))
+JNIEXPORT jint JNICALL
+Java_jp_garud_ssimulator_SakuraLanActivity_nativeJoinAddress(
+    JNIEnv* env, jclass, jstring host, jint port) {
+
+    if (!host) return 0;
+    const char* chars = env->GetStringUTFChars(host, nullptr);
+    if (!chars) return 0;
+
+    const int result = sakuralan_net_join_address(
+        chars,
+        static_cast<uint16_t>(
+            port > 0 && port <= 65535 ? port : sakura_lan::kGamePort),
+        "Player 2");
+
+    env->ReleaseStringUTFChars(host, chars);
+    return result;
 }
 
 extern "C" __attribute__((visibility("default")))
