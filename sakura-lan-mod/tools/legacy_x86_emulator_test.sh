@@ -29,11 +29,13 @@ accept_rewarded_ad_prompt() {
 }
 
 close_rewarded_ad() {
-  # Rewarded ads differ per run. After the reward timer, close the top-right X.
-  # If the ad SDK ignores it, Android Back is the fallback.
-  sleep 18
-  adb shell input tap 2055 90 || true
-  sleep 4
+  # Rewarded ads can show a video and then one or more end cards.
+  # Repeatedly hit the native landscape top-right skip/close area.
+  sleep 8
+  for _ in 1 2 3 4 5 6 7 8; do
+    adb shell input tap 2110 75 || true
+    sleep 4
+  done
   adb shell input keyevent 4 || true
   sleep 6
 }
