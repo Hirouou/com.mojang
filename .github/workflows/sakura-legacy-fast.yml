@@ -8,6 +8,9 @@ on:
       - ".github/workflows/sakura-legacy-fast.yml"
       - "sakura-lan-mod/tools/legacy_x86_emulator_test.sh"
       - "sakura-lan-mod/tools/patch_split_pack_legacy.sh"
+      - "sakura-lan-mod/native/**"
+      - "sakura-lan-mod/src/**"
+      - "sakura-lan-mod/android/**"
   workflow_dispatch:
 
 jobs:
