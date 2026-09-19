@@ -29,6 +29,8 @@ jobs:
             -DANDROID_PLATFORM=24
           cmake --build sakura-lan-mod/legacy-fast/native-build --parallel
           file sakura-lan-mod/legacy-fast/native-build/libsakuralan.so
+          mkdir -p sakura-lan-mod/legacy-fast/evidence
+          cp sakura-lan-mod/legacy-fast/native-build/libsakuralan.so sakura-lan-mod/legacy-fast/evidence/
 
       - name: Download Sakura 1.043.04
         run: |
@@ -86,8 +88,8 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_3a
-          cores: 4
-          ram-size: 4096M
+          cores: 2
+          ram-size: 2048M
           heap-size: 1024M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
           disable-animations: true

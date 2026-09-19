@@ -27,6 +27,7 @@ namespace {
 
 using DomainGet = void* (*)();
 using ThreadAttach = void* (*)(void*);
+using ThreadDetach = void (*)(void*);
 using DomainGetAssemblies = const void** (*)(const void*, size_t*);
 using AssemblyGetImage = const void* (*)(const void*);
 using ImageGetName = const char* (*)(const void*);
@@ -45,6 +46,7 @@ struct Api {
     void* lib = nullptr;
     DomainGet domain_get = nullptr;
     ThreadAttach thread_attach = nullptr;
+    ThreadDetach thread_detach = nullptr;
     DomainGetAssemblies domain_get_assemblies = nullptr;
     AssemblyGetImage assembly_get_image = nullptr;
     ImageGetName image_get_name = nullptr;
@@ -81,6 +83,7 @@ bool load_api(Api& a) {
     bool ok = true;
     ok &= load_symbol(a.lib, "il2cpp_domain_get", a.domain_get);
     ok &= load_symbol(a.lib, "il2cpp_thread_attach", a.thread_attach);
+    ok &= load_symbol(a.lib, "il2cpp_thread_detach", a.thread_detach);
     ok &= load_symbol(a.lib, "il2cpp_domain_get_assemblies", a.domain_get_assemblies);
     ok &= load_symbol(a.lib, "il2cpp_assembly_get_image", a.assembly_get_image);
     ok &= load_symbol(a.lib, "il2cpp_image_get_name", a.image_get_name);
@@ -378,14 +381,17 @@ void multiplayer_tick(void* self) {
 }
 
 using CharaUpdate = void (*)(void*, const void*);
-CharaUpdate gOriginalUpdate = nullptr;
+std::atomic<CharaUpdate> gOriginalUpdate{nullptr};
 std::atomic<uint64_t> gHookCalls{0};
 
 void hooked_update(void* self, const void* methodInfo) {
-    if (gOriginalUpdate) gOriginalUpdate(self, methodInfo);
+    const uint64_t n = ++gHookCalls;
+    if (n <= 3) LOGI("ARMHOOK ENTER call=%llu self=%p",
+                     static_cast<unsigned long long>(n), self);
+    CharaUpdate original = gOriginalUpdate.load(std::memory_order_acquire);
+    if (original) original(self, methodInfo);
     multiplayer_tick(self);
 
-    const uint64_t n = ++gHookCalls;
     if (n <= 10 || n % 5000 == 0) {
         LOGI("ARMHOOK UPDATE call=%llu self=%p",
              static_cast<unsigned long long>(n), self);
@@ -407,7 +413,7 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     LOGI("ARMHOOK prologue %08x %08x %08x %08x",
          first[0], first[1], first[2], first[3]);
 
-    // We overwrite exactly 8 bytes. IL2CPP ARM32 functions normally begin
+    // We replay 8 bytes in the trampoline. IL2CPP ARM32 functions normally begin
     // with PUSH/SUB register prologue instructions which are safe to replay.
     // Reject obvious ARM branches or PC-relative literal loads in those 2 words.
     for (int i = 0; i < 2; ++i) {
@@ -422,13 +428,31 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     }
 
     const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
-    uint8_t* trampoline = reinterpret_cast<uint8_t*>(
-        mmap(nullptr, pageSize,
-             PROT_READ | PROT_WRITE | PROT_EXEC,
-             MAP_PRIVATE | MAP_ANONYMOUS,
-             -1, 0));
-    if (trampoline == MAP_FAILED) {
-        LOGE("ARMHOOK mmap trampoline failed");
+    // A single aligned ARM branch is the publication point. An 8-byte
+    // LDR/literal patch can be observed half-written by the Unity thread.
+    uint8_t* trampoline = nullptr;
+    for (uintptr_t delta = 0x100000; delta < 0x2000000 && !trampoline;
+         delta += 0x100000) {
+        for (int direction : {-1, 1}) {
+            const int64_t hint = static_cast<int64_t>(targetAddr) +
+                                 direction * static_cast<int64_t>(delta);
+            if (hint < static_cast<int64_t>(pageSize) || hint > UINT32_MAX) continue;
+            void* memory = mmap(reinterpret_cast<void*>(
+                                    static_cast<uintptr_t>(hint) & ~(static_cast<uintptr_t>(pageSize) - 1)),
+                                pageSize, PROT_READ | PROT_WRITE,
+                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (memory == MAP_FAILED) continue;
+            const int64_t distance = static_cast<int64_t>(reinterpret_cast<uintptr_t>(memory)) + 16 -
+                                     static_cast<int64_t>(targetAddr + 8);
+            if (distance >= -0x2000000 && distance <= 0x1fffffc) {
+                trampoline = static_cast<uint8_t*>(memory);
+                break;
+            }
+            munmap(memory, pageSize);
+        }
+    }
+    if (!trampoline) {
+        LOGE("ARMHOOK no nearby relay page; target unchanged");
         return false;
     }
 
@@ -440,9 +464,17 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     const uint32_t resume =
         static_cast<uint32_t>(targetAddr + 8u);
     std::memcpy(trampoline + 12, &resume, 4);
-    __builtin___clear_cache(
-        reinterpret_cast<char*>(trampoline),
-        reinterpret_cast<char*>(trampoline + 16));
+    // Relay uses LDR pc to interwork with a Thumb-compiled replacement.
+    std::memcpy(trampoline + 16, &jumpInsn, 4);
+    const uint32_t hookAddr =
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(hook));
+    std::memcpy(trampoline + 20, &hookAddr, 4);
+    __builtin___clear_cache(reinterpret_cast<char*>(trampoline),
+                            reinterpret_cast<char*>(trampoline + 24));
+    if (mprotect(trampoline, pageSize, PROT_READ | PROT_EXEC) != 0) {
+        munmap(trampoline, pageSize);
+        return false;
+    }
 
     const uintptr_t page =
         targetAddr & ~(static_cast<uintptr_t>(pageSize) - 1u);
@@ -453,10 +485,16 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
         return false;
     }
 
-    std::memcpy(reinterpret_cast<void*>(targetAddr), &jumpInsn, 4);
-    const uint32_t hookAddr =
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(hook));
-    std::memcpy(reinterpret_cast<void*>(targetAddr + 4u), &hookAddr, 4);
+    // Publish the original before any game thread can enter the replacement.
+    *trampolineOut = trampoline;
+    gOriginalUpdate.store(reinterpret_cast<CharaUpdate>(trampoline),
+                          std::memory_order_release);
+    const int64_t distance = static_cast<int64_t>(reinterpret_cast<uintptr_t>(trampoline + 16)) -
+                             static_cast<int64_t>(targetAddr + 8);
+    const uint32_t branch = 0xea000000u |
+        (static_cast<uint32_t>(distance / 4) & 0x00ffffffu);
+    __atomic_store_n(reinterpret_cast<uint32_t*>(targetAddr), branch,
+                     __ATOMIC_RELEASE);
     __builtin___clear_cache(
         reinterpret_cast<char*>(targetAddr),
         reinterpret_cast<char*>(targetAddr + 8u));
@@ -500,7 +538,7 @@ bool install_chara_update_hook() {
             &trampoline)) {
         return false;
     }
-    gOriginalUpdate = reinterpret_cast<CharaUpdate>(trampoline);
+
     LOGI("ARMHOOK READY target=%p original=%p hook=%p",
          target, trampoline, reinterpret_cast<void*>(hooked_update));
     return true;
@@ -521,7 +559,17 @@ void* worker(void*) {
         LOGE("ARMHOOK domain unavailable");
         return nullptr;
     }
-    gApi.thread_attach(domain);
+    void* attached = gApi.thread_attach(domain);
+    if (!attached) return nullptr;
+    // IL2CPP/GC must stop tracking this pthread before its stack is unmapped.
+    // The old worker returned immediately after READY while still attached.
+    struct DetachOnExit {
+        void* thread;
+        ~DetachOnExit() {
+            gApi.thread_detach(thread);
+            LOGI("ARMHOOK worker detached");
+        }
+    } detach{attached};
 
     for (int i = 0; i < 300; ++i) {
         gAssembly = find_image(gApi, "Assembly-CSharp");
@@ -533,14 +581,9 @@ void* worker(void*) {
     LOGI("ARMHOOK IMAGES csharp=%p unity=%p", gAssembly, gUnityCore);
     if (!gAssembly || !gUnityCore) return nullptr;
 
-    for (int i = 0; i < 600 && !sakuralan_net_connected(); ++i) {
-        usleep(100000);
-    }
-    LOGI("ARMHOOK network connected=%d", sakuralan_net_connected());
-    if (!sakuralan_net_connected()) return nullptr;
-
-    sleep(4);
-    if (!install_chara_update_hook()) return nullptr;
+    // Install while the menu is loading, independently of the peer handshake.
+    // A host may wait indefinitely for a client or for the rewarded ad to end.
+    install_chara_update_hook();
     return nullptr;
 }
 

@@ -3,114 +3,136 @@ set -euo pipefail
 
 OUT="sakura-lan-mod/legacy-fast/evidence"
 APKDIR="sakura-lan-mod/legacy-fast/patched/signed"
+HOST=emulator-5554
+CLIENT=emulator-5556
+REQUIRE_GAMEPLAY="${REQUIRE_GAMEPLAY:-1}"
 mkdir -p "$OUT"
 
-unlock_user() {
-  adb shell wm dismiss-keyguard || true
-  adb shell input keyevent 82 || true
-  sleep 2
-}
-
-tap_new_game() {
-  # Pixel 3a AVD reports its native input surface around 2220x1080 in
-  # landscape while screencap is scaled down. NEW GAME is near center.
-  adb shell wm size || true
-  adb shell input tap 1110 500 || true
-  sleep 1
-  # Fallback for scaled/overridden surfaces used by some emulator revisions.
-  adb shell input tap 900 405 || true
-}
-
-accept_rewarded_ad_prompt() {
-  # The NEW GAME tap opens Sakura's "Start the game after playing video ads"
-  # dialog. OK is centered near x=1110,y=520 on the native landscape surface.
-  sleep 2
-  adb shell input tap 1110 520 || true
-}
-
-close_rewarded_ad() {
-  # Rewarded ads can show a video and then one or more end cards.
-  # Repeatedly hit the native landscape top-right skip/close area.
-  sleep 8
-  for _ in 1 2 3 4 5 6 7 8; do
-    adb shell input tap 2110 75 || true
-    sleep 4
+capture_all() {
+  local status=$?
+  trap - EXIT
+  for role in host client; do
+    local serial="$HOST"
+    [ "$role" = host ] || serial="$CLIENT"
+    adb -s "$serial" logcat -d -b all -v threadtime > "$OUT/$role-logcat.txt" 2>&1 || true
+    adb -s "$serial" exec-out screencap -p > "$OUT/$role-final.png" 2>/dev/null || true
+    adb -s "$serial" shell dumpsys activity activities > "$OUT/$role-activities.txt" 2>&1 || true
+    adb -s "$serial" shell dumpsys window > "$OUT/$role-window.txt" 2>&1 || true
+    adb -s "$serial" pull /data/tombstones "$OUT/$role-tombstones" >/dev/null 2>&1 || true
+    grep SakuraLAN "$OUT/$role-logcat.txt" > "$OUT/$role-sakuralan.txt" || true
+    tail -n 80 "$OUT/$role-sakuralan.txt" || true
   done
-  adb shell input keyevent 4 || true
-  sleep 6
+  cat "$OUT/host-logcat.txt" "$OUT/client-logcat.txt" > "$OUT/logcat.txt"
+  grep SakuraLAN "$OUT/logcat.txt" > "$OUT/sakuralan.txt" || true
+  adb -s "$CLIENT" emu kill >/dev/null 2>&1 || true
+  exit "$status"
 }
+trap capture_all EXIT
 
-echo "=== ABI / NATIVE BRIDGE ==="
-adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
-adb shell getprop ro.product.cpu.abilist32 | tee "$OUT/abilist32.txt"
-adb shell getprop ro.dalvik.vm.native.bridge | tee "$OUT/native-bridge.txt"
+# Separate foreground displays are necessary: switching Android users pauses
+# Unity on the previous user and cannot prove concurrent transform updates.
+AVD_NAME="$(adb -s "$HOST" emu avd name | tr -d '\r' | head -n1)"
+"$ANDROID_HOME/emulator/emulator" -avd "$AVD_NAME" -port 5556 -read-only \
+  -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim \
+  -camera-back none -camera-front none -no-snapshot -memory 2048 -cores 2 \
+  > "$OUT/client-emulator.txt" 2>&1 &
+for _ in $(seq 1 120); do
+  if [ "$(adb -s "$CLIENT" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then break; fi
+  sleep 2
+done
+test "$(adb -s "$CLIENT" shell getprop sys.boot_completed | tr -d '\r')" = 1
 
-echo "=== INSTALL LEGACY PATCHED SAKURA ==="
-adb install-multiple -r   "$APKDIR/jp.garud.ssimulator.apk"   "$APKDIR/config.armeabi_v7a.apk"   "$APKDIR/UnityDataAssetPack.apk"
-adb shell pm list packages | grep jp.garud.ssimulator | tee "$OUT/package.txt"
+for serial in "$HOST" "$CLIENT"; do
+  adb -s "$serial" root
+  adb -s "$serial" wait-for-device
+  adb -s "$serial" shell settings put global window_animation_scale 0
+  adb -s "$serial" shell settings put global transition_animation_scale 0
+  adb -s "$serial" shell settings put global animator_duration_scale 0
+  adb -s "$serial" shell wm dismiss-keyguard
+  adb -s "$serial" shell input keyevent 82
+  adb -s "$serial" install-multiple -r "$APKDIR/jp.garud.ssimulator.apk" \
+    "$APKDIR/config.armeabi_v7a.apk" "$APKDIR/UnityDataAssetPack.apk"
+  adb -s "$serial" logcat -c
+  adb -s "$serial" logcat -G 32M
+  adb -s "$serial" shell getprop ro.dalvik.vm.native.bridge
+  adb -s "$serial" shell getprop ro.product.cpu.abilist
+ done
 
-echo "=== CAPTURE LAN MENU ==="
-adb logcat -c
-adb shell am start -W --user 0   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   | tee "$OUT/lan-menu-start.txt"
-unlock_user
-sleep 3
-adb exec-out screencap -p > "$OUT/lan-menu.png" || true
-adb shell am force-stop --user 0 jp.garud.ssimulator
+# Client reaches the host emulator through the runner's UDP forwarding port.
+adb -s "$HOST" emu redir add udp:38556:38556
+adb -s "$HOST" shell am start -W \
+  -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity \
+  --es sakuralan_mode host | tee "$OUT/host-start.txt"
+sleep 5
+adb -s "$CLIENT" shell am start -W \
+  -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity \
+  --es sakuralan_mode join --es sakuralan_host 10.0.2.2 \
+  --ei sakuralan_port 38556 | tee "$OUT/client-start.txt"
+sleep 35
 
-echo "=== START HOST USER 0 ==="
-adb shell am start -W --user 0   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   --es sakuralan_mode host | tee "$OUT/host-start.txt"
-unlock_user
-sleep 24
-adb exec-out screencap -p > "$OUT/host-main-menu.png" || true
-tap_new_game
-accept_rewarded_ad_prompt
-close_rewarded_ad
-adb exec-out screencap -p > "$OUT/host-after-ad.png" || true
-sleep 25
-adb exec-out screencap -p > "$OUT/host-game-screen.png" || true
-adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-host.txt" || true
+# Read the actual landscape screenshot size; wm size is reported in portrait.
+tap_fraction() {
+  local serial="$1" x="$2" y="$3" size
+  size="$(adb -s "$serial" shell wm size | tr -d '\r' | tail -n1 | sed 's/.*: //')"
+  local a="${size%x*}" b="${size#*x}" w h
+  if (( a > b )); then w="$a"; h="$b"; else w="$b"; h="$a"; fi
+  adb -s "$serial" shell input tap "$((w*x/1000))" "$((h*y/1000))"
+}
+for serial in "$HOST" "$CLIENT"; do
+  role=host; [ "$serial" = "$HOST" ] || role=client
+  adb -s "$serial" exec-out screencap -p > "$OUT/$role-main-menu.png"
+  tap_fraction "$serial" 515 465
+  sleep 2
+  tap_fraction "$serial" 500 480
+ done
 
-echo "=== CREATE CLIENT USER ==="
-CREATE="$(adb shell pm create-user SakuraClient)"
-echo "$CREATE" | tee "$OUT/create-user.txt"
-CLIENT_USER="$(echo "$CREATE" | sed -n 's/.* id \([0-9][0-9]*\).*/\1/p')"
-test -n "$CLIENT_USER"
-echo "$CLIENT_USER" | tee "$OUT/client-user-id.txt"
-adb shell pm install-existing --user "$CLIENT_USER" jp.garud.ssimulator
-adb shell am start-user -w "$CLIENT_USER"
-adb shell am switch-user "$CLIENT_USER"
-sleep 3
-unlock_user
+# Ads use both top-left skip and top-right close. Touch these only while an
+# ad Activity is foreground, and retain screenshots to diagnose UI changes.
+for attempt in $(seq 1 45); do
+  ready=0
+  for serial in "$HOST" "$CLIENT"; do
+    role=host; [ "$serial" = "$HOST" ] || role=client
+    adb -s "$serial" logcat -d -v brief -s SakuraLAN > "$OUT/$role-progress.txt"
+    if grep -q 'ARMHOOK REMOTE APPLY' "$OUT/$role-progress.txt"; then
+      ready=$((ready+1)); continue
+    fi
+    pid="$(adb -s "$serial" shell pidof jp.garud.ssimulator | tr -d '\r')"
+    test -n "$pid" || { echo "$role process exited" >&2; exit 1; }
+    focus="$(adb -s "$serial" shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp' || true)"
+    printf '%s\n' "$focus" > "$OUT/$role-focus.txt"
+    if echo "$focus" | grep -Eiq 'applovin|adfurikun|AdActivity|UnityAds|reward|video|AppLovin'; then
+      tap_fraction "$serial" 95 65
+      tap_fraction "$serial" 965 65
+    fi
+    if (( attempt % 5 == 0 )); then
+      adb -s "$serial" exec-out screencap -p > "$OUT/$role-progress-$attempt.png"
+    fi
+  done
+  (( ready != 2 )) || break
+  if [ "$REQUIRE_GAMEPLAY" = 0 ]; then break; fi
+  sleep 4
+ done
 
-echo "=== START CLIENT USER $CLIENT_USER ==="
-adb shell am start -W --user "$CLIENT_USER"   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   --es sakuralan_mode join   --es sakuralan_host 127.0.0.1   --ei sakuralan_port 38556 | tee "$OUT/client-start.txt"
-unlock_user
-sleep 24
-adb exec-out screencap -p > "$OUT/client-main-menu.png" || true
-tap_new_game
-accept_rewarded_ad_prompt
-close_rewarded_ad
-adb exec-out screencap -p > "$OUT/client-after-ad.png" || true
-sleep 25
-adb exec-out screencap -p > "$OUT/client-game-screen.png" || true
-
-adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
-grep 'SakuraLAN' "$OUT/logcat.txt" | tee "$OUT/sakuralan.txt" || true
-grep -Ei 'FATAL EXCEPTION|SIGABRT|SIGSEGV|UnsatisfiedLinkError|pairip|pgl|integrity'   "$OUT/logcat.txt" | tee "$OUT/fatal.txt" || true
-adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-client.txt" || true
-
-echo "=== SWITCH BACK TO HOST ==="
-adb shell am switch-user 0
-sleep 4
-unlock_user
-sleep 12
-adb exec-out screencap -p > "$OUT/host-after-client.png" || true
-
-grep -E 'MINBRIDGE (READY|UPDATE|LOCAL|REMOTE CREATED|REMOTE APPLY|CLIENT OFFSET)'   "$OUT/sakuralan.txt" > "$OUT/minbridge.txt" || true
-
-echo "=== ASSERT LAN HANDSHAKE ==="
-grep -q 'NET HOST OK' "$OUT/sakuralan.txt"
-grep -q 'NET DIRECT JOIN OK' "$OUT/sakuralan.txt"
-grep -q 'Client joined' "$OUT/sakuralan.txt"
-
-echo "PASS: legacy Sakura host/client handshake observed"
+for role in host client; do
+  serial="$HOST"; [ "$role" = host ] || serial="$CLIENT"
+  adb -s "$serial" logcat -d -b all -v threadtime > "$OUT/$role-check.txt"
+  if grep -Eq 'Fatal signal|signal 11 \(SIGSEGV\)|FATAL EXCEPTION' "$OUT/$role-check.txt"; then
+    echo "FAIL: crash on $role" >&2; exit 1
+  fi
+ done
+grep -q 'NET HOST OK' "$OUT/host-check.txt"
+grep -q 'Client joined' "$OUT/host-check.txt"
+grep -q 'NET DIRECT JOIN OK' "$OUT/client-check.txt"
+if [ "$REQUIRE_GAMEPLAY" = 1 ]; then
+  for role in host client; do
+    for marker in 'ARMHOOK worker detached' 'ARMHOOK UPDATE' 'ARMHOOK LOCAL' 'ARMHOOK REMOTE CREATED' 'ARMHOOK REMOTE APPLY'; do
+      grep -q "$marker" "$OUT/$role-check.txt" || { echo "FAIL: $role missing $marker" >&2; exit 1; }
+    done
+  done
+  sleep 15
+  adb -s "$HOST" exec-out screencap -p > "$OUT/host-two-players.png"
+  adb -s "$CLIENT" exec-out screencap -p > "$OUT/client-two-players.png"
+  echo "PASS: both foreground instances created and updated a remote player"
+else
+  echo "PASS: network-only handshake (gameplay not tested)"
+fi
