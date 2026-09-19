@@ -1,4 +1,4 @@
-name: Sakura Current ARM64 Patched Runtime
+# validated with actionlint; launcher pipeline\nname: Sakura Current ARM64 Patched Runtime
 
 on:
   push:
