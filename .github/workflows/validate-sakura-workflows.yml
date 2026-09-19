@@ -1,0 +1,19 @@
+name: Validate Sakura Workflows
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-current-arm64-patched.yml"
+      - ".github/workflows/validate-sakura-workflows.yml"
+  workflow_dispatch:
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflow syntax
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest             .github/workflows/sakura-current-arm64-patched.yml
