@@ -5,6 +5,12 @@ OUT="sakura-lan-mod/legacy-fast/evidence"
 APKDIR="sakura-lan-mod/legacy-fast/patched/signed"
 mkdir -p "$OUT"
 
+unlock_user() {
+  adb shell wm dismiss-keyguard || true
+  adb shell input keyevent 82 || true
+  sleep 2
+}
+
 echo "=== ABI / NATIVE BRIDGE ==="
 adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
 adb shell getprop ro.product.cpu.abilist32 | tee "$OUT/abilist32.txt"
@@ -17,7 +23,8 @@ adb shell pm list packages | grep jp.garud.ssimulator | tee "$OUT/package.txt"
 echo "=== CAPTURE LAN MENU ==="
 adb logcat -c
 adb shell am start -W --user 0   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   | tee "$OUT/lan-menu-start.txt"
-sleep 4
+unlock_user
+sleep 3
 adb exec-out screencap -p > "$OUT/lan-menu.png" || true
 adb shell uiautomator dump /sdcard/lan-menu.xml >/dev/null 2>&1 || true
 adb pull /sdcard/lan-menu.xml "$OUT/lan-menu.xml" >/dev/null 2>&1 || true
@@ -25,7 +32,8 @@ adb shell am force-stop --user 0 jp.garud.ssimulator
 
 echo "=== START HOST USER 0 ==="
 adb shell am start -W --user 0   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   --es sakuralan_mode host | tee "$OUT/host-start.txt"
-sleep 20
+unlock_user
+sleep 35
 adb exec-out screencap -p > "$OUT/host-game-screen.png" || true
 adb shell uiautomator dump /sdcard/host-ui.xml >/dev/null 2>&1 || true
 adb pull /sdcard/host-ui.xml "$OUT/host-ui.xml" >/dev/null 2>&1 || true
@@ -41,10 +49,12 @@ adb shell pm install-existing --user "$CLIENT_USER" jp.garud.ssimulator
 adb shell am start-user -w "$CLIENT_USER"
 adb shell am switch-user "$CLIENT_USER"
 sleep 3
+unlock_user
 
 echo "=== START CLIENT USER $CLIENT_USER ==="
 adb shell am start -W --user "$CLIENT_USER"   -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity   --es sakuralan_mode join   --es sakuralan_host 127.0.0.1   --ei sakuralan_port 38556 | tee "$OUT/client-start.txt"
-sleep 20
+unlock_user
+sleep 35
 adb exec-out screencap -p > "$OUT/client-game-screen.png" || true
 adb shell uiautomator dump /sdcard/client-ui.xml >/dev/null 2>&1 || true
 adb pull /sdcard/client-ui.xml "$OUT/client-ui.xml" >/dev/null 2>&1 || true
@@ -57,7 +67,11 @@ adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-client.txt" || 
 echo "=== SWITCH BACK TO HOST ==="
 adb shell am switch-user 0
 sleep 4
+unlock_user
+sleep 8
 adb exec-out screencap -p > "$OUT/host-after-client.png" || true
+
+grep -E 'MINBRIDGE (READY|UPDATE|LOCAL|REMOTE CREATED|REMOTE APPLY|CLIENT OFFSET)'   "$OUT/sakuralan.txt" > "$OUT/minbridge.txt" || true
 
 echo "=== ASSERT LAN HANDSHAKE ==="
 grep -q 'NET HOST OK' "$OUT/sakuralan.txt"
