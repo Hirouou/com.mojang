@@ -1,0 +1,81 @@
+name: Sakura 1.042 ARM64 Emulator Smoke
+
+on:
+  push:
+    branches:
+      - agent/sakura-lan-20260919
+    paths:
+      - ".github/workflows/sakura-1042-arm64-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  arm64-smoke:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download 1.042.00 package
+        run: |
+          mkdir -p work/input work/xapk
+          docker run --rm \
+            -v "$PWD/work/input:/output" \
+            ghcr.io/efforg/apkeep:stable \
+            -a jp.garud.ssimulator@1.042.00 /output
+          unzip -q work/input/*.xapk -d work/xapk
+          find work/xapk -maxdepth 1 -type f -printf '%f %s\n' | sort
+
+      - name: Enable KVM
+        run: |
+          uname -a
+          lscpu
+          ls -l /dev/kvm || true
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+
+      - name: Boot native ARM64 emulator and launch game
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: |
+            set -eux
+            OUT="$PWD/work/evidence"
+            mkdir -p "$OUT"
+            adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
+
+            BASE="$PWD/work/xapk/jp.garud.ssimulator.apk"
+            ABI="$PWD/work/xapk/config.arm64_v8a.apk"
+            PACK="$PWD/work/xapk/UnityDataAssetPack.apk"
+
+            ls -lh "$BASE" "$ABI" "$PACK"
+            adb install-multiple -r "$BASE" "$ABI" "$PACK"
+            adb shell pm list packages | grep jp.garud.ssimulator
+
+            adb logcat -c
+            adb shell monkey -p jp.garud.ssimulator -c android.intent.category.LAUNCHER 1 || true
+            sleep 60
+
+            adb shell pidof jp.garud.ssimulator > "$OUT/pid.txt" || true
+            adb shell dumpsys activity activities > "$OUT/activities.txt" || true
+            adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
+            adb exec-out screencap -p > "$OUT/sakura-1042.png" || true
+
+            echo "=== PID ==="
+            cat "$OUT/pid.txt" || true
+            echo "=== FATAL ==="
+            grep -Ei 'FATAL EXCEPTION|SIGABRT|SIGSEGV|UnsatisfiedLinkError|INSTALL_FAILED|integrity|pairip|pgl' "$OUT/logcat.txt" | tail -n 150 || true
+
+      - name: Upload screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-1042-arm64-smoke
+          path: work/evidence/
+          if-no-files-found: warn
