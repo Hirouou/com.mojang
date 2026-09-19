@@ -2,6 +2,7 @@
 #include <atomic>
 #include <dlfcn.h>
 #include <pthread.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <cstdint>
 #include <cstring>
@@ -270,6 +271,64 @@ void runtime_find_probe(Api& a, const void* unityCore) {
     }
 }
 
+
+using CharaUpdateFn = void (*)(void*, const void*);
+std::atomic<CharaUpdateFn> gOriginalCharaUpdate{nullptr};
+std::atomic<uint64_t> gCharaUpdateCalls{0};
+
+void hooked_chara_update(void* self, const void* method) {
+    CharaUpdateFn original = gOriginalCharaUpdate.load();
+    if (original) original(self, method);
+
+    const uint64_t n = ++gCharaUpdateCalls;
+    if (n <= 30 || n % 1200 == 0) {
+        LOGI("METHODPTR PATCH CharaMove.Update self=%p call=%llu",
+             self, static_cast<unsigned long long>(n));
+    }
+}
+
+bool patch_chara_update_method_pointer(Api& a, const void* asmCSharp) {
+    void* klass = a.class_from_name(asmCSharp, "", "CharaMove");
+    if (!klass) {
+        LOGE("METHODPTR PATCH CharaMove class not found");
+        return false;
+    }
+
+    const void* method = a.class_get_method_from_name(klass, "Update", 0);
+    if (!method) {
+        LOGE("METHODPTR PATCH CharaMove.Update not found");
+        return false;
+    }
+
+    void** slot = reinterpret_cast<void**>(const_cast<void*>(method));
+    void* original = slot[0];
+    if (!original) {
+        LOGE("METHODPTR PATCH Update method pointer is null");
+        return false;
+    }
+
+    const long pageSize = sysconf(_SC_PAGESIZE);
+    const uintptr_t addr = reinterpret_cast<uintptr_t>(slot);
+    const uintptr_t page = addr & ~(static_cast<uintptr_t>(pageSize) - 1u);
+    if (mprotect(reinterpret_cast<void*>(page),
+                 static_cast<size_t>(pageSize),
+                 PROT_READ | PROT_WRITE) != 0) {
+        LOGE("METHODPTR PATCH mprotect failed");
+        return false;
+    }
+
+    gOriginalCharaUpdate.store(reinterpret_cast<CharaUpdateFn>(original));
+    __atomic_store_n(slot, reinterpret_cast<void*>(hooked_chara_update), __ATOMIC_RELEASE);
+
+    mprotect(reinterpret_cast<void*>(page),
+             static_cast<size_t>(pageSize),
+             PROT_READ);
+
+    LOGI("METHODPTR PATCH installed MethodInfo=%p original=%p hook=%p",
+         method, original, reinterpret_cast<void*>(hooked_chara_update));
+    return true;
+}
+
 void* worker(void*) {
     Api a;
     if (!load_api(a)) return nullptr;
@@ -297,6 +356,7 @@ void* worker(void*) {
         dump_class(a, asmCSharp, "", "CharacterBaseManager");
         dump_class(a, asmCSharp, "", "CharaMakeTPCManager");
         dump_class(a, asmCSharp, "", "CanvasJoystickManager");
+        patch_chara_update_method_pointer(a, asmCSharp);
     }
 
     if (unityCore) {
