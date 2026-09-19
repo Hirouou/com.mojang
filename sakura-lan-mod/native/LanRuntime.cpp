@@ -1,4 +1,4 @@
-#include "../src/LanSession.hpp"
+#include "../src/LanSession.hpp"\n#include <jni.h>
 #include <android/log.h>
 #include <atomic>
 #include <cstring>
@@ -111,4 +111,24 @@ int sakuralan_net_take_remote(float* out13) {
     out13[11] = static_cast<float>(s.flags);
     out13[12] = static_cast<float>(s.playerId);
     return 1;
+}
+
+
+extern "C" __attribute__((visibility("default")))
+JNIEXPORT jint JNICALL
+Java_jp_garud_ssimulator_SakuraLanActivity_nativeHost(JNIEnv*, jclass) {
+    return sakuralan_net_host("Sakura LAN", 0x53414B55u);
+}
+
+extern "C" __attribute__((visibility("default")))
+JNIEXPORT jint JNICALL
+Java_jp_garud_ssimulator_SakuraLanActivity_nativeJoin(JNIEnv*, jclass) {
+    if (!sakuralan_net_client()) return 0;
+    return sakuralan_net_discover_and_join("Player 2", 900);
+}
+
+extern "C" __attribute__((visibility("default")))
+JNIEXPORT jint JNICALL
+Java_jp_garud_ssimulator_SakuraLanActivity_nativeConnected(JNIEnv*, jclass) {
+    return sakuralan_net_connected();
 }
