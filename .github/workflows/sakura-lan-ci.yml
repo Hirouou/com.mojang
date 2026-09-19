@@ -23,6 +23,17 @@ jobs:
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
 
+      - name: Build Android runtime probe
+        run: |
+          cmake -S sakura-lan-mod/native -B sakura-lan-mod/native-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=24
+          cmake --build sakura-lan-mod/native-build --parallel
+          file sakura-lan-mod/native-build/libsakuralan.so
+          readelf -d sakura-lan-mod/native-build/libsakuralan.so | grep NEEDED || true
+
       - name: Download target package from APKPure
         run: |
           mkdir -p sakura-lan-mod/analysis/input
@@ -122,6 +133,7 @@ jobs:
         with:
           name: sakura-package-analysis
           path: |
+            sakura-lan-mod/native-build/libsakuralan.so
             sakura-lan-mod/analysis/package-report.txt
             sakura-lan-mod/analysis/android-package-probe.txt
             sakura-lan-mod/analysis/asset-path-hints.txt
