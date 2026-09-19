@@ -12,7 +12,7 @@ on:
 jobs:
   core-and-package-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -36,13 +36,22 @@ jobs:
           python3 sakura-lan-mod/tools/analyze_package.py sakura-lan-mod/analysis/input
           cat sakura-lan-mod/analysis/package-report.txt
 
-      - name: Scan Unity asset names
+      - name: Scan Unity asset strings
         run: |
           python3 sakura-lan-mod/tools/scan_unity_assets.py sakura-lan-mod/analysis/unpacked
           echo "=== asset path hints ==="
           head -n 300 sakura-lan-mod/analysis/asset-path-hints.txt || true
           echo "=== asset string hints ==="
-          head -n 500 sakura-lan-mod/analysis/asset-symbol-hints.txt || true
+          grep -ivE 'resources\.arsc|/res/' sakura-lan-mod/analysis/asset-symbol-hints.txt | head -n 600 || true
+
+      - name: Inspect serialized Unity objects
+        run: |
+          python3 -m pip install --disable-pip-version-check UnityPy
+          python3 sakura-lan-mod/tools/inspect_unity_objects.py sakura-lan-mod/analysis/unpacked
+          echo "=== interesting MonoScripts ==="
+          sed -n '1,700p' sakura-lan-mod/analysis/unity-monoscripts.txt || true
+          echo "=== gameplay object hints ==="
+          sed -n '1,700p' sakura-lan-mod/analysis/unity-gameobject-hints.txt || true
 
       - name: Dump IL2CPP metadata with Cpp2IL
         shell: bash
@@ -110,6 +119,9 @@ jobs:
             sakura-lan-mod/analysis/package-report.txt
             sakura-lan-mod/analysis/asset-path-hints.txt
             sakura-lan-mod/analysis/asset-symbol-hints.txt
+            sakura-lan-mod/analysis/unity-monoscripts.txt
+            sakura-lan-mod/analysis/unity-gameobject-hints.txt
+            sakura-lan-mod/analysis/unitypy-errors.txt
             sakura-lan-mod/analysis/cpp2il-paths.txt
             sakura-lan-mod/analysis/cpp2il-processors.txt
             sakura-lan-mod/analysis/cpp2il-formats.txt
