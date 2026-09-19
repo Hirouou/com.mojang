@@ -154,3 +154,90 @@ jobs:
           name: sakura-current-arm64-patched
           path: sakura-lan-mod/arm64/evidence/
           if-no-files-found: warn
+
+
+  dual-user-lan-smoke:
+    needs: build-patched-apks
+    runs-on: macos-15
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sakura-current-patched-apks
+          path: sakura-lan-mod/dual/prebuilt
+
+      - name: Boot one ARM64 emulator with two Android users
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 1024M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: |
+            set -e
+            OUT=sakura-lan-mod/dual/evidence
+            mkdir -p "$OUT"
+
+            adb install-multiple -r \
+              sakura-lan-mod/dual/prebuilt/jp.garud.ssimulator.apk \
+              sakura-lan-mod/dual/prebuilt/config.arm64_v8a.apk \
+              sakura-lan-mod/dual/prebuilt/UnityDataAssetPack.apk
+
+            CREATE="$(adb shell pm create-user SakuraClient)"
+            echo "$CREATE" | tee "$OUT/create-user.txt"
+            CLIENT_USER="$(echo "$CREATE" | sed -n 's/.* id \([0-9][0-9]*\).*/\1/p')"
+            test -n "$CLIENT_USER"
+            echo "$CLIENT_USER" > "$OUT/client-user-id.txt"
+
+            adb shell pm install-existing --user "$CLIENT_USER" jp.garud.ssimulator
+            adb logcat -c
+
+            echo "=== HOST USER 0 ==="
+            adb shell am start -W --user 0 \
+              -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity \
+              --es sakuralan_mode host | tee "$OUT/host-start.txt"
+            sleep 7
+            adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-after-host.txt" || true
+
+            adb shell am start-user -w "$CLIENT_USER"
+            adb shell am switch-user "$CLIENT_USER"
+            sleep 4
+            adb shell am get-current-user | tee "$OUT/current-user-client.txt"
+
+            echo "=== CLIENT USER $CLIENT_USER ==="
+            adb shell am start -W --user "$CLIENT_USER" \
+              -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity \
+              --es sakuralan_mode join | tee "$OUT/client-start.txt"
+            sleep 12
+
+            adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-after-client.txt" || true
+            adb exec-out screencap -p > "$OUT/client-after-join.png" || true
+            adb logcat -d -v threadtime > "$OUT/logcat-two-users.txt" || true
+            grep 'SakuraLAN' "$OUT/logcat-two-users.txt" > "$OUT/sakuralan-two-users.txt" || true
+
+            adb shell am switch-user 0
+            sleep 5
+            adb exec-out screencap -p > "$OUT/host-after-join.png" || true
+            adb shell ps -A | grep jp.garud.ssimulator > "$OUT/processes-final.txt" || true
+
+            echo "=== LAN EVIDENCE ==="
+            cat "$OUT/sakuralan-two-users.txt" || true
+
+            grep -q 'NET HOST OK' "$OUT/sakuralan-two-users.txt"
+            grep -q 'NET JOIN OK' "$OUT/sakuralan-two-users.txt"
+            grep -q 'Client joined' "$OUT/sakuralan-two-users.txt"
+
+      - name: Upload two-user LAN evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-dual-user-lan
+          path: sakura-lan-mod/dual/evidence/
+          if-no-files-found: warn
