@@ -28,6 +28,16 @@ accept_rewarded_ad_prompt() {
   adb shell input tap 1110 520 || true
 }
 
+close_rewarded_ad() {
+  # Rewarded ads differ per run. After the reward timer, close the top-right X.
+  # If the ad SDK ignores it, Android Back is the fallback.
+  sleep 18
+  adb shell input tap 2055 90 || true
+  sleep 4
+  adb shell input keyevent 4 || true
+  sleep 6
+}
+
 echo "=== ABI / NATIVE BRIDGE ==="
 adb shell getprop ro.product.cpu.abilist | tee "$OUT/abilist.txt"
 adb shell getprop ro.product.cpu.abilist32 | tee "$OUT/abilist32.txt"
@@ -52,9 +62,9 @@ sleep 24
 adb exec-out screencap -p > "$OUT/host-main-menu.png" || true
 tap_new_game
 accept_rewarded_ad_prompt
-sleep 45
+close_rewarded_ad
 adb exec-out screencap -p > "$OUT/host-after-ad.png" || true
-sleep 12
+sleep 25
 adb exec-out screencap -p > "$OUT/host-game-screen.png" || true
 adb shell ps -A | grep jp.garud.ssimulator | tee "$OUT/processes-host.txt" || true
 
@@ -77,9 +87,9 @@ sleep 24
 adb exec-out screencap -p > "$OUT/client-main-menu.png" || true
 tap_new_game
 accept_rewarded_ad_prompt
-sleep 45
+close_rewarded_ad
 adb exec-out screencap -p > "$OUT/client-after-ad.png" || true
-sleep 12
+sleep 25
 adb exec-out screencap -p > "$OUT/client-game-screen.png" || true
 
 adb logcat -d -v threadtime > "$OUT/logcat.txt" || true
