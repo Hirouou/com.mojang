@@ -75,6 +75,77 @@ jobs:
             sakura-lan-mod/android-build/apktool.jar
           find sakura-lan-mod/arm64/patched/signed -maxdepth 1 -type f -name '*.apk' -printf '%f %s\n' | sort
 
+      - name: Build mod-only xdelta package
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xdelta3
+          MODDIR=sakura-lan-mod/arm64/mod-package
+          mkdir -p "$MODDIR"
+
+          for name in jp.garud.ssimulator.apk config.arm64_v8a.apk UnityDataAssetPack.apk; do
+            test -f "sakura-lan-mod/arm64/xapk/$name"
+            test -f "sakura-lan-mod/arm64/patched/signed/$name"
+            xdelta3 -f -e               -s "sakura-lan-mod/arm64/xapk/$name"               "sakura-lan-mod/arm64/patched/signed/$name"               "$MODDIR/$name.xdelta"
+          done
+
+          (
+            cd sakura-lan-mod/arm64/xapk
+            sha256sum jp.garud.ssimulator.apk config.arm64_v8a.apk UnityDataAssetPack.apk
+          ) > "$MODDIR/ORIGINAL-SHA256.txt"
+
+          (
+            cd sakura-lan-mod/arm64/patched/signed
+            sha256sum jp.garud.ssimulator.apk config.arm64_v8a.apk UnityDataAssetPack.apk
+          ) > "$MODDIR/PATCHED-SHA256.txt"
+
+          cp sakura-lan-mod/native-build-arm64/libsakuralan.so "$MODDIR/libsakuralan.so"
+          cp sakura-lan-mod/android-build/dex/classes.dex "$MODDIR/sakura-lan-launcher.dex"
+
+          cat > "$MODDIR/LEIA-ME.txt" <<'EOF'
+          SAKURA LAN MOD — alvo: SAKURA School Simulator 1.048.10 ARM64
+
+          Este pacote NAO contem o jogo. Ele contem patches xdelta que transformam
+          os APKs originais 1.048.10 nos APKs locais modificados com Sakura LAN.
+
+          INSTALACAO NO ANDROID (sem root):
+          1. Faca backup do save do Sakura antes de tudo.
+          2. Use SAI (Split APKs Installer) para EXPORTAR/backup do Sakura instalado.
+             O arquivo exportado normalmente termina em .apks.
+          3. Extraia o .apks como ZIP. Voce precisa destes 3 arquivos:
+             - jp.garud.ssimulator.apk
+             - config.arm64_v8a.apk
+             - UnityDataAssetPack.apk
+          4. Confira os SHA-256 deles com ORIGINAL-SHA256.txt.
+             Se algum hash for diferente, NAO aplique o patch.
+          5. No Android use um aplicador de xdelta (ex.: UniPatcher) e aplique:
+             jp.garud.ssimulator.apk.xdelta       -> jp.garud.ssimulator.apk
+             config.arm64_v8a.apk.xdelta          -> config.arm64_v8a.apk
+             UnityDataAssetPack.apk.xdelta        -> UnityDataAssetPack.apk
+             Sempre use o APK ORIGINAL correspondente como arquivo de origem.
+          6. Desinstale o Sakura oficial somente DEPOIS de confirmar o backup do save.
+             Os APKs modificados usam outra assinatura e nao instalam por cima do oficial.
+          7. No SAI, selecione os 3 APKs resultantes e instale-os juntos.
+          8. Abra SAKURA LAN. Em um celular toque "Criar sala"; no outro,
+             na mesma rede Wi-Fi, toque "Entrar na sala".
+          9. Quando conectar, o Sakura abre automaticamente.
+
+          IMPORTANTE:
+          - Os dois celulares precisam usar exatamente a mesma versao 1.048.10 ARM64.
+          - Este build e experimental; o objetivo atual e validar o player remoto.
+          - Se o jogo fechar, anote em que momento ocorreu e envie a tela/log se houver.
+          EOF
+
+          ls -lh "$MODDIR"
+
+      - name: Upload mod-only package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-lan-mod-1.048.10-arm64
+          path: sakura-lan-mod/arm64/mod-package/
+          if-no-files-found: error
+          compression-level: 9
+
       - uses: actions/upload-artifact@v4
         with:
           name: sakura-current-patched-apks
