@@ -690,6 +690,135 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
 }
 #endif
 
+#if defined(__aarch64__)
+bool a64_pc_relative(uint32_t insn) {
+    if ((insn & 0x7c000000u) == 0x14000000u) return true; // B / BL
+    if ((insn & 0x1f000000u) == 0x10000000u) return true; // ADR / ADRP
+    if ((insn & 0x3b000000u) == 0x18000000u) return true; // literal load
+    if ((insn & 0x7e000000u) == 0x34000000u) return true; // CBZ / CBNZ
+    if ((insn & 0x7e000000u) == 0x36000000u) return true; // TBZ / TBNZ
+    if ((insn & 0xff000010u) == 0x54000000u) return true; // B.cond
+    return false;
+}
+
+void a64_write_abs_jump(uint8_t* dst, uintptr_t address) {
+    // ldr x17, #8 ; br x17 ; .quad address
+    const uint32_t ldr = 0x58000051u;
+    const uint32_t br = 0xd61f0220u;
+    std::memcpy(dst + 0, &ldr, 4);
+    std::memcpy(dst + 4, &br, 4);
+    const uint64_t value = static_cast<uint64_t>(address);
+    std::memcpy(dst + 8, &value, 8);
+}
+
+bool install_arm64_hook(void* target, void* hook, void** trampolineOut) {
+    if (!target || !hook || !trampolineOut) return false;
+
+    const uintptr_t targetAddr = reinterpret_cast<uintptr_t>(target);
+    if (targetAddr & 3u) {
+        LOGE("ARMHOOK64 unaligned target=%p", target);
+        return false;
+    }
+
+    uint32_t first = 0;
+    std::memcpy(&first, target, sizeof(first));
+    LOGI("ARMHOOK64 first=%08x target=%p", first, target);
+    if (a64_pc_relative(first)) {
+        LOGE("ARMHOOK64 first instruction requires relocation");
+        return false;
+    }
+
+    const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+    uint8_t* trampoline = nullptr;
+
+    // One atomic B instruction publishes the hook. Keep the relay within the
+    // architectural +/-128 MiB branch range and use absolute jumps after that.
+    for (uintptr_t delta = 0x100000; delta <= 0x7000000 && !trampoline;
+         delta += 0x100000) {
+        for (int direction : {-1, 1}) {
+            const int64_t hint64 = static_cast<int64_t>(targetAddr) +
+                                   direction * static_cast<int64_t>(delta);
+            if (hint64 <= static_cast<int64_t>(pageSize)) continue;
+            const uintptr_t hint =
+                static_cast<uintptr_t>(hint64) &
+                ~(static_cast<uintptr_t>(pageSize) - 1u);
+
+            void* memory = mmap(reinterpret_cast<void*>(hint), pageSize,
+                                PROT_READ | PROT_WRITE,
+                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (memory == MAP_FAILED) continue;
+
+            const uintptr_t relay = reinterpret_cast<uintptr_t>(memory) + 64u;
+            const int64_t distance =
+                static_cast<int64_t>(relay) - static_cast<int64_t>(targetAddr);
+            if (distance >= -0x08000000ll && distance <= 0x07fffffcll) {
+                trampoline = static_cast<uint8_t*>(memory);
+                break;
+            }
+            munmap(memory, pageSize);
+        }
+    }
+
+    if (!trampoline) {
+        LOGE("ARMHOOK64 no nearby relay page");
+        return false;
+    }
+
+    // Original trampoline: replay exactly one PC-independent instruction,
+    // then return to target+4 with an absolute jump.
+    std::memcpy(trampoline, target, 4);
+    a64_write_abs_jump(trampoline + 4, targetAddr + 4u);
+
+    // Relay reached by the single patched B instruction.
+    a64_write_abs_jump(trampoline + 64,
+                       reinterpret_cast<uintptr_t>(hook));
+
+    __builtin___clear_cache(reinterpret_cast<char*>(trampoline),
+                            reinterpret_cast<char*>(trampoline + 80));
+    if (mprotect(trampoline, pageSize, PROT_READ | PROT_EXEC) != 0) {
+        LOGE("ARMHOOK64 relay mprotect failed");
+        munmap(trampoline, pageSize);
+        return false;
+    }
+
+    const uintptr_t page =
+        targetAddr & ~(static_cast<uintptr_t>(pageSize) - 1u);
+    if (mprotect(reinterpret_cast<void*>(page), pageSize,
+                 PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+        LOGE("ARMHOOK64 target mprotect failed");
+        munmap(trampoline, pageSize);
+        return false;
+    }
+
+    *trampolineOut = trampoline;
+    gOriginalUpdate.store(reinterpret_cast<CharaUpdate>(trampoline),
+                          std::memory_order_release);
+
+    const uintptr_t relayAddr = reinterpret_cast<uintptr_t>(trampoline + 64);
+    const int64_t distance =
+        static_cast<int64_t>(relayAddr) - static_cast<int64_t>(targetAddr);
+    const int64_t imm26 = distance / 4;
+    if (imm26 < -(1ll << 25) || imm26 >= (1ll << 25)) {
+        LOGE("ARMHOOK64 relay escaped branch range");
+        mprotect(reinterpret_cast<void*>(page), pageSize, PROT_READ | PROT_EXEC);
+        munmap(trampoline, pageSize);
+        return false;
+    }
+
+    const uint32_t branch =
+        0x14000000u | (static_cast<uint32_t>(imm26) & 0x03ffffffu);
+    __atomic_store_n(reinterpret_cast<uint32_t*>(targetAddr), branch,
+                     __ATOMIC_RELEASE);
+    __builtin___clear_cache(reinterpret_cast<char*>(targetAddr),
+                            reinterpret_cast<char*>(targetAddr + 4u));
+    mprotect(reinterpret_cast<void*>(page), pageSize, PROT_READ | PROT_EXEC);
+
+    LOGI("ARMHOOK64 inline installed target=%p hook=%p trampoline=%p relay=%p",
+         target, hook, trampoline, trampoline + 64);
+    return true;
+}
+#endif
+
 bool install_chara_update_hook() {
     if (!gAssembly) return false;
 
@@ -720,14 +849,22 @@ bool install_chara_update_hook() {
             &trampoline)) {
         return false;
     }
+#elif defined(__aarch64__)
+    void* trampoline = nullptr;
+    if (!install_arm64_hook(
+            target,
+            reinterpret_cast<void*>(hooked_update),
+            &trampoline)) {
+        return false;
+    }
+#else
+    LOGE("ARMHOOK unsupported ABI");
+    return false;
+#endif
 
     LOGI("ARMHOOK READY target=%p original=%p hook=%p",
          target, trampoline, reinterpret_cast<void*>(hooked_update));
     return true;
-#else
-    LOGE("ARMHOOK unsupported ABI for legacy hook");
-    return false;
-#endif
 }
 
 void* worker(void*) {
