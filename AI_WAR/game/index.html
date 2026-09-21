@@ -59,4 +59,5 @@ document.getElementById('run').onclick=()=>{state.running=!state.running;if(stat
 document.getElementById('step').onclick=()=>{if(!state.running)step()};
 document.getElementById('reset').onclick=()=>{clearInterval(timer);reset()};
 reset();
+state.running=true; timer=setInterval(step,120); render();
 </script></body></html>
