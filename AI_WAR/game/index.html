@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI WAR</title>
+<style>
+html,body{margin:0;background:#111;color:#eee;font:14px system-ui,Arial}body{display:flex;flex-direction:column;align-items:center}
+#bar{width:min(1100px,96vw);display:flex;gap:8px;align-items:center;padding:10px 0;flex-wrap:wrap}
+button{padding:9px 12px;background:#222;color:#eee;border:1px solid #555;border-radius:6px}button:hover{background:#333}
+#wrap{width:min(1100px,96vw)}canvas{width:100%;background:#172016;border:1px solid #444;image-rendering:auto}
+#log{height:150px;overflow:auto;background:#171717;border:1px solid #333;padding:8px;box-sizing:border-box}
+.badge{padding:4px 7px;border:1px solid #555;border-radius:5px}.blue{color:#68a8ff}.red{color:#ff7474}.gold{color:#ffd36a}
+</style></head><body>
+<div id="bar"><b>AI WAR</b><span id="tick" class="badge">Tick 0</span><span id="status" class="badge">PAUSED</span>
+<button id="run">Start war</button><button id="step">Step</button><button id="reset">Reset</button>
+<span id="score"></span></div>
+<div id="wrap"><canvas id="map" width="1100" height="620"></canvas><div id="log" aria-live="polite"></div></div>
+<script>
+const c=document.getElementById('map'),x=c.getContext('2d'),logEl=document.getElementById('log');
+const W=c.width,H=c.height,baseY=H/2;
+let timer=null,state;
+function rnd(a,b){return a+Math.random()*(b-a)}
+function reset(){state={tick:0,running:false,units:[
+{id:1,f:0,x:110,y:baseY-90,hp:100,res:100,kind:'commander',cd:0},
+{id:2,f:0,x:150,y:baseY+90,hp:100,res:100,kind:'soldier',cd:0},
+{id:3,f:0,x:190,y:baseY,hp:100,res:100,kind:'soldier',cd:0},
+{id:4,f:1,x:990,y:baseY-90,hp:100,res:100,kind:'commander',cd:0},
+{id:5,f:1,x:950,y:baseY+90,hp:100,res:100,kind:'soldier',cd:0},
+{id:6,f:1,x:910,y:baseY,hp:100,res:100,kind:'soldier',cd:0}],
+build:[{f:0,x:80,y:baseY,r:42,type:'base',hp:500},{f:1,x:1020,y:baseY,r:42,type:'base',hp:500}],
+res:[{x:350,y:110,a:300},{x:550,y:510,a:300},{x:750,y:110,a:300},{x:550,y:310,a:500}],events:[]};render();log('War initialized. Two autonomous factions are ready.')}
+function log(s){state.events.unshift('['+state.tick+'] '+s);state.events=state.events.slice(0,60);logEl.innerHTML=state.events.map(e=>'<div>'+e+'</div>').join('')}
+function nearestEnemy(u){return state.units.filter(v=>v.f!==u.f&&v.hp>0).sort((a,b)=>((a.x-u.x)**2+(a.y-u.y)**2)-((b.x-u.x)**2+(b.y-u.y)**2))[0]}
+function step(){
+ state.tick++;
+ for(const u of state.units.filter(u=>u.hp>0)){
+  u.cd=Math.max(0,u.cd-1); const e=nearestEnemy(u); if(!e)continue;
+  const dx=e.x-u.x,dy=e.y-u.y,d=Math.hypot(dx,dy);
+  // simple autonomous doctrine: commanders seek resources, soldiers pressure the nearest contact
+  let tx=e.x,ty=e.y;
+  if(u.kind==='commander'&&state.tick%80<45){const r=state.res.slice().sort((a,b)=>b.a-a.a)[0];tx=r.x;ty=r.y}
+  if(d>70){u.x+=dx/d*2.1;u.y+=dy/d*2.1}else if(u.cd===0){e.hp-=rnd(7,15);u.cd=18;if(e.hp<=0)log('Faction '+(u.f?'RED':'BLUE')+' eliminated unit '+e.id)}
+  u.x=Math.max(20,Math.min(W-20,u.x));u.y=Math.max(30,Math.min(H-30,u.y));
+ }
+ // resource income and light building
+ if(state.tick%30===0)for(const u of state.units.filter(u=>u.hp>0&&u.kind==='commander'))u.res+=20;
+ if(state.tick%120===0)log('AI factions adapt their next orders from battlefield observations.');
+ render();
+ if(state.units.filter(u=>u.hp>0&&u.f===0).length===0||state.units.filter(u=>u.hp>0&&u.f===1).length===0){state.running=false;clearInterval(timer);log('Battle paused: one faction has no surviving soldiers.')}
+}
+function render(){
+ x.clearRect(0,0,W,H);x.fillStyle='#1a2418';x.fillRect(0,0,W,H);
+ x.strokeStyle='#33452f';for(let i=0;i<11;i++){x.beginPath();x.moveTo(i*100,0);x.lineTo(i*100,H);x.stroke()}for(let i=0;i<7;i++){x.beginPath();x.moveTo(0,i*100);x.lineTo(W,i*100);x.stroke()}
+ for(const r of state.res){x.fillStyle='#8d7b3c';x.beginPath();x.arc(r.x,r.y,13,0,7);x.fill();x.fillStyle='#ddd';x.fillText('ore '+r.a,r.x-20,r.y-18)}
+ for(const b of state.build){x.fillStyle=b.f?'#7a3030':'#305d92';x.beginPath();x.arc(b.x,b.y,b.r,0,7);x.fill();x.fillStyle='#fff';x.fillText('BASE',b.x-18,b.y+4)}
+ for(const u of state.units.filter(u=>u.hp>0)){x.fillStyle=u.f?'#e15b5b':'#5b9be1';x.beginPath();x.arc(u.x,u.y,u.kind==='commander'?11:8,0,7);x.fill();x.fillStyle='#111';x.fillRect(u.x-12,u.y-18,24,3);x.fillStyle='#6fdf7f';x.fillRect(u.x-12,u.y-18,24*Math.max(0,u.hp)/100,3)}
+ document.getElementById('tick').textContent='Tick '+state.tick;document.getElementById('status').textContent=state.running?'WAR RUNNING':'PAUSED';
+ document.getElementById('score').textContent=' BLUE '+state.units.filter(u=>u.hp>0&&u.f===0).length+'  |  RED '+state.units.filter(u=>u.hp>0&&u.f===1).length;
+}
+document.getElementById('run').onclick=()=>{state.running=!state.running;if(state.running)timer=setInterval(step,120);else clearInterval(timer);render()};
+document.getElementById('step').onclick=()=>{if(!state.running)step()};
+document.getElementById('reset').onclick=()=>{clearInterval(timer);reset()};
+reset();
+</script></body></html>
