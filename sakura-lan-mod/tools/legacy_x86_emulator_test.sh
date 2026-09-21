@@ -15,6 +15,8 @@ adb_quiet() {
 capture_all() {
   local status=$?
   trap - EXIT
+  timeout 20s adb exec-out screencap -p > "$OUT/exit-screen.png" || true
+  timeout 20s adb shell 'for pid in $(pidof jp.garud.ssimulator); do cat /proc/$pid/maps; done' > "$OUT/process-maps.txt" 2>&1 || true
   timeout 30s adb logcat -d -b all -v threadtime > "$OUT/logcat.txt" 2>&1 || true
   grep SakuraLAN "$OUT/logcat.txt" > "$OUT/sakuralan.txt" || true
   grep -Ei 'Fatal signal|signal 11|SIGSEGV|FATAL EXCEPTION' \
@@ -41,12 +43,13 @@ unlock_user() {
 
 enter_map() {
   local role="$1" before current
-  sleep 20
+  # ARM translation may still show the splash screen after 20 seconds.
+  sleep 60
   adb exec-out screencap -p > "$OUT/$role-main-menu.png"
   before="$(adb logcat -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
   tap_fraction 515 465
   sleep 2
-  tap_fraction 500 520
+  tap_fraction 500 480
 
   for attempt in $(seq 1 50); do
     current="$(adb logcat -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
