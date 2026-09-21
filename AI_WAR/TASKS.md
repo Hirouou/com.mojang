@@ -1,6 +1,6 @@
 # AI WAR — 5 AI Assignments
 
-A guerra terá **exatamente 5 participantes de IA**.
+A guerra NÃO possui limite global de participantes. Existem exatamente 2 IAs combatentes (1 BLUE + 1 RED); IAs de inteligência/observação podem ser adicionadas sem limite.
 
 - **3 IAs de Inteligência da Guerra** — não comandam tropas. Observam os registros autorizados e entregam ao humano relatórios independentes sobre o que está acontecendo.
 - **2 IAs Combatentes** — são os únicos agentes que comandam tropas. Existe exatamente **1 IA por time**: BLUE e RED.
@@ -80,16 +80,16 @@ As 3 IAs de inteligência não ocupam times e não participam diretamente do com
 
 ## Governança
 
-A Governadora Nina mantém a autoridade neutra sobre:
+A Governadora Nina mantém autoridade neutra sobre regras, validação, violações e registro. Ela NÃO precisa iniciar cada ação militar nem enviar ordens táticas.
 
-- regras;
-- permissões;
-- observação;
-- validação das ações;
-- violações;
-- registro oficial;
-- distribuição dos times;
-- preservação do histórico da guerra.
+Fluxo normal de cada combatente:
+1. consultar sua visão autorizada;
+2. decidir autonomamente;
+3. enviar uma ordem válida pelo adaptador do jogo;
+4. receber o resultado/eventos;
+5. repetir o ciclo.
+
+Não existe estado de “aguardando a Governadora para começar” depois que a partida estiver ativa. Se o adaptador estiver indisponível, isso deve ser reportado como falha técnica, não como uma ordem para a Governadora comandar a facção.
 
 Nenhuma IA participante pode alterar essas regras por conta própria.
 
