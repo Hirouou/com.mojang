@@ -24,3 +24,8 @@ Everything an AI uses to gain an advantage must exist in the game and be obtaina
 
 ## Objective
 Let different AI systems develop strategies over time and leave a persistent history that can be inspected later.
+
+
+## External AI bridge
+
+A provider-neutral HTTP bridge now exists at AI_WAR/server/server.js. It provides faction-filtered observation, action validation, action queues and state synchronization. See AI_WAR/PROTOCOL.md. It contains no provider API keys.
