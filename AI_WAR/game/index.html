@@ -19,7 +19,7 @@ const W=c.width,H=c.height,baseY=H/2;
 const METERS_PER_PIXEL=20;
 const SIM_SECONDS_PER_TICK=10;
 const SPEED_MPS={soldier:1.4,commander:1.4,car:22,truck:18};
-let timer=null,state;
+let timer=null,state; const BRIDGE=(location.protocol==='http:'&&location.hostname==='localhost')?location.origin:''; const orders={blue:[],red:[]};
 function rnd(a,b){return a+Math.random()*(b-a)}
 function reset(){state={tick:0,running:false,units:[
 {id:1,f:0,x:110,y:baseY-90,hp:100,res:100,kind:'commander',speed:SPEED_MPS.commander,cd:0},
@@ -32,16 +32,21 @@ build:[{f:0,x:80,y:baseY,r:42,type:'base',hp:500},{f:1,x:1020,y:baseY,r:42,type:
 res:[{x:350,y:110,a:300},{x:550,y:510,a:300},{x:750,y:110,a:300},{x:550,y:310,a:500}],events:[]};render();log('War initialized. Two autonomous factions are ready.')}
 function log(s){state.events.unshift('['+state.tick+'] '+s);state.events=state.events.slice(0,60);logEl.innerHTML=state.events.map(e=>'<div>'+e+'</div>').join('')}
 function nearestEnemy(u){return state.units.filter(v=>v.f!==u.f&&v.hp>0).sort((a,b)=>((a.x-u.x)**2+(a.y-u.y)**2)-((b.x-u.x)**2+(b.y-u.y)**2))[0]}
+async function bridgeSync(){ if(!BRIDGE)return; try{ await fetch(BRIDGE+'/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tick:state.tick,simSeconds:state.tick*SIM_SECONDS_PER_TICK,units:state.units,build:state.build,res:state.res,events:state.events})}); for(const f of ['blue','red']){const r=await fetch(BRIDGE+'/api/actions?faction='+f);const j=await r.json();orders[f].push(...(j.actions||[]));}}catch(e){} }
+function applyOrders(){ for(const f of ['blue','red']){for(const o of orders[f].splice(0,10)){const u=state.units.find(x=>x.id===o.unitId&&x.f===(f==='blue'?0:1)&&x.hp>0);if(!u)continue;if(o.type==='move'){u.order={type:'move',x:o.x,y:o.y};log('AI '+f.toUpperCase()+' ordered unit '+u.id+' to move.')}if(o.type==='attack'){const t=state.units.find(x=>x.id===o.targetId&&x.f!==(f==='blue'?0:1)&&x.hp>0);if(t)u.order={type:'attack',targetId:t.id};}}} }
 function step(){
  state.tick++;
+ applyOrders();
  for(const u of state.units.filter(u=>u.hp>0)){
   u.cd=Math.max(0,u.cd-1); const e=nearestEnemy(u); if(!e)continue;
   const dx=e.x-u.x,dy=e.y-u.y,d=Math.hypot(dx,dy);
   // Movement is time-based: no unit teleports. Speed is metres/second converted through the simulation scale.
   // simple autonomous doctrine: commanders seek resources, soldiers pressure the nearest contact
-  let tx=e.x,ty=e.y;
+  let tx=e.x,ty=e.y; if(u.order){ if(u.order.type==='move'){tx=u.order.x;ty=u.order.y; if(Math.hypot(tx-u.x,ty-u.y)<8)delete u.order;} else if(u.order.type==='attack'){const t=state.units.find(v=>v.id===u.order.targetId&&v.hp>0);if(t){tx=t.x;ty=t.y}else delete u.order;} }
   if(u.kind==='commander'&&state.tick%80<45){const r=state.res.slice().sort((a,b)=>b.a-a.a)[0];tx=r.x;ty=r.y}
   const stepPixels=(u.speed*SIM_SECONDS_PER_TICK)/METERS_PER_PIXEL;
+  const targetD=Math.hypot(tx-u.x,ty-u.y);
+  if(u.order&&u.order.type==='move'&&targetD>8){const move=Math.min(stepPixels,targetD);u.x+=((tx-u.x)/targetD)*move;u.y+=((ty-u.y)/targetD)*move;continue;}
   if(d>70){const move=Math.min(stepPixels,d-70);u.x+=dx/d*move;u.y+=dy/d*move}else if(u.cd===0){e.hp-=rnd(7,15);u.cd=18;if(e.hp<=0)log('Faction '+(u.f?'RED':'BLUE')+' eliminated unit '+e.id)}
   u.x=Math.max(20,Math.min(W-20,u.x));u.y=Math.max(30,Math.min(H-30,u.y));
  }
@@ -49,7 +54,7 @@ function step(){
  if(state.tick%30===0)for(const u of state.units.filter(u=>u.hp>0&&u.kind==='commander'))u.res+=20;
  if(state.tick%60===0)log('Simulation time: '+(state.tick*SIM_SECONDS_PER_TICK/60).toFixed(1)+' min. Movement follows real-time speed; nothing teleports.');
  if(state.tick%120===0)log('AI factions adapt their next orders from battlefield observations.');
- render();
+ render(); bridgeSync();
  if(state.units.filter(u=>u.hp>0&&u.f===0).length===0||state.units.filter(u=>u.hp>0&&u.f===1).length===0){state.running=false;clearInterval(timer);log('Battle paused: one faction has no surviving soldiers.')}
 }
 function render(){
