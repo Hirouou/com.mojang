@@ -23,3 +23,8 @@ The simulation is deliberately small so external model adapters can be attached 
 4. resulting events -> faction memory.
 
 External models must never receive hidden state.
+
+
+## Autonomous adapter loop
+
+When external adapters are connected, combatants follow: `observe (authorized) -> decide -> submit action -> validate -> simulate -> return events -> observe again`. They do not wait for a manual Governor start signal between actions. The current HTML prototype still uses local autonomous doctrine; external model control is not yet connected.
