@@ -16,15 +16,18 @@ button{padding:9px 12px;background:#222;color:#eee;border:1px solid #555;border-
 <script>
 const c=document.getElementById('map'),x=c.getContext('2d'),logEl=document.getElementById('log');
 const W=c.width,H=c.height,baseY=H/2;
+const METERS_PER_PIXEL=20;
+const SIM_SECONDS_PER_TICK=10;
+const SPEED_MPS={soldier:1.4,commander:1.4,car:22,truck:18};
 let timer=null,state;
 function rnd(a,b){return a+Math.random()*(b-a)}
 function reset(){state={tick:0,running:false,units:[
-{id:1,f:0,x:110,y:baseY-90,hp:100,res:100,kind:'commander',cd:0},
-{id:2,f:0,x:150,y:baseY+90,hp:100,res:100,kind:'soldier',cd:0},
-{id:3,f:0,x:190,y:baseY,hp:100,res:100,kind:'soldier',cd:0},
-{id:4,f:1,x:990,y:baseY-90,hp:100,res:100,kind:'commander',cd:0},
-{id:5,f:1,x:950,y:baseY+90,hp:100,res:100,kind:'soldier',cd:0},
-{id:6,f:1,x:910,y:baseY,hp:100,res:100,kind:'soldier',cd:0}],
+{id:1,f:0,x:110,y:baseY-90,hp:100,res:100,kind:'commander',speed:SPEED_MPS.commander,cd:0},
+{id:2,f:0,x:150,y:baseY+90,hp:100,res:100,kind:'soldier',speed:SPEED_MPS.soldier,cd:0},
+{id:3,f:0,x:190,y:baseY,hp:100,res:100,kind:'soldier',speed:SPEED_MPS.soldier,cd:0},
+{id:4,f:1,x:990,y:baseY-90,hp:100,res:100,kind:'commander',speed:SPEED_MPS.commander,cd:0},
+{id:5,f:1,x:950,y:baseY+90,hp:100,res:100,kind:'soldier',speed:SPEED_MPS.soldier,cd:0},
+{id:6,f:1,x:910,y:baseY,hp:100,res:100,kind:'soldier',speed:SPEED_MPS.soldier,cd:0}],
 build:[{f:0,x:80,y:baseY,r:42,type:'base',hp:500},{f:1,x:1020,y:baseY,r:42,type:'base',hp:500}],
 res:[{x:350,y:110,a:300},{x:550,y:510,a:300},{x:750,y:110,a:300},{x:550,y:310,a:500}],events:[]};render();log('War initialized. Two autonomous factions are ready.')}
 function log(s){state.events.unshift('['+state.tick+'] '+s);state.events=state.events.slice(0,60);logEl.innerHTML=state.events.map(e=>'<div>'+e+'</div>').join('')}
@@ -34,14 +37,17 @@ function step(){
  for(const u of state.units.filter(u=>u.hp>0)){
   u.cd=Math.max(0,u.cd-1); const e=nearestEnemy(u); if(!e)continue;
   const dx=e.x-u.x,dy=e.y-u.y,d=Math.hypot(dx,dy);
+  // Movement is time-based: no unit teleports. Speed is metres/second converted through the simulation scale.
   // simple autonomous doctrine: commanders seek resources, soldiers pressure the nearest contact
   let tx=e.x,ty=e.y;
   if(u.kind==='commander'&&state.tick%80<45){const r=state.res.slice().sort((a,b)=>b.a-a.a)[0];tx=r.x;ty=r.y}
-  if(d>70){u.x+=dx/d*2.1;u.y+=dy/d*2.1}else if(u.cd===0){e.hp-=rnd(7,15);u.cd=18;if(e.hp<=0)log('Faction '+(u.f?'RED':'BLUE')+' eliminated unit '+e.id)}
+  const stepPixels=(u.speed*SIM_SECONDS_PER_TICK)/METERS_PER_PIXEL;
+  if(d>70){const move=Math.min(stepPixels,d-70);u.x+=dx/d*move;u.y+=dy/d*move}else if(u.cd===0){e.hp-=rnd(7,15);u.cd=18;if(e.hp<=0)log('Faction '+(u.f?'RED':'BLUE')+' eliminated unit '+e.id)}
   u.x=Math.max(20,Math.min(W-20,u.x));u.y=Math.max(30,Math.min(H-30,u.y));
  }
  // resource income and light building
  if(state.tick%30===0)for(const u of state.units.filter(u=>u.hp>0&&u.kind==='commander'))u.res+=20;
+ if(state.tick%60===0)log('Simulation time: '+(state.tick*SIM_SECONDS_PER_TICK/60).toFixed(1)+' min. Movement follows real-time speed; nothing teleports.');
  if(state.tick%120===0)log('AI factions adapt their next orders from battlefield observations.');
  render();
  if(state.units.filter(u=>u.hp>0&&u.f===0).length===0||state.units.filter(u=>u.hp>0&&u.f===1).length===0){state.running=false;clearInterval(timer);log('Battle paused: one faction has no surviving soldiers.')}
@@ -59,5 +65,6 @@ document.getElementById('run').onclick=()=>{state.running=!state.running;if(stat
 document.getElementById('step').onclick=()=>{if(!state.running)step()};
 document.getElementById('reset').onclick=()=>{clearInterval(timer);reset()};
 reset();
+log('Logistics model loaded: 1 px = 20 m, 1 tick = 10 s; foot speed 1.4 m/s, car 22 m/s, truck 18 m/s.');
 state.running=true; timer=setInterval(step,120); render();
 </script></body></html>
