@@ -24,6 +24,7 @@ done
 rm -rf "$WORK/config"
 mkdir -p "$WORK/config"
 unzip -q "$CONFIG" -d "$WORK/config"
+python3 "$SCRIPT_DIR/reserve_arm_relay.py" "$WORK/config/lib/armeabi-v7a/libil2cpp.so"
 MAIN="$WORK/config/lib/armeabi-v7a/libmain.so"
 test -f "$MAIN"
 

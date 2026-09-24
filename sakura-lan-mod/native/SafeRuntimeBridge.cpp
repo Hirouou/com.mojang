@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <dlfcn.h>
+#include <link.h>
 #include <pthread.h>
 #include <string>
 #include <thread>
@@ -589,6 +590,36 @@ void hooked_update(void* self, const void* methodInfo) {
 }
 
 #if defined(__arm__)
+uint8_t* reserved_arm_relay(uintptr_t target, size_t pageSize) {
+    struct Search { uintptr_t target; size_t pageSize; uint8_t* result; } search{target, pageSize, nullptr};
+    dl_iterate_phdr([](dl_phdr_info* info, size_t, void* opaque) {
+        auto& s = *static_cast<Search*>(opaque);
+        bool containsTarget = false;
+        for (ElfW(Half) i = 0; i < info->dlpi_phnum; ++i) {
+            const auto& p = info->dlpi_phdr[i];
+            const uintptr_t start = info->dlpi_addr + p.p_vaddr;
+            if (p.p_type == PT_LOAD && s.target >= start && s.target - start < p.p_memsz)
+                containsTarget = true;
+        }
+        if (!containsTarget) return 0;
+        constexpr char marker[] = "SAKURA_LAN_RELAY_V1";
+        for (ElfW(Half) i = 0; i < info->dlpi_phnum; ++i) {
+            const auto& p = info->dlpi_phdr[i];
+            if (p.p_type != PT_LOAD || !(p.p_flags & PF_R) || p.p_filesz < 0x8000) continue;
+            auto* relay = reinterpret_cast<uint8_t*>(info->dlpi_addr + p.p_vaddr + 0x4000);
+            const uintptr_t address = reinterpret_cast<uintptr_t>(relay);
+            if (s.pageSize > 0x4000 || address % s.pageSize ||
+                std::memcmp(relay, marker, sizeof(marker)) != 0) continue;
+            const int64_t delta = int64_t(address) + 16 - int64_t(s.target + 8);
+            if (delta < -0x2000000 || delta > 0x1fffffc) continue;
+            if (mprotect(relay, s.pageSize, PROT_READ | PROT_WRITE) == 0) s.result = relay;
+            break;
+        }
+        return 1;
+    }, &search);
+    return search.result;
+}
+
 bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     if (!target || !hook || !trampolineOut) return false;
 
@@ -613,7 +644,10 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
     // A single aligned ARM branch is the publication point. An 8-byte
     // LDR/literal patch can be observed half-written by the Unity thread.
-    auto* trampoline = static_cast<uint8_t*>(allocate_near_code_page(
+    auto* trampoline = reserved_arm_relay(targetAddr, pageSize);
+    const bool reserved = trampoline != nullptr;
+    if (reserved) LOGI("ARMHOOK reserved relay=%p", trampoline);
+    else trampoline = static_cast<uint8_t*>(allocate_near_code_page(
         targetAddr + 8, 16, -0x2000000, 0x1fffffc, pageSize));
     if (!trampoline) {
         LOGE("ARMHOOK no nearby relay page; target=%p unchanged", target);
@@ -636,7 +670,7 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     __builtin___clear_cache(reinterpret_cast<char*>(trampoline),
                             reinterpret_cast<char*>(trampoline + 24));
     if (mprotect(trampoline, pageSize, PROT_READ | PROT_EXEC) != 0) {
-        munmap(trampoline, pageSize);
+        if (!reserved) munmap(trampoline, pageSize);
         return false;
     }
 
@@ -645,7 +679,7 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     if (mprotect(reinterpret_cast<void*>(page), pageSize,
                  PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
         LOGE("ARMHOOK mprotect target failed");
-        munmap(trampoline, pageSize);
+        if (!reserved) munmap(trampoline, pageSize);
         return false;
     }
 

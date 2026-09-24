@@ -10,6 +10,7 @@ on:
       - "sakura-lan-mod/native/LanRuntime.cpp"
       - "sakura-lan-mod/tools/legacy_x86_emulator_test.sh"
       - "sakura-lan-mod/tools/patch_split_pack_legacy.sh"
+      - "sakura-lan-mod/tools/reserve_arm_relay.py"
   workflow_dispatch:
 
 jobs:

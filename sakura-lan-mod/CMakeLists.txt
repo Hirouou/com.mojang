@@ -21,4 +21,7 @@ if(NOT ANDROID)
   add_test(NAME lan_integration COMMAND lan_integration_test)
   add_executable(near_code_page_test tests/near_code_page_test.cpp)
   add_test(NAME near_code_page COMMAND near_code_page_test)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME arm_relay_elf COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_reserve_arm_relay.py)
 endif()

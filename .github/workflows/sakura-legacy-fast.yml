@@ -8,6 +8,7 @@ on:
       - ".github/workflows/sakura-legacy-fast.yml"
       - "sakura-lan-mod/tools/legacy_x86_emulator_test.sh"
       - "sakura-lan-mod/tools/patch_split_pack_legacy.sh"
+      - "sakura-lan-mod/tools/reserve_arm_relay.py"
       - "sakura-lan-mod/native/**"
       - "sakura-lan-mod/src/**"
       - "sakura-lan-mod/android/**"
@@ -89,7 +90,7 @@ jobs:
           arch: x86_64
           profile: pixel_3a
           cores: 2
-          ram-size: 2048M
+          ram-size: 4096M
           heap-size: 1024M
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -no-snapshot
           disable-animations: true

@@ -8,6 +8,12 @@ Branch: `agent/sakura-lan-20260919`.
 - Hook instalado sem depender da chegada do Client, com publicação de uma única
   instrução ARM e trampoline publicado antes do desvio. Só aceita o prólogo
   observado nesta versão; outra versão falha sem alterar a função.
+- Reserva do trampoline em lacunas reais de `/proc/self/maps`, inclusive menores
+  que 1 MiB, sem substituir mapeamentos existentes. Teste cobre lacuna estreita
+  e falta de espaço, também em builds Release.
+- O patch ARMv7 reserva uma página própria no ELF do jogo, dentro do alcance do
+  desvio ARM. Preserva endereços e conteúdo dos segmentos originais; verifica o
+  prólogo de 1.043.04 antes de modificar o arquivo. Não depende de lacunas de ASLR.
 - Clone criado sob um pai inativo; scripts de gameplay removidos antes da
   ativação, sem duplicar controle, câmera, áudio ou física do player local.
 - Referências gerenciadas mantidas por GC handles e limpeza ao trocar de cena.
@@ -24,8 +30,8 @@ Branch: `agent/sakura-lan-20260919`.
 
 ## Limites reais — não tratar como multiplayer completo
 
-- O código visual novo NÃO foi executado em Android. Por solicitação do usuário,
-  os próximos testes ficam para outra conversa. Não há screenshots novos validados.
+- Ainda não há screenshots validados de dois players no mapa. Instalação do hook
+  e handshake não comprovam a execução da clonagem e da sincronização visual.
 - NPCs controlados por outras classes ainda precisam de adaptadores verificados.
 - Reações de NPCs a ações iniciadas no Client ainda precisam de eventos de
   interação validados e encaminhados ao Host. Só copiar Animator do player não
@@ -37,16 +43,23 @@ Branch: `agent/sakura-lan-20260919`.
   foram integrados. O canal de NPCs não representa sincronização completa do mundo.
 - Ambos os APKs precisam ser recompilados com o protocolo v2.
 
-## Validação anterior
+## Validação em 24/09/2026
 
-Antes da solicitação de suspender testes: handshake/UDP em teste local passou;
-commit `0aaa0ee` iniciou Actions com dois emuladores. Isso NÃO valida as alterações
-visuais posteriores nem demonstra que o SIGSEGV foi resolvido no Android.
-Os commits seguintes usam `[skip ci]` para não iniciar novos workflows.
+- `118f0b8`: compilação ARMv7 e handshake Android passaram. No workflow
+  [36062734302](https://github.com/Hirouou/com.mojang/actions/runs/36062734302),
+  o Host registrou `ARMHOOK READY` e `ARMHOOK worker detached`, sem SIGSEGV.
+  O teste visual falhou antes do mapa: um toque no anúncio abriu o Chrome.
+- `3c69c37`: remove toques cegos no anúncio e desliga internet externa no emulador,
+  preservando UDP em loopback. Exige criação e aplicação do remoto em cada PID.
+  O CI principal e o handshake offline passaram. No workflow
+  [36063806861](https://github.com/Hirouou/com.mojang/actions/runs/36063806861),
+  a captura mostra o Host no mapa; o hook falhou por ausência de qualquer lacuna
+  no alcance do desvio. A reserva de página no ELF corrige essa dependência,
+  ainda aguardando validação no Android.
+- Usam-se dois usuários Android no mesmo emulador. Alternar o usuário pausa a
+  renderização do outro jogo; esse teste não substitui dois celulares simultâneos.
 
-## Próxima validação autorizada, em outra conversa
-
-Executar manualmente `Sakura Legacy 1.043 LAN Smoke` na branch acima. Conferir:
+## Critérios para confirmar gameplay
 
 1. Ausência de crash/tombstone após `ARMHOOK READY` e `ARMHOOK worker detached`.
 2. Host e Client entram no mapa, criam o remoto e aplicam estados continuamente.
