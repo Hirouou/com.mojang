@@ -15,6 +15,7 @@
 #include <vector>
 #include <tuple>
 #include "../src/LanProtocol.hpp"
+#include "NearCodePage.hpp"
 
 extern "C" {
 int sakuralan_net_connected();
@@ -612,29 +613,10 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
     const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
     // A single aligned ARM branch is the publication point. An 8-byte
     // LDR/literal patch can be observed half-written by the Unity thread.
-    uint8_t* trampoline = nullptr;
-    for (uintptr_t delta = 0x100000; delta < 0x2000000 && !trampoline;
-         delta += 0x100000) {
-        for (int direction : {-1, 1}) {
-            const int64_t hint = static_cast<int64_t>(targetAddr) +
-                                 direction * static_cast<int64_t>(delta);
-            if (hint < static_cast<int64_t>(pageSize) || hint > UINT32_MAX) continue;
-            void* memory = mmap(reinterpret_cast<void*>(
-                                    static_cast<uintptr_t>(hint) & ~(static_cast<uintptr_t>(pageSize) - 1)),
-                                pageSize, PROT_READ | PROT_WRITE,
-                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-            if (memory == MAP_FAILED) continue;
-            const int64_t distance = static_cast<int64_t>(reinterpret_cast<uintptr_t>(memory)) + 16 -
-                                     static_cast<int64_t>(targetAddr + 8);
-            if (distance >= -0x2000000 && distance <= 0x1fffffc) {
-                trampoline = static_cast<uint8_t*>(memory);
-                break;
-            }
-            munmap(memory, pageSize);
-        }
-    }
+    auto* trampoline = static_cast<uint8_t*>(allocate_near_code_page(
+        targetAddr + 8, 16, -0x2000000, 0x1fffffc, pageSize));
     if (!trampoline) {
-        LOGE("ARMHOOK no nearby relay page; target unchanged");
+        LOGE("ARMHOOK no nearby relay page; target=%p unchanged", target);
         return false;
     }
 
@@ -729,35 +711,10 @@ bool install_arm64_hook(void* target, void* hook, void** trampolineOut) {
     }
 
     const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
-    uint8_t* trampoline = nullptr;
-
     // One atomic B instruction publishes the hook. Keep the relay within the
     // architectural +/-128 MiB branch range and use absolute jumps after that.
-    for (uintptr_t delta = 0x100000; delta <= 0x7000000 && !trampoline;
-         delta += 0x100000) {
-        for (int direction : {-1, 1}) {
-            const int64_t hint64 = static_cast<int64_t>(targetAddr) +
-                                   direction * static_cast<int64_t>(delta);
-            if (hint64 <= static_cast<int64_t>(pageSize)) continue;
-            const uintptr_t hint =
-                static_cast<uintptr_t>(hint64) &
-                ~(static_cast<uintptr_t>(pageSize) - 1u);
-
-            void* memory = mmap(reinterpret_cast<void*>(hint), pageSize,
-                                PROT_READ | PROT_WRITE,
-                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-            if (memory == MAP_FAILED) continue;
-
-            const uintptr_t relay = reinterpret_cast<uintptr_t>(memory) + 64u;
-            const int64_t distance =
-                static_cast<int64_t>(relay) - static_cast<int64_t>(targetAddr);
-            if (distance >= -0x08000000ll && distance <= 0x07fffffcll) {
-                trampoline = static_cast<uint8_t*>(memory);
-                break;
-            }
-            munmap(memory, pageSize);
-        }
-    }
+    auto* trampoline = static_cast<uint8_t*>(allocate_near_code_page(
+        targetAddr, 64, -0x08000000ll, 0x07fffffcll, pageSize));
 
     if (!trampoline) {
         LOGE("ARMHOOK64 no nearby relay page");

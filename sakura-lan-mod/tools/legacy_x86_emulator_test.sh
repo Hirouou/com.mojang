@@ -58,6 +58,9 @@ enter_map() {
       return 0
     fi
     test -n "$(adb shell pidof "$PKG" | tr -d '\r')" || return 1
+    # Rewarded videos are often pillarboxed: their skip/close button is at
+    # 90% of the display, not in the black margin at 96.5%.
+    tap_fraction 903 65
     tap_fraction 95 65
     tap_fraction 965 65
     if (( attempt % 10 == 0 )); then
