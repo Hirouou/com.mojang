@@ -1,4 +1,6 @@
 #include "../native/NearCodePage.hpp"
+// Keep the regression checks (and mmap cleanup) active in Release CI builds.
+#undef NDEBUG
 #include <cassert>
 #include <cstring>
 #include <unistd.h>

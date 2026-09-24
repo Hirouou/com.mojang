@@ -41,31 +41,32 @@ unlock_user() {
   adb_quiet shell input keyevent 82
 }
 
+player_pid() {
+  timeout 20s adb shell ps -A -o USER,PID,NAME | tr -d '\r' |
+    awk -v user="u${1}_a" -v pkg="$PKG" '$1 ~ ("^" user "[0-9]+$") && $3 == pkg {print $2; exit}'
+}
+
 enter_map() {
-  local role="$1" before current
+  local role="$1" pid="$2" before current
   # ARM translation may still show the splash screen after 20 seconds.
   sleep 60
   adb exec-out screencap -p > "$OUT/$role-main-menu.png"
-  before="$(adb logcat -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
+  before="$(adb logcat --pid="$pid" -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
   tap_fraction 515 465
   sleep 2
   tap_fraction 500 480
 
   for attempt in $(seq 1 50); do
-    current="$(adb logcat -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
+    current="$(adb logcat --pid="$pid" -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
     if (( current > before )); then
       sleep 5
+      adb exec-out screencap -p > "$OUT/$role-entered-map.png"
       return 0
     fi
-    test -n "$(adb shell pidof "$PKG" | tr -d '\r')" || return 1
-    # Rewarded videos are often pillarboxed: their skip/close button is at
-    # 90% of the display, not in the black margin at 96.5%.
-    tap_fraction 903 65
-    tap_fraction 95 65
-    tap_fraction 965 65
+    adb shell kill -0 "$pid" || return 1
+    # No blind taps on ad surfaces: they can launch an external browser.
     if (( attempt % 10 == 0 )); then
       adb exec-out screencap -p > "$OUT/$role-ad-$attempt.png"
-      adb shell input keyevent 4 || true
     fi
     sleep 3
   done
@@ -80,13 +81,22 @@ adb install-multiple -r \
   "$APKDIR/UnityDataAssetPack.apk"
 adb logcat -c
 adb logcat -G 32M
+# Exercise an offline LAN session. Loopback UDP stays available while ad SDKs
+# take the game's ordinary no-internet path, without opening advertiser links.
+adb shell svc wifi disable
+adb shell svc data disable
+adb shell settings put global airplane_mode_on 1
+adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true >/dev/null
 
 adb shell am start -W --user 0 \
   -n "$PKG/jp.garud.ssimulator.SakuraLanActivity" \
   --es sakuralan_mode host --ez sakuralan_ci_pose true \
   | tee "$OUT/host-start.txt"
 unlock_user
-if [ "$REQUIRE_GAMEPLAY" = 1 ]; then enter_map host; else sleep 8; fi
+HOST_PID="$(player_pid 0)"
+test -n "$HOST_PID"
+printf '%s\n' "$HOST_PID" > "$OUT/host-pid.txt"
+if [ "$REQUIRE_GAMEPLAY" = 1 ]; then enter_map host "$HOST_PID"; else sleep 8; fi
 
 CREATE="$(adb shell pm create-user SakuraClient)"
 CLIENT_USER="$(sed -n 's/.* id \([0-9][0-9]*\).*/\1/p' <<< "$CREATE")"
@@ -102,7 +112,10 @@ adb shell am start -W --user "$CLIENT_USER" \
   --es sakuralan_mode join --es sakuralan_host 127.0.0.1 \
   --ei sakuralan_port 38556 --ez sakuralan_ci_pose true \
   | tee "$OUT/client-start.txt"
-if [ "$REQUIRE_GAMEPLAY" = 1 ]; then enter_map client; else sleep 8; fi
+CLIENT_PID="$(player_pid "$CLIENT_USER")"
+test -n "$CLIENT_PID"
+printf '%s\n' "$CLIENT_PID" > "$OUT/client-pid.txt"
+if [ "$REQUIRE_GAMEPLAY" = 1 ]; then enter_map client "$CLIENT_PID"; else sleep 8; fi
 
 if [ "$REQUIRE_GAMEPLAY" = 0 ]; then
   adb logcat -d -b all -v threadtime > "$OUT/check.txt"
@@ -129,9 +142,14 @@ adb logcat -d -b all -v threadtime > "$OUT/check.txt"
 grep -q 'NET HOST OK' "$OUT/check.txt"
 grep -q 'Client joined' "$OUT/check.txt"
 grep -q 'NET DIRECT JOIN OK' "$OUT/check.txt"
-grep -q 'ARMHOOK REMOTE CREATED' "$OUT/check.txt"
-grep -q 'ARMHOOK REMOTE APPLY' "$OUT/check.txt"
-grep -q 'ARMHOOK CI FACE' "$OUT/check.txt"
+for role in host client; do
+  pid="$(cat "$OUT/$role-pid.txt")"
+  adb shell kill -0 "$pid"
+  awk -v pid="$pid" '$3 == pid' "$OUT/check.txt" > "$OUT/$role-runtime.txt"
+  for marker in 'ARMHOOK READY' 'ARMHOOK worker detached' 'ARMHOOK REMOTE CREATED' 'ARMHOOK REMOTE APPLY' 'ARMHOOK CI FACE'; do
+    grep -q "$marker" "$OUT/$role-runtime.txt" || { echo "FAIL: $role missing $marker" >&2; exit 1; }
+  done
+done
 if grep -Eq 'Fatal signal|signal 11 \(SIGSEGV\)|FATAL EXCEPTION' "$OUT/check.txt"; then
   echo "FAIL: Android crash detected" >&2
   exit 1
