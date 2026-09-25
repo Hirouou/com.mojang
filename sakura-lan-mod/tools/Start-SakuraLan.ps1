@@ -72,6 +72,16 @@ foreach ($port in @('5554', '5556')) {
     & $adb -s "emulator-$port" shell am force-stop jp.garud.ssimulator | Out-Null
 }
 & $adb -s emulator-5554 shell am start -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity --es sakuralan_mode host --ez sakuralan_ci_pose true
+$hostReady = $false
+for ($i = 0; $i -lt 30; $i++) {
+    $hostProcess = ((& $adb -s emulator-5554 shell pidof jp.garud.ssimulator) -join '').Trim()
+    if ($hostProcess) {
+        $hostLog = (& $adb -s emulator-5554 logcat -d --pid=$hostProcess -s SakuraLAN:I '*:S') -join "`n"
+        if ($hostLog -match 'NET HOST OK') { $hostReady = $true; break }
+    }
+    Start-Sleep -Seconds 1
+}
+if (-not $hostReady) { throw 'O Host não confirmou a criação da sala. Capture os logs antes de tentar novamente.' }
 & $adb -s emulator-5556 shell am start -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity --es sakuralan_mode join --es sakuralan_host 10.0.2.2 --ei sakuralan_port 38556 --ez sakuralan_ci_pose true
 Write-Host 'Host e Client iniciados. Client usa 10.0.2.2:38556 via encaminhamento UDP no Host.'
 Write-Host 'Para guardar telas e logs: execute Capture-SakuraLan.ps1.'
