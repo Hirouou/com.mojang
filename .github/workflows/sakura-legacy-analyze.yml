@@ -95,6 +95,10 @@ jobs:
             > legacy/dumper/dumper.log 2>&1
           CODE=$?
           set -e
+          # Il2CppDumper v6.7.46 calls ReadKey after successfully writing output,
+          # which aborts under redirected CI stdin. Treat generated DummyDll as
+          # the real success condition.
+          if [ -f legacy/dumper/out/DummyDll/Assembly-CSharp.dll ]; then CODE=0; fi
           echo "$CODE" > legacy/dumper/exit-code.txt
           tail -n 300 legacy/dumper/dumper.log || true
           test "$CODE" -eq 0
@@ -126,7 +130,7 @@ jobs:
           if first is None:
               raise SystemExit("No Unity objects found")
           generator = TypeTreeGenerator(first.assets_file.unity_version)
-          generator.load_dll_folder("legacy/dumper/out/DummyDll")
+          generator.load_local_dll_folder("legacy/dumper/out/DummyDll")
 
           outdir = pathlib.Path("legacy/unity-text/monobehaviour")
           index = []
