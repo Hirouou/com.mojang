@@ -557,6 +557,7 @@ bool create_remote_avatar() {
 
 #include "VisualRuntimeSync.inc"
 #include "WorldRuntimeSync.inc"
+#include "LocalizationRuntime.inc"
 
 // Animation/physics can write the cloned root after a network update. Keep the
 // last accepted pose authoritative every render callback, including frames in
