@@ -114,7 +114,7 @@ bool LanSession::join(const RoomInfo& room, const std::string& playerName, uint3
         if (!parse(*d, h, payload) || h.type != PacketType::JoinAccept) continue;
         JoinAcceptPayload a{};
         if (!decodePayload(payload, h.payloadBytes, a) || a.playerId != 1 || !a.sessionId ||
-            d->from.ip != room.endpoint.ip || d->from.port != room.endpoint.port ||
+            a.clientNonce != clientNonce ||
             (room.sessionId && room.sessionId != a.sessionId)) continue;
         sessionId_ = a.sessionId;
         localPlayerId_ = a.playerId;
@@ -162,6 +162,7 @@ void LanSession::pump(int timeoutMs) {
         connected_ = true;
         JoinAcceptPayload a{};
         a.sessionId = sessionId_;
+        a.clientNonce = req.clientNonce;
         a.playerId = 1;
         sendPacket(game_, peer_, PacketType::JoinAccept, &a, sizeof(a));
         req.playerName[sizeof(req.playerName) - 1] = 0;

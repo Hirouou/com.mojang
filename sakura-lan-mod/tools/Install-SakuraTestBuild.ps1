@@ -31,6 +31,12 @@ New-Item -ItemType Directory -Force $backup | Out-Null
 foreach ($serial in @('emulator-5554','emulator-5556')) {
     & $adb -s $serial root | Out-Null
     & $adb -s $serial wait-for-device
+    $booted = $false
+    for ($attempt = 0; $attempt -lt 90; $attempt++) {
+        if (((& $adb -s $serial shell getprop sys.boot_completed) -join '').Trim() -eq '1') { $booted = $true; break }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $booted) { throw "Android ainda não inicializou: $serial" }
     & $adb -s $serial shell am force-stop jp.garud.ssimulator
     & $adb -s $serial shell tar -czf /data/local/tmp/sakura-private-backup.tgz -C /data/user/0/jp.garud.ssimulator .
     if ($LASTEXITCODE -ne 0) { throw "Backup interno falhou: $serial" }

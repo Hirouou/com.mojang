@@ -50,6 +50,7 @@ struct JoinRequestPayload {
 
 struct JoinAcceptPayload {
     uint32_t sessionId = 0;
+    uint32_t clientNonce = 0;
     uint8_t playerId = 1;
     uint8_t reserved[3]{};
 };
