@@ -590,11 +590,11 @@ void apply_remote_appearance(VisualEntity& entity, const VisualState& state) {
     if (entity.appearance[8] != incoming[8]) invoke_remote_accessory(makerClass, "ChangeTail", 5, incoming[8]);
     if (entity.appearance[9] != incoming[9]) invoke_remote_accessory(makerClass, "ChangeEars", 5, incoming[9]);
 
-    std::copy(std::begin(incoming), std::end(incoming), entity.appearance);
+    for (int i = 0; i < 10; ++i) entity.appearance[i] = incoming[i];
     // Appearance helpers can replace child objects. Refresh path/component maps
     // before subsequent material/node packets are applied.
     build_visual(entity, entity.go, false, "");
-    std::copy(std::begin(incoming), std::end(incoming), entity.appearance);
+    for (int i = 0; i < 10; ++i) entity.appearance[i] = incoming[i];
     LOGI("VISUAL REMOTE APPEARANCE slot=%d cloth=%d hair=%d acce=%d",
          incoming[0], incoming[1], incoming[3], incoming[5]);
 }
