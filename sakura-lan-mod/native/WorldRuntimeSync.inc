@@ -480,11 +480,11 @@ void apply_npc_physical(const WorldState& state, int role) {
 
     void* statusClass = gApi.object_get_class(status);
     write_field(statusClass, status, "HP", "System.Int32", state.value);
-    if (role == 1) {
-        write_field(statusClass, status, "State", "System.Int32", state.step);
-        bool down = (state.flags & 1u) != 0;
-        write_field(statusClass, status, "isDown", "System.Boolean", down);
-    }
+    // Physical state is shared regardless of which player caused the hit.
+    // Likability/chat fields are intentionally not touched here.
+    write_field(statusClass, status, "State", "System.Int32", state.step);
+    bool down = (state.flags & 1u) != 0;
+    write_field(statusClass, status, "isDown", "System.Boolean", down);
 }
 
 void apply_vehicle(const WorldState& state, int role) {
