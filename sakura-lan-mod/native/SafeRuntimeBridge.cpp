@@ -311,6 +311,7 @@ void* gLocalGameObject = nullptr;
 void* gLocalTransform = nullptr;
 void* gRemoteGameObject = nullptr;
 void* gRemoteTransform = nullptr;
+void* gRemoteRootObject = nullptr;
 bool gRemotePoseReceived = false;
 Vec3 gRemotePosition{};
 Quat gRemoteRotation{0, 0, 0, 1};
@@ -477,6 +478,10 @@ void make_visual_replica(void* clone, bool stripScripts) {
 bool create_remote_avatar() {
     if (gRemoteGameObject && gRemoteTransform) {
         if (unity_alive(gRemoteGameObject)) return true;
+        if (unity_alive(gRemoteRootObject))
+            invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteRootObject);
+        gRemoteRootObject = nullptr;
+        gRemotePoseReceived = false;
         gRemoteGameObject = gRemoteTransform = nullptr;
     }
     if (!gLocalGameObject || !resolve_runtime_classes()) return false;
@@ -510,26 +515,25 @@ bool create_remote_avatar() {
         invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
         return false;
     }
+    // Preserve the staging object as an unanimated network root. Animator can
+    // restore its own root pose after OnGUI; it must never own the transform
+    // used for network position. Normalize the visual child before activation
+    // so its animator binds at the local origin, not at the spawn coordinates.
+    invoke1(gApi, gObjectClass, stage, "set_name", gApi.string_new("SAKURA_LAN_NETWORK_ROOT"));
     void* transformClass = gApi.object_get_class(transform);
-    Vec3 local{};
-    if (boxed_vec3(invoke0(gApi, transformClass, gLocalTransform, "get_position"), local)) {
-        local.x += 2.25f;
-        invoke1(gApi, transformClass, transform, "set_position", &local);
-    }
-    bool worldPositionStays = true;
-    void* parentArgs[]{nullptr, &worldPositionStays};
-    const char* parentTypes[]{"UnityEngine.Transform", "System.Boolean"};
-    invoke(gApi, transformClass, transform, "SetParent", 2, parentArgs, parentTypes);
-    if (invoke0(gApi, transformClass, transform, "get_parent")) {
-        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
-        return false;
-    }
-    invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
-    // Do not display an invented position while waiting for the peer's state.
-    invoke1(gApi, gGameObjectClass, clone, "SetActive", &off);
+    Vec3 origin{0, 0, 0};
+    Quat identity{0, 0, 0, 1};
+    invoke1(gApi, transformClass, transform, "set_localPosition", &origin);
+    invoke1(gApi, transformClass, transform, "set_localRotation", &identity);
+    bool on = true;
+    invoke1(gApi, gGameObjectClass, clone, "SetActive", &on);
+    // The network root remains inactive until a valid remote pose arrives.
     gRemotePoseReceived = false;
     gRemoteGameObject = clone;
-    gRemoteTransform = transform;
+    gRemoteRootObject = stage;
+    gRemoteTransform = parent;
+    retain_player_object(stage);
+    retain_player_object(parent);
     retain_player_object(clone);
     retain_player_object(transform);
     LOGI("ARMHOOK REMOTE CREATED go=%p transform=%p", clone, transform);
@@ -565,13 +569,15 @@ void present_remote_pose() {
 void multiplayer_tick(void* self) {
     if (gLocalGameObject && !unity_alive(gLocalGameObject)) {
         reset_visual_sync();
-        if (unity_alive(gRemoteGameObject))
-            invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteGameObject);
+        if (unity_alive(gRemoteRootObject))
+            invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteRootObject);
         for (uint32_t handle : gPlayerHandles) gApi.gchandle_free(handle);
         gPlayerHandles.clear();
         gLocalMove = nullptr;
         gLocalGameObject = gLocalTransform = nullptr;
         gRemoteGameObject = gRemoteTransform = nullptr;
+        gRemoteRootObject = nullptr;
+        gRemotePoseReceived = false;
         gClientOffsetDone = false;
         gCiFacingDone = false;
         gLastSend = {};
@@ -649,6 +655,7 @@ void multiplayer_tick(void* self) {
     if (!gRemotePoseReceived) {
         bool on = true;
         invoke1(gApi, gGameObjectClass, gRemoteGameObject, "SetActive", &on);
+        invoke1(gApi, gGameObjectClass, gRemoteRootObject, "SetActive", &on);
         gRemotePoseReceived = true;
         LOGI("ARMHOOK REMOTE VISIBLE after first peer pose");
     }
@@ -663,6 +670,11 @@ void multiplayer_tick(void* self) {
         bool active = false;
         unbox_value(invoke0(gApi, gGameObjectClass, gRemoteGameObject, "get_activeInHierarchy"), active);
         LOGI("ARMHOOK REMOTE CHECK active=%d actual=%.2f %.2f %.2f", active, actual.x, actual.y, actual.z);
+        void* visualTransform = invoke0(gApi, gGameObjectClass, gRemoteGameObject, "get_transform");
+        Vec3 visualLocal{};
+        if (visualTransform && boxed_vec3(invoke0(gApi, gApi.object_get_class(visualTransform),
+                visualTransform, "get_localPosition"), visualLocal))
+            LOGI("REMOTE VISUAL LOCAL %.2f %.2f %.2f", visualLocal.x, visualLocal.y, visualLocal.z);
     }
 }
 

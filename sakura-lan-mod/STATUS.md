@@ -4,6 +4,14 @@ Branch: `agent/sakura-lan-20260919`.
 
 ## Atualização de 25/09 — instalação para teste manual
 
+- Após 0b2ffab, usuário ainda observou retorno à posição inicial ao parar de
+  interagir com a tela. Logs confirmaram remoção dos 7 Rigidbodies e, mesmo
+  assim, `REMOTE ROOT DRIFT` repetido para a posição de entrada, enquanto os
+  pacotes continham a posição atual. Portanto remover física não resolveu.
+- Nova alteração: posição/rotação recebidas pertencem a um pai sem animação;
+  o modelo animado fica como filho, normalizado na origem antes da ativação.
+  O Animator da cópia não controla mais o transform usado pela rede. Log
+  `REMOTE VISUAL LOCAL` permite conferir desvios do filho no teste manual.
 - Jogador local obtido de `SystemManager.m_Character`, corrigindo a seleção de
   `ScrubChan`. Protocolo v3 e entrada automática do Client no mapa informado pelo Host.
 - O clone só aparece depois do primeiro estado remoto válido. Animator e

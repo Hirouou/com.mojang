@@ -15,13 +15,14 @@ std::string active_scene() {
 
 void clear_player_tracking() {
     reset_visual_sync();
-    if (unity_alive(gRemoteGameObject))
-        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteGameObject);
+    if (unity_alive(gRemoteRootObject))
+        invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteRootObject);
     for (uint32_t handle : gPlayerHandles) gApi.gchandle_free(handle);
     gPlayerHandles.clear();
     gLocalMove = nullptr;
     gLocalGameObject = gLocalTransform = nullptr;
     gRemoteGameObject = gRemoteTransform = nullptr;
+    gRemoteRootObject = nullptr;
     gRemotePoseReceived = false;
     gClientOffsetDone = false;
     gCiFacingDone = false;
