@@ -48,9 +48,9 @@ foreach ($port in @('5554', '5556')) {
         }
     }
 }
-$marker = Join-Path $apks 'installed-base.sha256'
+$marker = Join-Path $apks 'installed-apks.sha256'
 foreach ($file in $files) { if (-not (Test-Path $file)) { throw "Falta APK assinado: $file" } }
-$baseHash = (Get-FileHash $files[0] -Algorithm SHA256).Hash
+$baseHash = ($files | ForEach-Object { (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash }) -join ','
 $installedHash = if (Test-Path $marker) { (Get-Content $marker -Raw).Trim() } else { '' }
 $bothInstalled = @('5554', '5556') | ForEach-Object {
     @(& $adb -s "emulator-$_" shell pm path jp.garud.ssimulator 2>$null).Count -ge 3
