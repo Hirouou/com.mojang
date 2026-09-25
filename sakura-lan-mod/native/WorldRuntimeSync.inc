@@ -462,7 +462,7 @@ void world_runtime_tick(void* systemManager) {
     for (int i = 0; i < 512 && sakuralan_net_take_world(&incoming); ++i)
         apply_world_state(incoming, role);
 
-    const bool clientInitialSync = role == 1 && now - gWorldRuntimeStarted < std::chrono::seconds(2);
+    const bool clientInitialSync = role == 1 && now - gWorldRuntimeStarted < std::chrono::seconds(3);
     if (!gLastWorldMissionScan.time_since_epoch().count() ||
         now - gLastWorldMissionScan >= std::chrono::milliseconds(200)) {
         const bool hostKeyframe = role == 0 && (!gLastWorldMissionKeyframe.time_since_epoch().count() ||
