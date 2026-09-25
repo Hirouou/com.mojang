@@ -9,6 +9,7 @@ import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -41,6 +42,9 @@ public final class SakuraLanActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (getActionBar() != null) getActionBar().hide();
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
         buildUi();
 
         // CI/debug shortcut: allows two automated Android instances to choose
@@ -65,7 +69,7 @@ public final class SakuraLanActivity extends Activity {
         t.setTextSize(sp);
         t.setTextColor(color);
         t.setGravity(Gravity.CENTER);
-        t.setPadding(24, 16, 24, 16);
+        t.setPadding(12, 6, 12, 6);
         return t;
     }
 
@@ -74,11 +78,11 @@ public final class SakuraLanActivity extends Activity {
         b.setText(text);
         b.setTextSize(18f);
         b.setAllCaps(false);
-        b.setMinHeight(84);
+        b.setMinHeight(68);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.setMargins(16, 8, 16, 8);
+        p.setMargins(12, 4, 12, 4);
         b.setLayoutParams(p);
         return b;
     }
@@ -87,7 +91,7 @@ public final class SakuraLanActivity extends Activity {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setPadding(24, 16, 24, 16);
+        root.setPadding(16, 8, 16, 8);
         root.setBackgroundColor(Color.rgb(25, 25, 32));
         root.setFocusableInTouchMode(true);
         root.requestFocus();
