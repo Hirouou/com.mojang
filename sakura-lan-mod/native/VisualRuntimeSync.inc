@@ -170,6 +170,38 @@ void send_visual(VisualEntity& entity) {
             unbox_value(invoke1(gApi, klass, node.animator, "GetLayerWeight", &layer), state.weight);
             sakuralan_net_send_visual(&state);
         }
+
+        // State hashes reproduce discrete clips (jump, gestures), but Sakura's
+        // locomotion uses Animator parameters/blend trees. Mirror the current
+        // float/int/bool parameters as well so walking/running no longer slide.
+        void* parameters = invoke0(gApi, klass, node.animator, "get_parameters");
+        for (void* parameter : array_objects(parameters)) {
+            if (!parameter) continue;
+            void* parameterClass = gApi.object_get_class(parameter);
+            int32_t hash = 0, type = 0;
+            if (!unbox_value(invoke0(gApi, parameterClass, parameter, "get_nameHash"), hash) ||
+                !unbox_value(invoke0(gApi, parameterClass, parameter, "get_type"), type) || !hash) continue;
+            VisualState parameterState =
+                visual_packet(entity, &node, VisualKind::AnimatorParameter);
+            parameterState.parameterHash = hash;
+            parameterState.parameterType = static_cast<uint8_t>(type);
+            if (type == 1) { // AnimatorControllerParameterType.Float
+                if (!unbox_value(invoke1(gApi, klass, node.animator, "GetFloat", &hash),
+                                 parameterState.parameterFloat)) continue;
+            } else if (type == 3) { // Int
+                if (!unbox_value(invoke1(gApi, klass, node.animator, "GetInteger", &hash),
+                                 parameterState.parameterInt)) continue;
+            } else if (type == 4) { // Bool
+                bool value = false;
+                if (!unbox_value(invoke1(gApi, klass, node.animator, "GetBool", &hash), value)) continue;
+                parameterState.parameterInt = value ? 1 : 0;
+            } else {
+                // Triggers are intentionally not replayed as parameters: the
+                // authoritative state/layer snapshot already carries their result.
+                continue;
+            }
+            sakuralan_net_send_visual(&parameterState);
+        }
     }
     if (entity.npc) return;
     // Repeat appearance round-robin so lost UDP packets eventually recover,
@@ -273,6 +305,28 @@ void apply_visual(VisualEntity& entity, const VisualState& state) {
         invoke1(gApi, klass, node.animator, "set_speed", &speed);
         void* weightArgs[]{&layer, &weight};
         invoke(gApi, klass, node.animator, "SetLayerWeight", 2, weightArgs);
+    } else if (state.kind == VisualKind::AnimatorParameter &&
+               node.animator && unity_alive(node.animator)) {
+        if (!state.parameterHash) return;
+        void* klass = gApi.object_get_class(node.animator);
+        int32_t hash = state.parameterHash;
+        if (state.parameterType == 1) {
+            if (!std::isfinite(state.parameterFloat)) return;
+            float value = state.parameterFloat;
+            void* args[]{&hash, &value};
+            const char* types[]{"System.Int32", "System.Single"};
+            invoke(gApi, klass, node.animator, "SetFloat", 2, args, types);
+        } else if (state.parameterType == 3) {
+            int32_t value = state.parameterInt;
+            void* args[]{&hash, &value};
+            const char* types[]{"System.Int32", "System.Int32"};
+            invoke(gApi, klass, node.animator, "SetInteger", 2, args, types);
+        } else if (state.parameterType == 4) {
+            bool value = state.parameterInt != 0;
+            void* args[]{&hash, &value};
+            const char* types[]{"System.Int32", "System.Boolean"};
+            invoke(gApi, klass, node.animator, "SetBool", 2, args, types);
+        }
     } else if (state.kind == VisualKind::Material && node.renderer && unity_alive(node.renderer)) {
         for (float value : state.color) if (!std::isfinite(value)) return;
         void* klass = gApi.object_get_class(node.renderer);
@@ -307,6 +361,17 @@ void visual_sync_tick() {
     if (gVisualLocal.go != gLocalGameObject) build_visual(gVisualLocal, gLocalGameObject, false, "");
     if (gVisualRemote.go != gRemoteGameObject) build_visual(gVisualRemote, gRemoteGameObject, false, "");
     const auto now = std::chrono::steady_clock::now();
+
+    // Equipment can be attached after the avatar is created (jetpack, weapons,
+    // costume pieces). Periodically rescan the local hierarchy so those nodes
+    // start participating in visual replication instead of being permanently
+    // absent from the initial snapshot.
+    static auto lastHierarchyRefresh = std::chrono::steady_clock::time_point{};
+    if (!lastHierarchyRefresh.time_since_epoch().count() ||
+        now - lastHierarchyRefresh >= std::chrono::seconds(1)) {
+        if (unity_alive(gLocalGameObject)) build_visual(gVisualLocal, gLocalGameObject, false, "");
+        lastHierarchyRefresh = now;
+    }
     if (gLastNpcScan.time_since_epoch().count() == 0 || now - gLastNpcScan >= std::chrono::seconds(3)) {
         scan_visual_npcs();
         gLastNpcScan = now;
