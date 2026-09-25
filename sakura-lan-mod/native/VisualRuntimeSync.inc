@@ -443,6 +443,7 @@ void acquire_npc_replica(VisualEntity& entity) {
             // CharacterStatus/Likability and chat presentation alive while
             // suspending movement/AI scripts that would fight the host pose.
             if (std::strcmp(name, "CharacterStatus") == 0 ||
+                std::strcmp(name, "Health") == 0 ||
                 std::strcmp(name, "ChatEvent") == 0 ||
                 std::strcmp(name, "ChatChange") == 0) {
                 continue;
