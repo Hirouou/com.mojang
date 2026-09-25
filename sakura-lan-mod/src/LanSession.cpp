@@ -44,6 +44,7 @@ void LanSession::stop() {
     connected_ = false;
     sessionId_ = 0;
     peer_ = {};
+    sendPeer_ = {};
     hasRemoteStateSequence_ = false;
     hasSessionStateSequence_ = false;
 }
@@ -119,6 +120,9 @@ bool LanSession::join(const RoomInfo& room, const std::string& playerName, uint3
         sessionId_ = a.sessionId;
         localPlayerId_ = a.playerId;
         peer_ = {d->from.ip, d->from.port};
+        // Emulator redirection may return through a different source port.
+        // Receive from that endpoint, but send through the configured ingress.
+        sendPeer_ = room.endpoint;
         connected_ = true;
         log("Joined host");
         return true;
@@ -160,6 +164,7 @@ void LanSession::pump(int timeoutMs) {
         if (connected_ && (peer_.ip != d->from.ip || peer_.port != d->from.port)) return;
         peer_ = {d->from.ip, d->from.port};
         connected_ = true;
+        sendPeer_ = peer_;
         JoinAcceptPayload a{};
         a.sessionId = sessionId_;
         a.clientNonce = req.clientNonce;
@@ -213,7 +218,7 @@ void LanSession::sendLocalState(const PlayerStatePayload& in) {
     s.sessionId = sessionId_;
     s.playerId = localPlayerId_;
     s.tickMs = nowMs();
-    sendPacket(game_, peer_, PacketType::PlayerState, &s, sizeof(s));
+    sendPacket(game_, sendPeer_, PacketType::PlayerState, &s, sizeof(s));
 }
 
 void LanSession::sendVisualState(const VisualStatePayload& in) {
@@ -222,14 +227,14 @@ void LanSession::sendVisualState(const VisualStatePayload& in) {
     s.sessionId = sessionId_;
     s.playerId = localPlayerId_;
     s.sequence = sequence_;
-    sendPacket(game_, peer_, PacketType::VisualState, &s, sizeof(s));
+    sendPacket(game_, sendPeer_, PacketType::VisualState, &s, sizeof(s));
 }
 
 void LanSession::sendSessionState(const SessionStatePayload& in) {
     if (!connected_ || mode_ != Mode::Host) return;
     SessionStatePayload s = in;
     s.sessionId = sessionId_;
-    sendPacket(game_, peer_, PacketType::SessionState, &s, sizeof(s));
+    sendPacket(game_, sendPeer_, PacketType::SessionState, &s, sizeof(s));
 }
 
 } // namespace sakura_lan

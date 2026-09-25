@@ -56,6 +56,7 @@ private:
     bool hasSessionStateSequence_ = false;
     std::string roomName_;
     Endpoint peer_{};
+    Endpoint sendPeer_{};
     UdpTransport discovery_;
     UdpTransport game_;
 };

@@ -311,6 +311,7 @@ void* gLocalGameObject = nullptr;
 void* gLocalTransform = nullptr;
 void* gRemoteGameObject = nullptr;
 void* gRemoteTransform = nullptr;
+bool gRemotePoseReceived = false;
 std::atomic<bool> gClientOffsetDone{false};
 std::atomic<bool> gCiFacingDone{false};
 std::chrono::steady_clock::time_point gLastSend{};
@@ -434,6 +435,11 @@ void make_visual_replica(void* clone, bool stripScripts) {
         bool off = false;
         if (std::strcmp(name, "Animator") == 0) {
             invoke1(gApi, klass, component, "set_applyRootMotion", &off);
+            int32_t alwaysAnimate = 0;
+            invoke1(gApi, klass, component, "set_cullingMode", &alwaysAnimate);
+        } else if (std::strcmp(name, "SkinnedMeshRenderer") == 0) {
+            bool on = true;
+            invoke1(gApi, klass, component, "set_updateWhenOffscreen", &on);
         } else if (derives_from(klass, "MonoBehaviour")) {
             if (stripScripts) invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
             else invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
@@ -503,8 +509,9 @@ bool create_remote_avatar() {
         return false;
     }
     invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
-    bool on = true;
-    invoke1(gApi, gGameObjectClass, clone, "SetActive", &on);
+    // Do not display an invented position while waiting for the peer's state.
+    invoke1(gApi, gGameObjectClass, clone, "SetActive", &off);
+    gRemotePoseReceived = false;
     gRemoteGameObject = clone;
     gRemoteTransform = transform;
     retain_player_object(clone);
@@ -599,12 +606,23 @@ void multiplayer_tick(void* self) {
     Quat q{remote[3], remote[4], remote[5], remote[6]};
     invoke1(gApi, remoteTransformClass, gRemoteTransform, "set_position", &p);
     invoke1(gApi, remoteTransformClass, gRemoteTransform, "set_rotation", &q);
+    if (!gRemotePoseReceived) {
+        bool on = true;
+        invoke1(gApi, gGameObjectClass, gRemoteGameObject, "SetActive", &on);
+        gRemotePoseReceived = true;
+        LOGI("ARMHOOK REMOTE VISIBLE after first peer pose");
+    }
 
     static uint32_t applied = 0;
     ++applied;
     if (applied <= 20 || applied % 200 == 0) {
         LOGI("ARMHOOK REMOTE APPLY id=%.0f pos=%.2f %.2f %.2f",
              remote[12], p.x, p.y, p.z);
+        Vec3 actual{};
+        boxed_vec3(invoke0(gApi, remoteTransformClass, gRemoteTransform, "get_position"), actual);
+        bool active = false;
+        unbox_value(invoke0(gApi, gGameObjectClass, gRemoteGameObject, "get_activeInHierarchy"), active);
+        LOGI("ARMHOOK REMOTE CHECK active=%d actual=%.2f %.2f %.2f", active, actual.x, actual.y, actual.z);
     }
 }
 
