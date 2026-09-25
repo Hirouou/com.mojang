@@ -189,7 +189,8 @@ const void* find_method(Api& a, void* klass, const char* name, int argc,
             if (match) return cache[key] = m;
         }
     }
-    return nullptr;
+    LOGE("ARMHOOK missing method %s.%s/%d", klass ? a.class_get_name(klass) : "null", name, argc);
+    return cache[key] = nullptr;
 }
 
 void* invoke(Api& a, void* klass, void* instance, const char* name, int argc,
@@ -329,8 +330,9 @@ bool cache_local_player(void* self) {
     const std::string name =
         string_utf8(invoke0(gApi, gObjectClass, go, "get_name"));
 
-    if (name.find("Player") == std::string::npos ||
-        name.find("SAKURA_LAN_REMOTE") != std::string::npos) {
+    // Unity is calling Update on the active CharaMove controller. Its scene
+    // object name is not a stable player identifier (and need not say Player).
+    if (name.find("SAKURA_LAN_") != std::string::npos) {
         return false;
     }
 
@@ -481,7 +483,6 @@ bool create_remote_avatar() {
 #include "VisualRuntimeSync.inc"
 
 void multiplayer_tick(void* self) {
-    if (!sakuralan_net_connected()) return;
     if (gLocalGameObject && !unity_alive(gLocalGameObject)) {
         reset_visual_sync();
         if (unity_alive(gRemoteGameObject))
@@ -502,6 +503,7 @@ void multiplayer_tick(void* self) {
         selected = self;
     }
     if (selected != self || !gLocalTransform) return;
+    if (!sakuralan_net_connected()) return;
 
     void* transformClass = gApi.object_get_class(gLocalTransform);
     if (!transformClass) return;

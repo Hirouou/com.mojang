@@ -37,6 +37,17 @@ for tag in ("activity", "activity-alias"):
 if not original_launcher:
     original_launcher = "com.unity3d.player.UnityPlayerActivity"
 
+# Switching Android users updates overlay asset paths. Activity recreation
+# destroys Unity and kills its process, dropping the active LAN session.
+# Unity's existing onConfigurationChanged callback forwards resource changes.
+for node in app.findall("activity"):
+    if node.get(A + "name") == original_launcher:
+        changes = node.get(A + "configChanges", "")
+        if changes.startswith("0x") or changes.isdecimal():
+            node.set(A + "configChanges", hex(int(changes, 0) | 0x80000000))
+        elif "assetsPaths" not in changes.split("|"):
+            node.set(A + "configChanges", "|".join(filter(None, [changes, "assetsPaths"])))
+
 meta_name = "jp.garud.ssimulator.SAKURA_ORIGINAL_ACTIVITY"
 for old in list(app.findall("meta-data")):
     if old.get(A + "name") == meta_name:

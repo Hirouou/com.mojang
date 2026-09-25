@@ -16,6 +16,8 @@ capture_all() {
   local status=$?
   trap - EXIT
   timeout 20s adb exec-out screencap -p > "$OUT/exit-screen.png" || true
+  timeout 20s adb shell dumpsys activity activities > "$OUT/activities.txt" 2>&1 || true
+  timeout 20s adb shell dumpsys window > "$OUT/windows.txt" 2>&1 || true
   timeout 20s adb shell 'for pid in $(pidof jp.garud.ssimulator); do cat /proc/$pid/maps; done' > "$OUT/process-maps.txt" 2>&1 || true
   timeout 30s adb logcat -d -b all -v threadtime > "$OUT/logcat.txt" 2>&1 || true
   grep SakuraLAN "$OUT/logcat.txt" > "$OUT/sakuralan.txt" || true
