@@ -249,11 +249,11 @@ void LanSession::sendSessionState(const SessionStatePayload& in) {
     sendPacket(game_, sendPeer_, PacketType::SessionState, &s, sizeof(s));
 }
 
-} // namespace sakura_lan
-
 void LanSession::sendWorldState(const WorldStatePayload& in) {
     if (!connected_ || mode_ == Mode::Offline) return;
     WorldStatePayload s = in;
     s.sessionId = sessionId_;
     sendPacket(game_, sendPeer_, PacketType::WorldState, &s, sizeof(s));
 }
+
+} // namespace sakura_lan
