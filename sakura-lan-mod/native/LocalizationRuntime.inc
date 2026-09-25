@@ -7,6 +7,7 @@ void* gLocalizeClass = nullptr;
 bool gPtBrInitialized = false;
 bool gPtBrActive = false;
 bool gPtBrPatched = false;
+void* gPtBrPatchedInstance = nullptr;
 int32_t gPtBrPreviousLanguage = -1;
 std::chrono::steady_clock::time_point gLastLocalizationTick{};
 std::map<std::string, std::string> gPtBrOriginalEnglish;
@@ -117,8 +118,9 @@ void patch_localize_ui_strings(bool enable) {
 }
 
 void ptbr_patch(bool enable, void* instance) {
-    if (!instance || (enable == gPtBrPatched)) {
-        if (instance) localize_refresh_all(instance);
+    if (!instance) return;
+    if (enable == gPtBrPatched && (!enable || instance == gPtBrPatchedInstance)) {
+        localize_refresh_all(instance);
         return;
     }
     struct Group { const char* getter; const char* name; };
@@ -133,6 +135,7 @@ void ptbr_patch(bool enable, void* instance) {
         patch_localize_group(instance, group.getter, group.name, enable);
     patch_localize_ui_strings(enable);
     gPtBrPatched = enable;
+    gPtBrPatchedInstance = enable ? instance : nullptr;
     localize_refresh_all(instance);
     LOGI("LOCALIZE PTBR %s", enable ? "ON" : "OFF");
 }
@@ -164,6 +167,13 @@ void localization_runtime_tick() {
             gPtBrPreviousLanguage = 0;
         }
         return;
+    }
+
+    if (gPtBrActive && instance != gPtBrPatchedInstance) {
+        // Localize is recreated on some scene transitions. Patch the new
+        // arrays before refreshing the newly-created UI.
+        gPtBrPatched = false;
+        ptbr_patch(true, instance);
     }
 
     if (!gPtBrActive) {
