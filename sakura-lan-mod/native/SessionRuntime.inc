@@ -31,6 +31,9 @@ void apply_sakura_performance_defaults() {
 std::chrono::steady_clock::time_point gLastSessionTick{}, gLastSessionSend{};
 uint32_t gWorldRevision = 0, gClientSpawnRevision = 0;
 bool gWasHostReady = false, gClientLoading = false;
+bool gClientClockSeen = false;
+float gClientLastHostTime = 0.0f;
+int32_t gClientLastHostDay = 0, gClientLastHostWeek = 0;
 
 std::string active_scene() {
     void* klass = gApi.class_from_name(gUnityCore, "UnityEngine.SceneManagement", "SceneManager");
@@ -55,6 +58,7 @@ void clear_player_tracking() {
     gClientOffsetDone = false;
     gCiFacingDone = false;
     gLastSend = {};
+    gClientClockSeen = false;
 }
 
 void client_title(const sakura_lan::SessionStatePayload* snapshot) {
@@ -122,7 +126,7 @@ void session_tick(void*) {
     if (role == 0) {
         if (playable && !gWasHostReady) ++gWorldRevision;
         gWasHostReady = playable;
-        if (!gLastSessionSend.time_since_epoch().count() || now - gLastSessionSend >= std::chrono::milliseconds(250)) {
+        if (!gLastSessionSend.time_since_epoch().count() || now - gLastSessionSend >= std::chrono::milliseconds(100)) {
             sakura_lan::SessionStatePayload host{};
             host.ready = playable;
             host.revision = gWorldRevision;
@@ -140,10 +144,22 @@ void session_tick(void*) {
         }
     } else {
         if (!playable || !hasHost || !snapshot.ready || scene != snapshot.scene) return;
-        // Keep the host's clock/day authoritative; joining does not restart them.
-        write_field(gSystemClass, manager, "GameTime", "System.Single", snapshot.gameTime);
-        write_field(gSystemClass, manager, "day", "System.Int32", snapshot.day);
-        write_field(gSystemClass, manager, "week", "System.Int32", snapshot.week);
+        // Apply each fresh host clock sample once, then let the local clock run
+        // until the next correction. Rewriting one 100-ms-old value every frame
+        // made client time visibly stall between network snapshots.
+        const bool freshClock = !gClientClockSeen ||
+            snapshot.gameTime != gClientLastHostTime ||
+            snapshot.day != gClientLastHostDay ||
+            snapshot.week != gClientLastHostWeek;
+        if (freshClock) {
+            write_field(gSystemClass, manager, "GameTime", "System.Single", snapshot.gameTime);
+            write_field(gSystemClass, manager, "day", "System.Int32", snapshot.day);
+            write_field(gSystemClass, manager, "week", "System.Int32", snapshot.week);
+            gClientLastHostTime = snapshot.gameTime;
+            gClientLastHostDay = snapshot.day;
+            gClientLastHostWeek = snapshot.week;
+            gClientClockSeen = true;
+        }
         if (gClientSpawnRevision != snapshot.revision) {
             auto pos = snapshot.spawn;
             pos.x += 2.25f;
