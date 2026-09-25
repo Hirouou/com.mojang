@@ -153,10 +153,25 @@ static const PtBrEntry kPtBrEntries[] = {
     {"*", "", "Change", "Alterar"},
     {"*", "", "Change Clothes", "Trocar roupa"},
     {"*", "", "Change Character", "Trocar personagem"},
+    {"*", "", "Language:English", "Idioma: Português (Brasil)"},
 };
 
-const char* ptbr_lookup(const std::string& group, const std::string& key,
-                        const std::string& source) {
+struct PtBrPrefixEntry { const char* source; const char* text; };
+static const PtBrPrefixEntry kPtBrPrefixes[] = {
+    {"Mission: ", "Missão: "},
+    {"Mission ", "Missão "},
+    {"Money: ", "Dinheiro: "},
+    {"Reward: ", "Recompensa: "},
+    {"Day: ", "Dia: "},
+    {"Time: ", "Horário: "},
+    {"Level: ", "Etapa: "},
+    {"Target: ", "Objetivo: "},
+    {"Progress: ", "Progresso: "},
+    {"Language:", "Idioma: "},
+};
+
+std::string ptbr_translate(const std::string& group, const std::string& key,
+                           const std::string& source) {
     for (const auto& entry : kPtBrEntries) {
         if (entry.key[0] && key == entry.key &&
             (entry.group[0] == '*' || group == entry.group)) return entry.text;
@@ -165,5 +180,10 @@ const char* ptbr_lookup(const std::string& group, const std::string& key,
         if (entry.source[0] && source == entry.source &&
             (entry.group[0] == '*' || group == entry.group)) return entry.text;
     }
-    return nullptr;
+    for (const auto& entry : kPtBrPrefixes) {
+        const size_t n = std::strlen(entry.source);
+        if (source.size() >= n && source.compare(0, n, entry.source) == 0)
+            return std::string(entry.text) + source.substr(n);
+    }
+    return {};
 }
