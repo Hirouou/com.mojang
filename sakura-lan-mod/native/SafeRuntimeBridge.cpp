@@ -446,8 +446,14 @@ void make_visual_replica(void* clone, bool stripScripts) {
             bool on = true;
             invoke1(gApi, klass, component, "set_updateWhenOffscreen", &on);
         } else if (derives_from(klass, "MonoBehaviour")) {
-            if (stripScripts) invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
-            else invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
+            if (stripScripts && std::strcmp(name, "CharacterStatus") != 0) {
+                invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
+            } else {
+                // Keep CharacterStatus as disabled data on the render-only
+                // replica. Sakura's own appearance helpers expect this
+                // component when swapping hair/accessories/clothing.
+                invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
+            }
         } else if (std::strcmp(name, "Camera") == 0 ||
                    std::strcmp(name, "NavMeshAgent") == 0 ||
                    std::strcmp(name, "AudioListener") == 0 ||
