@@ -139,6 +139,51 @@ jobs:
 
           find legacy/selected -type f -printf '%f %s\n' | sort
 
+      - name: Extract localization TextAssets
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q UnityPy
+          mkdir -p legacy/localization-assets
+          python - <<'PY'
+          import pathlib, re
+          import UnityPy
+
+          roots = list(pathlib.Path("legacy/unpacked").rglob("datapack.unity3d"))
+          roots += list(pathlib.Path("legacy/unpacked").rglob("data.unity3d"))
+          index = []
+          for source in roots:
+              try:
+                  env = UnityPy.load(str(source))
+              except Exception as exc:
+                  index.append(f"ERROR\t{source}\t{exc}")
+                  continue
+              for obj in env.objects:
+                  if obj.type.name != "TextAsset":
+                      continue
+                  try:
+                      data = obj.read()
+                      name = getattr(data, "m_Name", None) or getattr(data, "name", None) or f"textasset_{obj.path_id}"
+                      raw = getattr(data, "m_Script", None)
+                      if raw is None:
+                          raw = getattr(data, "script", b"")
+                      if isinstance(raw, str):
+                          raw = raw.encode("utf-8", "replace")
+                      safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(name))[:120] or f"textasset_{obj.path_id}"
+                      out = pathlib.Path("legacy/localization-assets") / f"{safe}_{obj.path_id}.txt"
+                      out.write_bytes(bytes(raw))
+                      index.append(f"OK\t{source}\t{obj.path_id}\t{name}\t{len(raw)}\t{out}")
+                  except Exception as exc:
+                      index.append(f"ERROR_OBJ\t{source}\t{obj.path_id}\t{exc}")
+          pathlib.Path("legacy/localization-assets/index.tsv").write_text("\n".join(index), encoding="utf-8")
+          PY
+          grep -RIlE 'English|Japanese|ChineseS|ButtonName|ButtonLabel|EventNotice|Aisatu|Mission|Trophy' legacy/localization-assets             | sort > legacy/localization-assets/candidates.txt || true
+          while IFS= read -r p; do
+            echo "===== $p ====="
+            sed -n '1,80p' "$p" || true
+          done < legacy/localization-assets/candidates.txt > legacy/localization-assets/preview.txt
+
       - name: Upload legacy analysis
         if: always()
         uses: actions/upload-artifact@v4
@@ -158,5 +203,6 @@ jobs:
             legacy/world-symbols.txt
             legacy/world-files.txt
             legacy/decompiled-files.txt
+            legacy/localization-assets/
             legacy/selected/
           if-no-files-found: error
