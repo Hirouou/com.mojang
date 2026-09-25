@@ -63,8 +63,34 @@ jobs:
               except Exception as exc:
                   index.append({"path_id": obj.path_id, "error": repr(exc)})
           (outdir / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
-          print("TextAssets:", len(index))
+
+          # Localization is serialized in MonoBehaviours, not ordinary
+          # TextAssets. Preserve any typetree that exposes English/strEng or
+          # the Localize table names so the PT-BR catalog can be generated.
+          mono = outdir / "monobehaviour"
+          mono.mkdir(exist_ok=True)
+          mono_index = []
+          markers = ("English", "strEng", "ButtonLabel", "ButtonName", "EventNotice",
+                     "Aisatu", "Damage", "Shop", "Message", "CurrentLanguageKey")
+          for obj in env.objects:
+              if obj.type.name != "MonoBehaviour":
+                  continue
+              try:
+                  tree = obj.read_typetree()
+                  probe = json.dumps(tree, ensure_ascii=False, default=str)
+                  if not any(m in probe for m in markers):
+                      continue
+                  name = str(tree.get("m_Name") or f"mono_{obj.path_id}")
+                  safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or f"mono_{obj.path_id}"
+                  path = mono / f"{safe}_{obj.path_id}.json"
+                  path.write_text(json.dumps(tree, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+                  mono_index.append({"name": name, "path_id": obj.path_id, "file": path.name})
+              except Exception as exc:
+                  pass
+          (mono / "index.json").write_text(json.dumps(mono_index, ensure_ascii=False, indent=2), encoding="utf-8")
+          print("TextAssets:", len(index), "Localization MonoBehaviours:", len(mono_index))
           print("\n".join(f"{x.get('name','?')} {x.get('bytes','?')}" for x in index[:300]))
+          print("\n".join(f"MONO {x['name']} {x['path_id']}" for x in mono_index[:300]))
           PY
 
       - name: Resolve IL2CPP inputs
