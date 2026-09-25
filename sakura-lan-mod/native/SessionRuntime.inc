@@ -107,6 +107,7 @@ void session_tick(void*) {
     gLastSessionTick = now;
     if (!resolve_runtime_classes()) return;
     apply_sakura_performance_defaults();
+    localization_runtime_tick();
     if (!gSystemClass) gSystemClass = gApi.class_from_name(gAssembly, "", "SystemManager");
     const int role = sakuralan_net_local_player_id();
     if (role < 0) return;
