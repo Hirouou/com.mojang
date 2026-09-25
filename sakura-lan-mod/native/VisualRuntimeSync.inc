@@ -369,7 +369,12 @@ void visual_sync_tick() {
     static auto lastHierarchyRefresh = std::chrono::steady_clock::time_point{};
     if (!lastHierarchyRefresh.time_since_epoch().count() ||
         now - lastHierarchyRefresh >= std::chrono::seconds(1)) {
-        if (unity_alive(gLocalGameObject)) build_visual(gVisualLocal, gLocalGameObject, false, "");
+        if (unity_alive(gLocalGameObject)) {
+            const size_t liveNodes = child_components(gLocalGameObject,
+                gApi.object_get_class(gLocalTransform)).size();
+            if (liveNodes != gVisualLocal.nodes.size())
+                build_visual(gVisualLocal, gLocalGameObject, false, "");
+        }
         lastHierarchyRefresh = now;
     }
     if (gLastNpcScan.time_since_epoch().count() == 0 || now - gLastNpcScan >= std::chrono::seconds(3)) {
