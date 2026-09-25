@@ -29,6 +29,7 @@ std::map<std::string, VisualEntity> gVisualNpcs;
 std::chrono::steady_clock::time_point gLastVisualSend{}, gLastNpcScan{}, gLastAppearanceSend{};
 void* gCharaMakeRuntimeClass = nullptr;
 void* gCharacterBaseRuntimeClass = nullptr;
+void* gFlyAbilityRuntimeClass = nullptr;
 bool gRemoteAppearanceReady = false;
 int32_t gRemoteAppearance[15]{};
 int32_t gLocalAppearanceSent[15]{};
@@ -176,8 +177,19 @@ bool capture_local_appearance(VisualState& state) {
             return false;
         state.appearance[i + 1] = value;
     }
-    // Reserved for per-character equipment state such as the jetpack model.
+    if (!gFlyAbilityRuntimeClass)
+        gFlyAbilityRuntimeClass = gApi.class_from_name(
+            gAssembly, "Opsive.ThirdPersonController.Abilities", "Fly");
     state.appearance[14] = 0;
+    if (gFlyAbilityRuntimeClass) {
+        auto flies = child_components(gLocalGameObject, gFlyAbilityRuntimeClass);
+        if (!flies.empty() && flies.front()) {
+            bool jetpack = false;
+            if (read_field(gFlyAbilityRuntimeClass, flies.front(), "JetpackFlag",
+                           "System.Boolean", jetpack))
+                state.appearance[14] = jetpack ? 1 : 0;
+        }
+    }
     return true;
 }
 
@@ -250,6 +262,39 @@ void apply_remote_appearance(VisualEntity& entity, const VisualState& state) {
     invokeAccessory("ChangeWings", 11, false);
     invokeAccessory("ChangeTail", 12, false);
     invokeAccessory("ChangeEars", 13, false);
+
+    if (!gFlyAbilityRuntimeClass)
+        gFlyAbilityRuntimeClass = gApi.class_from_name(
+            gAssembly, "Opsive.ThirdPersonController.Abilities", "Fly");
+    if (gFlyAbilityRuntimeClass) {
+        auto flies = child_components(entity.go, gFlyAbilityRuntimeClass);
+        if (!flies.empty() && flies.front()) {
+            void* fly = flies.front();
+            const bool jetpackOn = state.appearance[14] != 0;
+            write_field(gFlyAbilityRuntimeClass, fly, "JetpackFlag",
+                        "System.Boolean", jetpackOn);
+            void* jetpack = nullptr;
+            void* fire = nullptr;
+            read_field(gFlyAbilityRuntimeClass, fly, "m_JetPack",
+                       "JetPackOpenClose", jetpack);
+            read_field(gFlyAbilityRuntimeClass, fly, "m_JetPackFire",
+                       "JetPackFire", fire);
+            for (void* component : {jetpack, fire}) {
+                if (!component) continue;
+                void* go = invoke0(gApi, gComponentClass, component, "get_gameObject");
+                if (go) {
+                    bool on = jetpackOn;
+                    invoke1(gApi, gGameObjectClass, go, "SetActive", &on);
+                }
+            }
+            if (jetpack) {
+                invoke0(gApi, gApi.object_get_class(jetpack), jetpack,
+                        jetpackOn ? "OpenStart" : "CloseStart");
+            }
+            if (fire && !jetpackOn)
+                invoke0(gApi, gApi.object_get_class(fire), fire, "AnimeStop");
+        }
+    }
 
     std::memcpy(gRemoteAppearance, state.appearance, sizeof(gRemoteAppearance));
     gRemoteAppearanceReady = true;
