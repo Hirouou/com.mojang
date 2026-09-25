@@ -1,4 +1,4 @@
-// Runtime PT-BR integration layered onto Sakura's existing Localize pipeline.
+// Runtime PT-BR integration layered onto Sakura's existing Localize pipeline. Mega-checkpoint.
 // PT-BR behaves like a fifth language in the existing selector without
 // extending the serialized LanguageType enum (which only has four values).
 #include "PtBrCatalog.inc"
