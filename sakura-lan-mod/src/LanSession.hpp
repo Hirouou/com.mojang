@@ -2,6 +2,7 @@
 #include "LanProtocol.hpp"
 #include "UdpTransport.hpp"
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,8 @@ private:
     bool hasRemoteStateSequence_ = false;
     uint32_t sessionStateSequence_ = 0;
     bool hasSessionStateSequence_ = false;
+    uint32_t worldRevision_ = 1;
+    std::map<std::string, WorldStatePayload> worldState_;
     std::string roomName_;
     Endpoint peer_{};
     Endpoint sendPeer_{};
