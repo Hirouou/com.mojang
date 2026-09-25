@@ -32,6 +32,8 @@ void sakuralan_net_send_visual(const sakura_lan::VisualStatePayload*);
 int sakuralan_net_take_visual(sakura_lan::VisualStatePayload*);
 void sakuralan_net_send_session(const sakura_lan::SessionStatePayload*);
 int sakuralan_net_host_snapshot(sakura_lan::SessionStatePayload*);
+void sakuralan_net_send_world(const sakura_lan::WorldStatePayload*);
+int sakuralan_net_take_world(sakura_lan::WorldStatePayload*);
 }
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "SakuraLAN", __VA_ARGS__)
