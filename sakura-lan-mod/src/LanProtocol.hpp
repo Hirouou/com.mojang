@@ -5,7 +5,7 @@
 namespace sakura_lan {
 
 static constexpr uint32_t kMagic = 0x534B4C4Eu; // SKLN
-static constexpr uint16_t kProtocolVersion = 3;
+static constexpr uint16_t kProtocolVersion = 4;
 static constexpr uint16_t kDiscoveryPort = 38555;
 static constexpr uint16_t kGamePort = 38556;
 
@@ -84,7 +84,13 @@ struct PlayerStatePayload {
     Vec3 velocity{};
 };
 // Visual-only replication: never includes dialogue, quest or economy data.
-enum class VisualKind : uint8_t { Pose = 1, Animator = 2, Node = 3, Material = 4 };
+enum class VisualKind : uint8_t {
+    Pose = 1,
+    Animator = 2,
+    Node = 3,
+    Material = 4,
+    AnimatorParameter = 5,
+};
 struct VisualStatePayload {
     uint32_t sessionId = 0;
     uint32_t sequence = 0;
@@ -103,6 +109,13 @@ struct VisualStatePayload {
     float normalizedTime = 0;
     float weight = 1;
     float speed = 1;
+    // AnimatorControllerParameter snapshot. Unity locomotion is commonly a
+    // blend tree, so the state hash alone is not enough to reproduce walking.
+    int32_t parameterHash = 0;
+    uint8_t parameterType = 0; // Float=1, Int=3, Bool=4 (Trigger is state-driven).
+    uint8_t parameterReserved[3]{};
+    float parameterFloat = 0;
+    int32_t parameterInt = 0;
     float color[4]{1, 1, 1, 1};
 };
 #pragma pack(pop)
