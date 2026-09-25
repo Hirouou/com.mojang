@@ -23,6 +23,7 @@ struct VisualEntity {
     std::vector<VisualNode> nodes;
     std::vector<uint32_t> handles;
     std::vector<RestoreFlag> restore;
+    int32_t appearance[10]{-2,-2,-2,-2,-2,-2,-2,-2,-2,-2};
 };
 VisualEntity gVisualLocal, gVisualRemote;
 std::map<std::string, VisualEntity> gVisualNpcs;
@@ -468,8 +469,142 @@ std::string material_key(std::string name) {
     return name;
 }
 
+bool visual_static_int_array(void* klass, const char* fieldName, int32_t index, int32_t& out) {
+    if (!klass || index < 0) return false;
+    void* field = typed_field(klass, fieldName, "System.Int32[]");
+    if (!field) return false;
+    void* array = nullptr;
+    gApi.field_static_get_value(field, &array);
+    if (!array) return false;
+    const uintptr_t n = gApi.array_length(array);
+    if (static_cast<uintptr_t>(index) >= n) return false;
+    auto* values = reinterpret_cast<int32_t*>(
+        static_cast<uint8_t*>(array) + sizeof(void*) * 4);
+    out = values[index];
+    return true;
+}
+
+std::vector<void*> visual_list_objects(void* list) {
+    std::vector<void*> out;
+    if (!list) return out;
+    void* klass = gApi.object_get_class(list);
+    int32_t count = 0;
+    if (!unbox_value(invoke0(gApi, klass, list, "get_Count"), count) || count < 0 || count > 128)
+        return out;
+    const char* type[]{"System.Int32"};
+    for (int32_t i = 0; i < count; ++i) {
+        void* arg[]{&i};
+        out.push_back(invoke(gApi, klass, list, "get_Item", 1, arg, type));
+    }
+    return out;
+}
+
+bool local_appearance(VisualState& state) {
+    void* makerClass = gApi.class_from_name(gAssembly, "", "CharaMakeManager");
+    if (!makerClass || !gSystemClass) return false;
+    void* system = nullptr;
+    int32_t slot = -1;
+    if (!read_field(gSystemClass, nullptr, "Instance", "SystemManager", system) || !system ||
+        !read_field(gSystemClass, system, "m_CharaNum", "System.Int32", slot) || slot < 0) return false;
+
+    state.kind = VisualKind::Appearance;
+    state.appearanceCharacter = slot;
+    visual_static_int_array(makerClass, "ClothNum", slot, state.appearanceCloth);
+    visual_static_int_array(makerClass, "FaceNum", slot, state.appearanceFace);
+    visual_static_int_array(makerClass, "HairNum", slot, state.appearanceHair);
+    visual_static_int_array(makerClass, "GlassesNum", slot, state.appearanceGlasses);
+    visual_static_int_array(makerClass, "HairAcceNum", slot, state.appearanceHairAccessory);
+    visual_static_int_array(makerClass, "MaskNum", slot, state.appearanceMask);
+    visual_static_int_array(makerClass, "WingsNum", slot, state.appearanceWings);
+    visual_static_int_array(makerClass, "TailNum", slot, state.appearanceTail);
+    visual_static_int_array(makerClass, "EarsNum", slot, state.appearanceEars);
+    return true;
+}
+
+void* clothing_prefab(void* makerClass, int32_t slot, int32_t cloth) {
+    if (!makerClass || slot < 0 || cloth < 0) return nullptr;
+    void* maker = nullptr;
+    if (!read_field(makerClass, nullptr, "Instance", "CharaMakeManager", maker) || !maker) return nullptr;
+    void* field = gApi.class_get_field(makerClass, "ClothingTPC");
+    if (!field) return nullptr;
+    void* list = nullptr;
+    gApi.field_get_value(maker, field, &list);
+    auto rows = visual_list_objects(list);
+    if (static_cast<size_t>(slot) >= rows.size() || !rows[slot]) return nullptr;
+    void* rowClass = gApi.object_get_class(rows[slot]);
+    void* listField = gApi.class_get_field(rowClass, "List");
+    if (!listField) return nullptr;
+    void* array = nullptr;
+    gApi.field_get_value(rows[slot], listField, &array);
+    if (!array || static_cast<uintptr_t>(cloth) >= gApi.array_length(array)) return nullptr;
+    auto objects = array_objects(array);
+    return static_cast<size_t>(cloth) < objects.size() ? objects[cloth] : nullptr;
+}
+
+void invoke_remote_accessory(void* makerClass, const char* method, int argc, int32_t id) {
+    if (!makerClass || !unity_alive(gRemoteGameObject) || id < 0) return;
+    int32_t slot = -1, face = -1;
+    bool reset = false, changeFace = true;
+    if (argc == 5) {
+        void* args[]{gRemoteGameObject, &id, &slot, &face, &reset};
+        const char* types[]{"UnityEngine.GameObject","System.Int32","System.Int32","System.Int32","System.Boolean"};
+        invoke(gApi, makerClass, nullptr, method, 5, args, types);
+    } else if (argc == 6) {
+        void* args[]{gRemoteGameObject, &id, &slot, &face, &reset, &changeFace};
+        const char* types[]{"UnityEngine.GameObject","System.Int32","System.Int32","System.Int32","System.Boolean","System.Boolean"};
+        invoke(gApi, makerClass, nullptr, method, 6, args, types);
+    }
+}
+
+void apply_remote_appearance(VisualEntity& entity, const VisualState& state) {
+    if (&entity != &gVisualRemote || !unity_alive(gRemoteGameObject)) return;
+    const int32_t incoming[10]{
+        state.appearanceCharacter, state.appearanceCloth, state.appearanceFace,
+        state.appearanceHair, state.appearanceGlasses, state.appearanceHairAccessory,
+        state.appearanceMask, state.appearanceWings, state.appearanceTail, state.appearanceEars};
+    bool changed = false;
+    for (int i = 0; i < 10; ++i) if (entity.appearance[i] != incoming[i]) { changed = true; break; }
+    if (!changed) return;
+
+    void* makerClass = gApi.class_from_name(gAssembly, "", "CharaMakeManager");
+    if (!makerClass) return;
+
+    // Clothing uses Sakura's own target-object helper, keeping the local
+    // player's CharaMake state untouched.
+    if (entity.appearance[1] != incoming[1] && incoming[0] >= 0 && incoming[1] >= 0) {
+        void* system = nullptr;
+        void* next = clothing_prefab(makerClass, incoming[0], incoming[1]);
+        if (next && read_field(gSystemClass, nullptr, "Instance", "SystemManager", system) && system) {
+            bool same = false, overwrite = false;
+            void* args[]{gRemoteGameObject, &same, &overwrite, next};
+            const char* types[]{"UnityEngine.GameObject","System.Boolean","System.Boolean","UnityEngine.GameObject"};
+            invoke(gApi, gSystemClass, system, "ChangeClothPlayer", 4, args, types);
+        }
+    }
+
+    if (entity.appearance[3] != incoming[3]) invoke_remote_accessory(makerClass, "ChangeHair", 6, incoming[3]);
+    if (entity.appearance[4] != incoming[4]) invoke_remote_accessory(makerClass, "ChangeGlasses", 5, incoming[4]);
+    if (entity.appearance[5] != incoming[5]) invoke_remote_accessory(makerClass, "ChangeHairAcce", 6, incoming[5]);
+    if (entity.appearance[6] != incoming[6]) invoke_remote_accessory(makerClass, "ChangeMask", 5, incoming[6]);
+    if (entity.appearance[7] != incoming[7]) invoke_remote_accessory(makerClass, "ChangeWings", 5, incoming[7]);
+    if (entity.appearance[8] != incoming[8]) invoke_remote_accessory(makerClass, "ChangeTail", 5, incoming[8]);
+    if (entity.appearance[9] != incoming[9]) invoke_remote_accessory(makerClass, "ChangeEars", 5, incoming[9]);
+
+    std::copy(std::begin(incoming), std::end(incoming), entity.appearance);
+    // Appearance helpers can replace child objects. Refresh path/component maps
+    // before subsequent material/node packets are applied.
+    build_visual(entity, entity.go, false, "");
+    std::copy(std::begin(incoming), std::end(incoming), entity.appearance);
+    LOGI("VISUAL REMOTE APPEARANCE slot=%d cloth=%d hair=%d acce=%d",
+         incoming[0], incoming[1], incoming[3], incoming[5]);
+}
+
 void apply_visual(VisualEntity& entity, const VisualState& state) {
     if (!unity_alive(entity.go)) return;
+    if (state.kind == VisualKind::Appearance) {
+        apply_remote_appearance(entity, state);
+        return;
+    }
     if (entity.npc) acquire_npc_replica(entity);
     if (state.kind == VisualKind::Appearance && !entity.npc) {
         apply_remote_appearance(entity, state);
@@ -604,6 +739,12 @@ void visual_sync_tick() {
     if (gLastNpcScan.time_since_epoch().count() == 0 || now - gLastNpcScan >= std::chrono::milliseconds(500)) {
         scan_visual_npcs();
         gLastNpcScan = now;
+    }
+    if (!gLastAppearanceSend.time_since_epoch().count() ||
+        now - gLastAppearanceSend >= std::chrono::milliseconds(500)) {
+        VisualState appearance = visual_packet(gVisualLocal, nullptr, VisualKind::Appearance);
+        if (local_appearance(appearance)) sakuralan_net_send_visual(&appearance);
+        gLastAppearanceSend = now;
     }
     if (gLastVisualSend.time_since_epoch().count() == 0 || now - gLastVisualSend >= std::chrono::milliseconds(50)) {
         send_visual(gVisualLocal);
