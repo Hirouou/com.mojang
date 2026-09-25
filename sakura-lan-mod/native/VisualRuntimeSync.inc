@@ -26,7 +26,13 @@ struct VisualEntity {
 };
 VisualEntity gVisualLocal, gVisualRemote;
 std::map<std::string, VisualEntity> gVisualNpcs;
-std::chrono::steady_clock::time_point gLastVisualSend{}, gLastNpcScan{};
+std::chrono::steady_clock::time_point gLastVisualSend{}, gLastNpcScan{}, gLastAppearanceSend{};
+void* gCharaMakeRuntimeClass = nullptr;
+void* gCharacterBaseRuntimeClass = nullptr;
+bool gRemoteAppearanceReady = false;
+int32_t gRemoteAppearance[15]{};
+int32_t gLocalAppearanceSent[15]{};
+bool gLocalAppearanceReady = false;
 
 void retain_visual(VisualEntity& entity, void* object) {
     if (object) entity.handles.push_back(gApi.gchandle_new(object, false));
@@ -47,7 +53,11 @@ void reset_visual_sync() {
     clear_visual(gVisualRemote);
     for (auto& entry : gVisualNpcs) clear_visual(entry.second);
     gVisualNpcs.clear();
-    gLastVisualSend = gLastNpcScan = {};
+    gLastVisualSend = gLastNpcScan = gLastAppearanceSend = {};
+    gRemoteAppearanceReady = false;
+    gLocalAppearanceReady = false;
+    std::memset(gRemoteAppearance, 0, sizeof(gRemoteAppearance));
+    std::memset(gLocalAppearanceSent, 0, sizeof(gLocalAppearanceSent));
 }
 
 std::string visual_path(void* transform, void* root = nullptr) {
@@ -132,6 +142,125 @@ void scan_visual_npcs() {
     }
 }
 
+bool static_int_array_value(void* klass, const char* fieldName, int32_t index, int32_t& out) {
+    if (!klass || index < 0) return false;
+    void* array = nullptr;
+    if (!read_field(klass, nullptr, fieldName, "System.Int32[]", array) || !array) return false;
+    const uintptr_t count = gApi.array_length(array);
+    if (static_cast<uintptr_t>(index) >= count || count > 4096) return false;
+    auto* values = reinterpret_cast<int32_t*>(
+        static_cast<uint8_t*>(array) + sizeof(void*) * 4);
+    out = values[index];
+    return true;
+}
+
+bool capture_local_appearance(VisualState& state) {
+    if (!gCharaMakeRuntimeClass)
+        gCharaMakeRuntimeClass = gApi.class_from_name(gAssembly, "", "CharaMakeManager");
+    if (!gCharaMakeRuntimeClass || !gSystemClass) return false;
+    void* manager = gLocalMove.load();
+    if (!manager) return false;
+
+    int32_t charaNum = 0;
+    if (!read_field(gSystemClass, manager, "m_CharaNum", "System.Int32", charaNum) ||
+        charaNum < 0 || charaNum > 31) return false;
+    state.appearance[0] = charaNum;
+    const char* fields[] = {
+        "ClothNum", "FaceNum", "HairNum", "HairColor", "HairColor2",
+        "GlassesNum", "HairAcceNum", "AcceSubNum", "EyeColorNum",
+        "MaskNum", "WingsNum", "TailNum", "EarsNum"
+    };
+    for (int i = 0; i < 13; ++i) {
+        int32_t value = 0;
+        if (!static_int_array_value(gCharaMakeRuntimeClass, fields[i], charaNum, value))
+            return false;
+        state.appearance[i + 1] = value;
+    }
+    // Reserved for per-character equipment state such as the jetpack model.
+    state.appearance[14] = 0;
+    return true;
+}
+
+bool appearance_value_ok(int32_t value) {
+    return value >= -1 && value <= 2048;
+}
+
+void apply_remote_appearance(VisualEntity& entity, const VisualState& state) {
+    if (!unity_alive(entity.go)) return;
+    for (int i = 0; i < 15; ++i)
+        if (!appearance_value_ok(state.appearance[i])) return;
+
+    bool changed = !gRemoteAppearanceReady;
+    for (int i = 0; i < 15; ++i)
+        changed |= !gRemoteAppearanceReady || gRemoteAppearance[i] != state.appearance[i];
+    if (!changed) return;
+
+    if (!gCharaMakeRuntimeClass)
+        gCharaMakeRuntimeClass = gApi.class_from_name(gAssembly, "", "CharaMakeManager");
+    if (!gCharacterBaseRuntimeClass)
+        gCharacterBaseRuntimeClass = gApi.class_from_name(gAssembly, "", "CharacterBaseManager");
+    if (!gCharaMakeRuntimeClass) return;
+
+    const int32_t charaNum = state.appearance[0];
+    const int32_t cloth = state.appearance[1];
+    const int32_t face = state.appearance[2];
+
+    // Clothing is applied through the game's arbitrary-character API. This
+    // avoids mutating CharaMakeManager's local static selection arrays.
+    if (!gRemoteAppearanceReady || gRemoteAppearance[1] != cloth) {
+        void* baseManager = nullptr;
+        if (gCharacterBaseRuntimeClass &&
+            read_field(gCharacterBaseRuntimeClass, nullptr, "Instance",
+                       "CharacterBaseManager", baseManager) && baseManager) {
+            bool off = false, on = true;
+            void* args[]{entity.go, const_cast<int32_t*>(&cloth), nullptr,
+                         &off, &off, &off, &on};
+            const char* types[]{"UnityEngine.GameObject", "CharacterBaseManager.Cloth",
+                                "UnityEngine.GameObject", "System.Boolean", "System.Boolean",
+                                "System.Boolean", "System.Boolean"};
+            invoke(gApi, gCharacterBaseRuntimeClass, baseManager,
+                   "ChangeCloth", 7, args, types);
+        }
+    }
+
+    auto invokeAccessory = [&](const char* method, int index, bool sixArgs) {
+        if (gRemoteAppearanceReady && gRemoteAppearance[index] == state.appearance[index] &&
+            gRemoteAppearance[0] == charaNum && gRemoteAppearance[2] == face) return;
+        int32_t value = state.appearance[index];
+        int32_t cnum = charaNum;
+        int32_t faceNum = face;
+        bool reset = false, changeFace = true;
+        if (sixArgs) {
+            void* args[]{entity.go, &value, &cnum, &faceNum, &reset, &changeFace};
+            const char* types[]{"UnityEngine.GameObject", "System.Int32", "System.Int32",
+                                "System.Int32", "System.Boolean", "System.Boolean"};
+            invoke(gApi, gCharaMakeRuntimeClass, nullptr, method, 6, args, types);
+        } else {
+            void* args[]{entity.go, &value, &cnum, &faceNum, &reset};
+            const char* types[]{"UnityEngine.GameObject", "System.Int32", "System.Int32",
+                                "System.Int32", "System.Boolean"};
+            invoke(gApi, gCharaMakeRuntimeClass, nullptr, method, 5, args, types);
+        }
+    };
+
+    invokeAccessory("ChangeHair", 3, true);
+    invokeAccessory("ChangeGlasses", 6, false);
+    invokeAccessory("ChangeHairAcce", 7, true);
+    invokeAccessory("ChangeMask", 10, false);
+    invokeAccessory("ChangeWings", 11, false);
+    invokeAccessory("ChangeTail", 12, false);
+    invokeAccessory("ChangeEars", 13, false);
+
+    std::memcpy(gRemoteAppearance, state.appearance, sizeof(gRemoteAppearance));
+    gRemoteAppearanceReady = true;
+
+    // The game APIs may replace child renderers. Rebuild paths/handles only
+    // after the descriptor has been applied, never while an old child is used.
+    build_visual(entity, entity.go, false, "");
+    LOGI("VISUAL APPEARANCE applied chara=%d cloth=%d face=%d hair=%d",
+         charaNum, cloth, face, state.appearance[3]);
+}
+
 VisualState visual_packet(const VisualEntity& entity, const VisualNode* node, VisualKind kind) {
     VisualState state;
     state.kind = kind;
@@ -206,6 +335,27 @@ void send_visual(VisualEntity& entity) {
         }
     }
     if (entity.npc) return;
+
+    if (entity.go == gLocalGameObject) {
+        VisualState appearance = visual_packet(entity, nullptr, VisualKind::Appearance);
+        if (capture_local_appearance(appearance)) {
+            bool changed = !gLocalAppearanceReady;
+            for (int i = 0; i < 15; ++i)
+                changed |= !gLocalAppearanceReady ||
+                           gLocalAppearanceSent[i] != appearance.appearance[i];
+            const auto now = std::chrono::steady_clock::now();
+            const bool keyframe = !gLastAppearanceSend.time_since_epoch().count() ||
+                now - gLastAppearanceSend >= std::chrono::seconds(2);
+            if (changed || keyframe) {
+                sakuralan_net_send_visual(&appearance);
+                std::memcpy(gLocalAppearanceSent, appearance.appearance,
+                            sizeof(gLocalAppearanceSent));
+                gLocalAppearanceReady = true;
+                gLastAppearanceSend = now;
+            }
+        }
+    }
+
     // Repeat appearance round-robin so lost UDP packets eventually recover,
     // including clients joining after a costume/accessory change.
     const size_t budget = 8;
@@ -276,6 +426,10 @@ std::string material_key(std::string name) {
 void apply_visual(VisualEntity& entity, const VisualState& state) {
     if (!unity_alive(entity.go)) return;
     if (entity.npc) acquire_npc_replica(entity);
+    if (state.kind == VisualKind::Appearance && !entity.npc) {
+        apply_remote_appearance(entity, state);
+        return;
+    }
     if (state.kind == VisualKind::Pose && entity.npc) {
         const float* p = &state.position.x;
         const float* q = &state.rotation.x;
