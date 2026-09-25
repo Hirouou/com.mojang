@@ -80,7 +80,7 @@ jobs:
             if [ -n "$p" ]; then cp "$p" "legacy/selected/$n.cs"; fi
           done
 
-          grep -RniE --include='*.cs' 'Vehicle|Car|Bike|Traffic|Garage|Ride|Mission|Quest|Event|Money|Item|Pickup|GetItem|GameTime|Weather|Language|Localize|ChangeLanguage' legacy/decompiled | head -n 16000 > legacy/world-symbols.txt || true
+          grep -RniE --include='*.cs' 'Vehicle|Car|Bike|Traffic|Garage|Ride|Mission|Quest|Event|Money|Item|Pickup|GetItem|GameTime|Weather|Language|Localize|ChangeLanguage|Relationship|Relation|Friend|Lover|Love|Like|Dislike|Hate|Talk|Conversation|Message|Chat|Mail|Aisatu|Favor|Affinity' legacy/decompiled | head -n 16000 > legacy/world-symbols.txt || true
           cut -d: -f1 legacy/world-symbols.txt | sort -u | head -n 200 > legacy/world-files.txt || true
           while IFS= read -r p; do
             [ -f "$p" ] || continue
