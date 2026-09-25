@@ -5,7 +5,7 @@
 namespace sakura_lan {
 
 static constexpr uint32_t kMagic = 0x534B4C4Eu; // SKLN
-static constexpr uint16_t kProtocolVersion = 4;
+static constexpr uint16_t kProtocolVersion = 5;
 static constexpr uint16_t kDiscoveryPort = 38555;
 static constexpr uint16_t kGamePort = 38556;
 
@@ -82,6 +82,8 @@ enum class WorldKind : uint8_t {
     ItemTaken = 2,
     MissionState = 3,
     VehicleState = 4,
+    MissionProgress = 5,
+    WorldEvent = 6,
 };
 struct WorldStatePayload {
     uint32_t sessionId = 0;
@@ -92,6 +94,14 @@ struct WorldStatePayload {
     uint8_t reserved = 0;
     char entity[192]{};
     int32_t value = 0;
+    // Generic progress fields. Mission state uses value=mission/state id,
+    // step=current objective, progress/target for counters and flags for
+    // completion/failure bits. Economy and relationships are intentionally
+    // excluded: they belong to each player.
+    int32_t step = 0;
+    int32_t progress = 0;
+    int32_t target = 0;
+    uint32_t flags = 0;
     Vec3 position{};
     Quat rotation{};
 };
