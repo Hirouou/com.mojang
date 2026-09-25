@@ -46,6 +46,7 @@ std::string active_scene() {
 
 void clear_player_tracking() {
     reset_visual_sync();
+    reset_world_runtime_sync();
     if (unity_alive(gRemoteRootObject))
         invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", gRemoteRootObject);
     for (uint32_t handle : gPlayerHandles) gApi.gchandle_free(handle);
@@ -173,5 +174,8 @@ void session_tick(void*) {
                  snapshot.revision, snapshot.scene, snapshot.day, snapshot.gameTime, pos.x, pos.y, pos.z);
         }
     }
-    if (playable) multiplayer_tick(manager);
+    if (playable) {
+        multiplayer_tick(manager);
+        world_runtime_tick(manager);
+    }
 }
