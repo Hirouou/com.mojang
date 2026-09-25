@@ -21,6 +21,10 @@ Branch: `agent/sakura-lan-20260919`.
 - A pedido do usuário, após compilar e instalar nos dois AVDs, encerrar o trabalho
   sem iniciar partidas, movimentar personagens ou executar testes de gameplay.
 - Veículos e interações de mundo continuam sem sincronização completa.
+- Usuário confirmou visibilidade dos dois players após usar IP direto, mas
+  ambos ainda voltavam à posição inicial. Clone visual agora perde Joints e
+  Rigidbodies copiados (após remover scripts), para que a física/interpolação
+  não mantenha uma pose concorrente. Validação desta alteração é manual.
 
 ## Implementado no código
 

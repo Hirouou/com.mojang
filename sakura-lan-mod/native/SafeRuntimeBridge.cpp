@@ -458,6 +458,20 @@ void make_visual_replica(void* clone, bool stripScripts) {
             if (stripScripts) invoke1(gApi, klass, component, "set_detectCollisions", &off);
         }
     }
+    if (stripScripts) {
+        // Kinematic bodies still retain their physics/interpolation poses.
+        // This is a render-only avatar: remove joint dependencies first, then
+        // bodies, after all gameplay scripts have been removed above.
+        for (const char* base : {"Joint", "Rigidbody"}) {
+            int removed = 0;
+            for (void* component : child_components(clone, gComponentClass)) {
+                if (!unity_alive(component) || !derives_from(gApi.object_get_class(component), base)) continue;
+                invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
+                if (!unity_alive(component)) ++removed;
+            }
+            LOGI("REMOTE PHYSICS removed %s=%d", base, removed);
+        }
+    }
 }
 
 bool create_remote_avatar() {
