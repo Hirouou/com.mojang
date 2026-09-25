@@ -211,6 +211,13 @@ void LanSession::pump(int timeoutMs) {
                            s.rotation.z*s.rotation.z + s.rotation.w*s.rotation.w;
         if (!std::isfinite(norm) || norm < 0.5f || norm > 1.5f) return;
         if (onWorldState) onWorldState(s);
+        // Host is authoritative. A client may propose a mutation (mission/item/
+        // vehicle interaction); after accepting it locally the host echoes the
+        // canonical state back so both peers converge on the same revision.
+        if (mode_ == Mode::Host) {
+            if (!s.revision) s.revision = sequence_;
+            sendPacket(game_, sendPeer_, PacketType::WorldState, &s, sizeof(s));
+        }
         return;
     }
     if (h.type == PacketType::PlayerState && connected_) {
