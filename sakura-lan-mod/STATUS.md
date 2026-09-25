@@ -78,9 +78,7 @@ Branch: `agent/sakura-lan-20260919`.
 - O menu SAKURA LAN foi ajustado para exibir Host, Client e IP opcional em 720p.
   A versão atualizada foi instalada e conferida nas duas AVDs.
 
-## Critérios para confirmar gameplay
-
-### Crash de entrada em 25/09/2026
+## Crash de entrada em 25/09/2026
 
 - Client (09:30 UTC) e Host (09:34 UTC) sofreram SIGSEGV na thread do bridge,
   durante a inicialização do Unity, após conexão/criação de sala bem-sucedida.
@@ -92,9 +90,24 @@ Branch: `agent/sakura-lan-20260919`.
 - A mitigação inicia o worker uma única vez após `onActivityResumed` da Activity
   original do jogo e conta a margem de 12 segundos a partir desse momento.
   Isso elimina o tempo gasto no menu LAN da contagem, mas ainda depende de uma
-  margem temporal; validação local da nova build pendente.
+  margem temporal; não é uma garantia de que o IL2CPP terminou de inicializar.
 - O workflow agora gera os APKs sem executar o teste inválido com dois usuários
   na mesma AVD. Compilação aprovada não significa gameplay aprovado.
+- Build `deb2a37`, run `36119450154`: compilação e geração dos splits passaram.
+  Instalados os mesmos APKs em ambas as AVDs, preservando backup dos dados.
+- A restauração deixou arquivos externos com proprietário incorreto. Houve
+  mensagem de falta de espaço apesar de 8,7 GB disponíveis, seguida de crash
+  antes de obter o domínio IL2CPP. Corrigido o proprietário para o UID atual
+  de cada aplicativo e restaurados os contextos SELinux, sem desativá-lo.
+- Depois dessa correção, Host PID 11149 e Client PID 10957 chegaram ao mapa na
+  mesma execução, com `READY`/`worker detached` e sem novo crash observado.
+  Evidências locais: `D:\SakuraLAN\evidence\entry-fix-deb2a37`. O cenário de
+  longa espera no menu ainda não foi validado isoladamente; a primeira tentativa
+  estava contaminada pelo erro de acesso aos recursos.
+- O atalho aguarda `NET HOST OK` do processo atual antes de abrir o Client.
+  A ausência de personagens remotos e a sincronização de mundo continuam abertas.
+
+## Critérios para confirmar gameplay
 
 1. Ausência de crash/tombstone após `ARMHOOK READY` e `ARMHOOK worker detached`.
 2. Host e Client entram no mapa, criam o remoto e aplicam estados continuamente.
