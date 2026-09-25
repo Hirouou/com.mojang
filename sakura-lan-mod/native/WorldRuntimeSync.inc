@@ -6,11 +6,13 @@ using WorldState = sakura_lan::WorldStatePayload;
 using WorldKind = sakura_lan::WorldKind;
 
 std::chrono::steady_clock::time_point gLastWorldMissionScan{}, gLastWorldVehicleScan{},
-    gLastWorldMissionKeyframe{}, gWorldRuntimeStarted{};
+    gLastWorldNpcScan{}, gLastWorldMissionKeyframe{}, gLastWorldNpcKeyframe{},
+    gWorldRuntimeStarted{};
 std::map<std::string, uint64_t> gWorldObserved;
 std::map<std::string, void*> gWorldVehicleObjects;
 std::map<std::string, uint8_t> gWorldVehicleOwner;
 std::map<std::string, bool> gClientVehicleOwned;
+std::map<std::string, float> gClientNpcAuthoritativeHealth;
 
 void* gTrophyManagerClass = nullptr;
 void* gTrophyClass = nullptr;
@@ -23,6 +25,8 @@ void* gPickupActiveClass = nullptr;
 void* gCarManagerClass = nullptr;
 void* gVehicleControllerClass = nullptr;
 void* gAiCarDriverClass = nullptr;
+void* gCharacterStatusClass = nullptr;
+void* gHealthClass = nullptr;
 
 bool read_named_object(void* klass, void* object, const char* name, void*& out) {
     out = nullptr;
@@ -70,6 +74,8 @@ bool resolve_world_runtime_classes() {
     if (!gCarManagerClass) gCarManagerClass = gApi.class_from_name(gAssembly, "", "CarManager");
     if (!gVehicleControllerClass) gVehicleControllerClass = gApi.class_from_name(gAssembly, "EVP", "VehicleController");
     if (!gAiCarDriverClass) gAiCarDriverClass = gApi.class_from_name(gAssembly, "", "AICarDriver");
+    if (!gCharacterStatusClass) gCharacterStatusClass = gApi.class_from_name(gAssembly, "", "CharacterStatus");
+    if (!gHealthClass) gHealthClass = gApi.class_from_name(gAssembly, "", "Health");
     return gTrophyManagerClass != nullptr;
 }
 
@@ -91,6 +97,11 @@ uint64_t world_fingerprint(const WorldState& s) {
     h = world_mix(h, static_cast<uint32_t>(s.progress));
     h = world_mix(h, static_cast<uint32_t>(s.target));
     h = world_mix(h, s.flags);
+    uint32_t amountBits = 0, amount2Bits = 0;
+    std::memcpy(&amountBits, &s.amount, sizeof(amountBits));
+    std::memcpy(&amount2Bits, &s.amount2, sizeof(amount2Bits));
+    h = world_mix(h, amountBits);
+    h = world_mix(h, amount2Bits);
     h = world_mix(h, s.active);
     h = world_mix(h, s.occupiedBy);
     return h;
@@ -401,6 +412,79 @@ void publish_vehicles(void* systemManager, int role) {
     }
 }
 
+void publish_npc_physical(int role, bool force) {
+    if (!gCharacterStatusClass || !gHealthClass) return;
+    for (auto& entry : gVisualNpcs) {
+        const std::string& path = entry.first;
+        auto& visual = entry.second;
+        if (!unity_alive(visual.go)) continue;
+        void* status = component_in_children(visual.go, gCharacterStatusClass);
+        void* health = component_in_children(visual.go, gHealthClass);
+        if (!status || !health) continue;
+
+        WorldState state{};
+        state.kind = WorldKind::NpcState;
+        if (path.size() >= sizeof(state.entity)) continue;
+        std::strncpy(state.entity, path.c_str(), sizeof(state.entity)-1);
+        void* healthClass = gApi.object_get_class(health);
+        if (!unbox_value(invoke0(gApi, healthClass, health, "get_CurrentHealth"), state.amount))
+            continue;
+        unbox_value(invoke0(gApi, healthClass, health, "get_CurrentShield"), state.amount2);
+        void* statusClass = gApi.object_get_class(status);
+        read_field(statusClass, status, "HP", "System.Int32", state.value);
+        read_field(statusClass, status, "State", "System.Int32", state.step);
+        bool down = false;
+        read_field(statusClass, status, "isDown", "System.Boolean", down);
+        if (down) state.flags |= 1u;
+
+        if (role == 0) {
+            publish_world_discrete(state, force);
+        } else {
+            auto authority = gClientNpcAuthoritativeHealth.find(path);
+            if (authority == gClientNpcAuthoritativeHealth.end()) continue;
+            // Client-side Health remains enabled only so local hits can be
+            // detected. A meaningful change is proposed to the host; social
+            // fields such as Likability are deliberately absent.
+            if (std::fabs(state.amount - authority->second) >= 0.25f)
+                publish_world_discrete(state, false);
+        }
+    }
+}
+
+void apply_npc_physical(const WorldState& state, int role) {
+    auto it = gVisualNpcs.find(state.entity);
+    if (it == gVisualNpcs.end() || !unity_alive(it->second.go)) return;
+    void* status = component_in_children(it->second.go, gCharacterStatusClass);
+    void* health = component_in_children(it->second.go, gHealthClass);
+    if (!status || !health || !std::isfinite(state.amount) || state.amount < 0.0f) return;
+
+    if (role == 1) gClientNpcAuthoritativeHealth[state.entity] = state.amount;
+
+    void* healthClass = gApi.object_get_class(health);
+    float current = 0.0f;
+    unbox_value(invoke0(gApi, healthClass, health, "get_CurrentHealth"), current);
+    if (std::fabs(current - state.amount) >= 0.01f) {
+        float value = state.amount;
+        void* args[]{&value};
+        const char* types[]{"System.Single"};
+        invoke(gApi, healthClass, health, "SetCurrentHealth", 1, args, types);
+    }
+    if (std::isfinite(state.amount2) && state.amount2 >= 0.0f) {
+        float shield = state.amount2;
+        void* args[]{&shield};
+        const char* types[]{"System.Single"};
+        invoke(gApi, healthClass, health, "SetCurrentShield", 1, args, types);
+    }
+
+    void* statusClass = gApi.object_get_class(status);
+    write_field(statusClass, status, "HP", "System.Int32", state.value);
+    if (role == 1) {
+        write_field(statusClass, status, "State", "System.Int32", state.step);
+        bool down = (state.flags & 1u) != 0;
+        write_field(statusClass, status, "isDown", "System.Boolean", down);
+    }
+}
+
 void apply_vehicle(const WorldState& state, int role) {
     auto it = gWorldVehicleObjects.find(state.entity);
     if (it == gWorldVehicleObjects.end() || !unity_alive(it->second)) return;
@@ -433,16 +517,20 @@ void apply_world_state(const WorldState& state, int role) {
         apply_pickup(state);
     } else if (state.kind == WorldKind::VehicleState) {
         apply_vehicle(state, role);
+    } else if (state.kind == WorldKind::NpcState) {
+        apply_npc_physical(state, role);
     }
 }
 
 void reset_world_runtime_sync() {
-    gLastWorldMissionScan = gLastWorldVehicleScan = gLastWorldMissionKeyframe = {};
+    gLastWorldMissionScan = gLastWorldVehicleScan = gLastWorldNpcScan =
+        gLastWorldMissionKeyframe = gLastWorldNpcKeyframe = {};
     gWorldRuntimeStarted = {};
     gWorldObserved.clear();
     gWorldVehicleObjects.clear();
     gWorldVehicleOwner.clear();
     gClientVehicleOwned.clear();
+    gClientNpcAuthoritativeHealth.clear();
 }
 
 void world_runtime_tick(void* systemManager) {
@@ -461,6 +549,16 @@ void world_runtime_tick(void* systemManager) {
     WorldState incoming{};
     for (int i = 0; i < 512 && sakuralan_net_take_world(&incoming); ++i)
         apply_world_state(incoming, role);
+
+    if (!gLastWorldNpcScan.time_since_epoch().count() ||
+        now - gLastWorldNpcScan >= std::chrono::milliseconds(100)) {
+        const bool hostNpcKeyframe = role == 0 &&
+            (!gLastWorldNpcKeyframe.time_since_epoch().count() ||
+             now - gLastWorldNpcKeyframe >= std::chrono::seconds(1));
+        publish_npc_physical(role, hostNpcKeyframe);
+        if (hostNpcKeyframe) gLastWorldNpcKeyframe = now;
+        gLastWorldNpcScan = now;
+    }
 
     const bool clientInitialSync = role == 1 && now - gWorldRuntimeStarted < std::chrono::seconds(3);
     if (!gLastWorldMissionScan.time_since_epoch().count() ||
