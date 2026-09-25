@@ -2,6 +2,25 @@
 
 Branch: `agent/sakura-lan-20260919`.
 
+## Atualização de 25/09 — gameplay confirmado pelo usuário
+
+- O usuário validou manualmente duas instâncias simultâneas no PC: Host e Client
+  entram na mesma partida, enxergam um ao outro e a posição/rotação remota acompanha
+  o movimento. Isso substitui o estado anterior de "multiplayer visual não confirmado".
+- Problema atual reproduzido: locomoção remota pode deslizar sem caminhada/corrida;
+  pulo chega a ser visível. Protocolo v4 passa a transportar parâmetros float/int/bool
+  do Animator, além do hash/tempo das camadas, para cobrir Blend Trees de locomoção.
+- Equipamentos anexados após a criação do avatar passam a provocar atualização do
+  snapshot visual quando a hierarquia muda. Jetpack/objetos cuja hierarquia não
+  exista no clone remoto ainda exigem reconstrução explícita e permanecem em aberto.
+- Veículos continuam fora do modelo de entidade atual: o jogador remoto pode assumir
+  pose sentada enquanto o carro não existe no outro cliente. Próxima etapa é
+  sincronização de entidade de veículo, não tratar carro como acessório do avatar.
+- Foi adicionado preset conservador de desempenho: alvo 60 FPS, sombras mantidas
+  ativadas e distância de sombras moderada. Não altera timeScale/fixedDeltaTime.
+- PT-BR será integrado ao pipeline nativo Localize/LocalizeUI/ButtonChangeLanguage;
+  inglês será fallback. Não será criado seletor paralelo.
+
 ## Atualização de 25/09 — instalação para teste manual
 
 - Após 0b2ffab, usuário ainda observou retorno à posição inicial ao parar de
@@ -62,8 +81,8 @@ Branch: `agent/sakura-lan-20260919`.
 
 ## Limites reais — não tratar como multiplayer completo
 
-- Ainda não há screenshots validados de dois players no mapa. Instalação do hook
-  e handshake não comprovam a execução da clonagem e da sincronização visual.
+- O gameplay visual de dois players foi confirmado manualmente pelo usuário em duas
+  instâncias no PC. Ainda faltam animação contínua, equipamentos, veículos e mundo.
 - NPCs controlados por outras classes ainda precisam de adaptadores verificados.
 - Reações de NPCs a ações iniciadas no Client ainda precisam de eventos de
   interação validados e encaminhados ao Host. Só copiar Animator do player não
@@ -73,7 +92,7 @@ Branch: `agent/sakura-lan-20260919`.
   material, blend shapes e acessórios criados posteriormente ainda não são cobertos.
 - Relógio, clima, objetos arbitrários, missões e estado completo do mundo não
   foram integrados. O canal de NPCs não representa sincronização completa do mundo.
-- Ambos os APKs precisam ser recompilados com o protocolo v2.
+- Ambos os lados precisam usar a mesma build com protocolo v4; versões anteriores são incompatíveis.
 
 ## Validação em 24/09/2026
 
