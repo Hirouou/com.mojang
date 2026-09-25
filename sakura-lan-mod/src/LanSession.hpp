@@ -29,6 +29,7 @@ public:
     void sendLocalState(const PlayerStatePayload& state);
     void sendVisualState(const VisualStatePayload& state);
     void sendSessionState(const SessionStatePayload& state);
+    void sendWorldState(const WorldStatePayload& state);
 
     Mode mode() const { return mode_; }
     bool connected() const { return connected_; }
@@ -38,6 +39,7 @@ public:
     std::function<void(const PlayerStatePayload&)> onRemoteState;
     std::function<void(const VisualStatePayload&)> onVisualState;
     std::function<void(const SessionStatePayload&)> onSessionState;
+    std::function<void(const WorldStatePayload&)> onWorldState;
     std::function<void(const std::string&)> onLog;
 
 private:
