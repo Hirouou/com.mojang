@@ -22,6 +22,7 @@ void clear_player_tracking() {
     gLocalMove = nullptr;
     gLocalGameObject = gLocalTransform = nullptr;
     gRemoteGameObject = gRemoteTransform = nullptr;
+    gRemotePoseReceived = false;
     gClientOffsetDone = false;
     gCiFacingDone = false;
     gLastSend = {};

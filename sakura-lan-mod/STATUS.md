@@ -2,6 +2,26 @@
 
 Branch: `agent/sakura-lan-20260919`.
 
+## Atualização de 25/09 — instalação para teste manual
+
+- Jogador local obtido de `SystemManager.m_Character`, corrigindo a seleção de
+  `ScrubChan`. Protocolo v3 e entrada automática do Client no mapa informado pelo Host.
+- O clone só aparece depois do primeiro estado remoto válido. Animator e
+  SkinnedMeshRenderer continuam atualizando fora da câmera.
+- Captura UDP mostrou que o encaminhamento mudou a porta de origem do Client:
+  Host enviava para 52882, mas recebia de 56679 e rejeitava esses pacotes.
+  O iniciador agora descobre o IP Wi-Fi atual do Host e conecta diretamente
+  entre os emuladores 37.1, sem esse encaminhamento duplo.
+- Última posição remota válida reaplicada em cada callback de renderização,
+  separadamente da frequência de rede; log `REMOTE ROOT DRIFT` registra quando
+  o transform do clone foi alterado entre callbacks. Esta correção visual ainda
+  precisa de validação pelo usuário.
+- Estado observado antes desta atualização: Host não via Client; Client via
+  Host parado ou piscando. **Multiplayer ainda não confirmado funcional.**
+- A pedido do usuário, após compilar e instalar nos dois AVDs, encerrar o trabalho
+  sem iniciar partidas, movimentar personagens ou executar testes de gameplay.
+- Veículos e interações de mundo continuam sem sincronização completa.
+
 ## Implementado no código
 
 - Worker IL2CPP desligado com `il2cpp_thread_detach` antes de encerrar a pthread.

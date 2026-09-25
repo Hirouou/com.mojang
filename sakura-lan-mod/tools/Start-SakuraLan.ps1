@@ -64,10 +64,19 @@ if ($installNeeded) {
     }
     Set-Content -Path $marker -Value $baseHash -Encoding ascii
 }
-$redirections = (& $adb -s emulator-5554 emu redir list) -join "`n"
-if ($redirections -notmatch 'udp:38556') {
-    & $adb -s emulator-5554 emu redir add udp:38556:38556
+# Emulator 36.5+ shares Wi-Fi between instances. Resolve the current address;
+# routing through 10.0.2.2 unnecessarily introduces two UDP NAT mappings.
+$hostAddress = $null
+for ($i = 0; $i -lt 20; $i++) {
+    $addresses = (& $adb -s emulator-5554 shell ip -4 addr show wlan0) -join "`n"
+    if ($addresses -match 'inet\s+(\d+\.\d+\.\d+\.\d+)/') {
+        $candidate = $Matches[1]
+        & $adb -s emulator-5556 shell ping -c 1 -W 2 $candidate | Out-Null
+        if ($LASTEXITCODE -eq 0) { $hostAddress = $candidate; break }
+    }
+    Start-Sleep -Seconds 1
 }
+if (-not $hostAddress) { throw 'Client não alcança o Wi-Fi do Host. Verifique a rede dos dois emuladores.' }
 foreach ($port in @('5554', '5556')) {
     & $adb -s "emulator-$port" shell am force-stop jp.garud.ssimulator | Out-Null
 }
@@ -82,7 +91,7 @@ for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 1
 }
 if (-not $hostReady) { throw 'O Host não confirmou a criação da sala. Capture os logs antes de tentar novamente.' }
-& $adb -s emulator-5556 shell am start -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity --es sakuralan_mode join --es sakuralan_host 10.0.2.2 --ei sakuralan_port 38556 --ez sakuralan_ci_pose true
-Write-Host 'Host e Client iniciados. Client usa 10.0.2.2:38556 via encaminhamento UDP no Host.'
+& $adb -s emulator-5556 shell am start -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity --es sakuralan_mode join --es sakuralan_host $hostAddress --ei sakuralan_port 38556 --ez sakuralan_ci_pose true
+Write-Host "Host e Client iniciados. Client usa ${hostAddress}:38556 diretamente pelo Wi-Fi virtual."
 Write-Host 'Para guardar telas e logs: execute Capture-SakuraLan.ps1.'
 Read-Host 'Enter para fechar esta janela'

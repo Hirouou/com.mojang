@@ -312,6 +312,8 @@ void* gLocalTransform = nullptr;
 void* gRemoteGameObject = nullptr;
 void* gRemoteTransform = nullptr;
 bool gRemotePoseReceived = false;
+Vec3 gRemotePosition{};
+Quat gRemoteRotation{0, 0, 0, 1};
 std::atomic<bool> gClientOffsetDone{false};
 std::atomic<bool> gCiFacingDone{false};
 std::chrono::steady_clock::time_point gLastSend{};
@@ -524,6 +526,28 @@ bool create_remote_avatar() {
 
 #include "VisualRuntimeSync.inc"
 
+// Animation/physics can write the cloned root after a network update. Keep the
+// last accepted pose authoritative every render callback, including frames in
+// which no new datagram arrives. UDP polling remains throttled separately.
+void present_remote_pose() {
+    if (!gRemotePoseReceived || !unity_alive(gRemoteGameObject) || !unity_alive(gRemoteTransform)) return;
+    void* klass = gApi.object_get_class(gRemoteTransform);
+    Vec3 before{};
+    if (boxed_vec3(invoke0(gApi, klass, gRemoteTransform, "get_position"), before)) {
+        const float dx = before.x - gRemotePosition.x, dy = before.y - gRemotePosition.y,
+                    dz = before.z - gRemotePosition.z;
+        static auto lastDrift = std::chrono::steady_clock::time_point{};
+        const auto now = std::chrono::steady_clock::now();
+        if (dx*dx + dy*dy + dz*dz > 0.01f && now - lastDrift > std::chrono::seconds(5)) {
+            LOGI("REMOTE ROOT DRIFT before=%.2f %.2f %.2f target=%.2f %.2f %.2f",
+                 before.x, before.y, before.z, gRemotePosition.x, gRemotePosition.y, gRemotePosition.z);
+            lastDrift = now;
+        }
+    }
+    invoke1(gApi, klass, gRemoteTransform, "set_position", &gRemotePosition);
+    invoke1(gApi, klass, gRemoteTransform, "set_rotation", &gRemoteRotation);
+}
+
 void multiplayer_tick(void* self) {
     if (gLocalGameObject && !unity_alive(gLocalGameObject)) {
         reset_visual_sync();
@@ -604,6 +628,8 @@ void multiplayer_tick(void* self) {
     if (norm < 0.5f || norm > 1.5f) return;
     Vec3 p{remote[0], remote[1], remote[2]};
     Quat q{remote[3], remote[4], remote[5], remote[6]};
+    gRemotePosition = p;
+    gRemoteRotation = q;
     invoke1(gApi, remoteTransformClass, gRemoteTransform, "set_position", &p);
     invoke1(gApi, remoteTransformClass, gRemoteTransform, "set_rotation", &q);
     if (!gRemotePoseReceived) {
@@ -639,6 +665,7 @@ void hooked_update(void* self, const void* methodInfo) {
     CharaUpdate original = gOriginalUpdate.load(std::memory_order_acquire);
     if (original) original(self, methodInfo);
     session_tick(self);
+    present_remote_pose();
 
     if (n <= 10 || n % 5000 == 0) {
         LOGI("ARMHOOK UPDATE call=%llu self=%p",
