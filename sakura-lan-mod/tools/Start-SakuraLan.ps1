@@ -11,11 +11,6 @@ $env:ANDROID_HOME = $sdk
 $env:ANDROID_SDK_ROOT = $sdk
 $env:ANDROID_AVD_HOME = $avd
 if (-not (Test-Path $emulator) -or -not (Test-Path $adb)) { throw 'SDK incompleto em D:\SakuraLAN\sdk.' }
-if (-not (Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled) {
-    Write-Warning 'VT-x está desativado no firmware. Ative Intel Virtualization Technology no BIOS/UEFI, reinicie e execute este atalho novamente.'
-    Read-Host 'Enter para sair'
-    exit 1
-}
 $check = & $emulator -accel-check 2>&1
 if (($check -join "`n") -notmatch '(?m)^0\s*$') { throw "A aceleração do emulador não está disponível: $check" }
 

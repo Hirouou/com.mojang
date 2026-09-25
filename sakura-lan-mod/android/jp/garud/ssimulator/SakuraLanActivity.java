@@ -10,8 +10,10 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -30,6 +32,7 @@ public final class SakuraLanActivity extends Activity {
     private TextView status;
     private Button hostButton;
     private Button joinButton;
+    private EditText hostAddress;
     private ProgressBar progress;
 
     private String debugJoinHost;
@@ -46,6 +49,7 @@ public final class SakuraLanActivity extends Activity {
         final String mode = intent.getStringExtra("sakuralan_mode");
         debugJoinHost = intent.getStringExtra("sakuralan_host");
         debugJoinPort = intent.getIntExtra("sakuralan_port", 38556);
+        if (debugJoinHost != null) hostAddress.setText(debugJoinHost);
         nativeSetCiPose(intent.getBooleanExtra("sakuralan_ci_pose", false));
 
         if ("host".equalsIgnoreCase(mode)) {
@@ -70,11 +74,11 @@ public final class SakuraLanActivity extends Activity {
         b.setText(text);
         b.setTextSize(18f);
         b.setAllCaps(false);
-        b.setMinHeight(120);
+        b.setMinHeight(84);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.setMargins(32, 14, 32, 14);
+        p.setMargins(16, 8, 16, 8);
         b.setLayoutParams(p);
         return b;
     }
@@ -83,16 +87,18 @@ public final class SakuraLanActivity extends Activity {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setPadding(48, 64, 48, 64);
+        root.setPadding(24, 16, 24, 16);
         root.setBackgroundColor(Color.rgb(25, 25, 32));
+        root.setFocusableInTouchMode(true);
+        root.requestFocus();
 
-        TextView title = makeText("SAKURA LAN", 34f, Color.WHITE);
+        TextView title = makeText("SAKURA LAN", 28f, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
 
         TextView subtitle = makeText(
                 "Multiplayer local • 2 jogadores • mesmo Wi-Fi",
-                16f,
+                14f,
                 Color.rgb(210, 210, 220));
         root.addView(subtitle);
 
@@ -102,6 +108,14 @@ public final class SakuraLanActivity extends Activity {
         progress = new ProgressBar(this);
         progress.setVisibility(View.GONE);
         root.addView(progress);
+
+        hostAddress = new EditText(this);
+        hostAddress.setSingleLine(true);
+        hostAddress.setHint("IP do Host (opcional)");
+        hostAddress.setTextColor(Color.WHITE);
+        hostAddress.setHintTextColor(Color.rgb(160, 160, 170));
+        hostAddress.setPadding(24, 8, 24, 8);
+        root.addView(hostAddress);
 
         hostButton = makeButton("Criar sala");
         joinButton = makeButton("Entrar na sala");
@@ -113,12 +127,15 @@ public final class SakuraLanActivity extends Activity {
         root.addView(joinButton);
 
         TextView tip = makeText(
-                "O outro celular precisa estar conectado à mesma rede Wi-Fi.",
+                "Deixe o IP vazio para procurar na mesma rede Wi-Fi.",
                 13f,
                 Color.rgb(170, 170, 180));
         root.addView(tip);
 
-        setContentView(root);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(root);
+        setContentView(scroll);
     }
 
     private void setBusy(boolean busy, String text) {
@@ -144,15 +161,17 @@ public final class SakuraLanActivity extends Activity {
     }
 
     private void joinRoom() {
+        final String typedHost = hostAddress.getText().toString().trim();
+        final String host = typedHost.isEmpty() ? debugJoinHost : typedHost;
         setBusy(true,
-                debugJoinHost != null && !debugJoinHost.isEmpty()
+                host != null && !host.isEmpty()
                         ? "Conectando à sala..."
                         : "Procurando sala na rede...");
 
         new Thread(() -> {
             final int ok;
-            if (debugJoinHost != null && !debugJoinHost.isEmpty()) {
-                ok = nativeJoinAddress(debugJoinHost, debugJoinPort);
+            if (host != null && !host.isEmpty()) {
+                ok = nativeJoinAddress(host, debugJoinPort);
             } else {
                 ok = nativeJoin();
             }
