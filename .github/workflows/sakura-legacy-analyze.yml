@@ -57,7 +57,7 @@ jobs:
           unzip -q legacy/dumper/Il2CppDumper.zip -d legacy/dumper/tool
 
           set +e
-          dotnet legacy/dumper/tool/Il2CppDumper.dll \
+          DOTNET_ROLL_FORWARD=Major dotnet legacy/dumper/tool/Il2CppDumper.dll \
             "$IL2CPP" "$META" "$PWD/legacy/dumper/out" \
             > legacy/dumper/dumper.log 2>&1
           CODE=$?
