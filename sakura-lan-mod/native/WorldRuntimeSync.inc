@@ -6,8 +6,8 @@ using WorldState = sakura_lan::WorldStatePayload;
 using WorldKind = sakura_lan::WorldKind;
 
 std::chrono::steady_clock::time_point gLastWorldMissionScan{}, gLastWorldVehicleScan{},
-    gLastWorldNpcScan{}, gLastWorldMissionKeyframe{}, gLastWorldNpcKeyframe{},
-    gWorldRuntimeStarted{};
+    gLastWorldNpcScan{}, gLastWorldWeatherScan{}, gLastWorldMissionKeyframe{},
+    gLastWorldNpcKeyframe{}, gLastWorldWeatherKeyframe{}, gWorldRuntimeStarted{};
 std::map<std::string, uint64_t> gWorldObserved;
 std::map<std::string, void*> gWorldVehicleObjects;
 std::map<std::string, uint8_t> gWorldVehicleOwner;
@@ -27,6 +27,7 @@ void* gVehicleControllerClass = nullptr;
 void* gAiCarDriverClass = nullptr;
 void* gCharacterStatusClass = nullptr;
 void* gHealthClass = nullptr;
+void* gWeatherClass = nullptr;
 
 bool read_named_object(void* klass, void* object, const char* name, void*& out) {
     out = nullptr;
@@ -76,6 +77,7 @@ bool resolve_world_runtime_classes() {
     if (!gAiCarDriverClass) gAiCarDriverClass = gApi.class_from_name(gAssembly, "", "AICarDriver");
     if (!gCharacterStatusClass) gCharacterStatusClass = gApi.class_from_name(gAssembly, "", "CharacterStatus");
     if (!gHealthClass) gHealthClass = gApi.class_from_name(gAssembly, "", "Health");
+    if (!gWeatherClass) gWeatherClass = gApi.class_from_name(gAssembly, "", "CanvasWeatherManager");
     return gTrophyManagerClass != nullptr;
 }
 
@@ -506,6 +508,75 @@ void apply_vehicle(const WorldState& state, int role) {
     invoke1(gApi, klass, transform, "set_rotation", &rotation);
 }
 
+
+bool world_go_active(void* go) {
+    bool active = false;
+    return unity_alive(go) &&
+        unbox_value(invoke0(gApi, gGameObjectClass, go, "get_activeInHierarchy"), active) &&
+        active;
+}
+
+void publish_weather(bool force) {
+    void* weather = world_instance(gWeatherClass, "CanvasWeatherManager");
+    if (!weather) return;
+    WorldState state{};
+    state.kind = WorldKind::WeatherState;
+    std::strncpy(state.entity, "weather:global", sizeof(state.entity)-1);
+    read_field(gWeatherClass, weather, "Rain", "System.Int32", state.value);
+    read_field(gWeatherClass, weather, "FogColorNum", "System.Int32", state.step);
+    read_field(gWeatherClass, weather, "FogDistance", "System.Single", state.amount);
+    read_field(gWeatherClass, weather, "RealFogDistance", "System.Single", state.amount2);
+    void* rain = nullptr;
+    void* snow = nullptr;
+    read_field(gWeatherClass, weather, "RainObj", "UnityEngine.GameObject", rain);
+    read_field(gWeatherClass, weather, "SnowObj", "UnityEngine.GameObject", snow);
+    if (world_go_active(rain)) state.flags |= 1u;
+    if (world_go_active(snow)) state.flags |= 2u;
+    publish_world_discrete(state, force);
+}
+
+void apply_weather(const WorldState& state) {
+    void* weather = world_instance(gWeatherClass, "CanvasWeatherManager");
+    if (!weather) return;
+
+    int32_t rainType = state.value;
+    if (state.flags & 1u) {
+        void* args[]{&rainType};
+        const char* types[]{"System.Int32"};
+        invoke(gApi, gWeatherClass, weather, "SetRain", 1, args, types);
+    } else {
+        invoke0(gApi, gWeatherClass, weather, "DestroyRainObj");
+    }
+
+    int32_t snowType = 1;
+    if (state.flags & 2u) {
+        void* args[]{&snowType};
+        const char* types[]{"System.Int32"};
+        invoke(gApi, gWeatherClass, weather, "SetSnow", 1, args, types);
+    } else {
+        invoke0(gApi, gWeatherClass, weather, "DestroySnowObj");
+    }
+
+    if (std::isfinite(state.amount)) {
+        float distance = state.amount;
+        void* args[]{&distance};
+        const char* types[]{"System.Single"};
+        invoke(gApi, gWeatherClass, weather, "SetFogDistance", 1, args, types);
+    }
+    write_field(gWeatherClass, weather, "FogColorNum", "System.Int32", state.step);
+    bool refresh = true;
+    void* refreshArgs[]{&refresh};
+    const char* boolType[]{"System.Boolean"};
+    invoke(gApi, gWeatherClass, weather, "SetFogRefresh", 1, refreshArgs, boolType);
+
+    if (std::isfinite(state.amount2)) {
+        float realDistance = state.amount2;
+        void* args[]{&realDistance};
+        const char* types[]{"System.Single"};
+        invoke(gApi, gWeatherClass, weather, "SetRealFogDistance", 1, args, types);
+    }
+}
+
 void apply_world_state(const WorldState& state, int role) {
     remember_world_state(state);
     if (state.kind == WorldKind::MissionState) {
@@ -519,12 +590,15 @@ void apply_world_state(const WorldState& state, int role) {
         apply_vehicle(state, role);
     } else if (state.kind == WorldKind::NpcState) {
         apply_npc_physical(state, role);
+    } else if (state.kind == WorldKind::WeatherState && role == 1) {
+        apply_weather(state);
     }
 }
 
 void reset_world_runtime_sync() {
     gLastWorldMissionScan = gLastWorldVehicleScan = gLastWorldNpcScan =
-        gLastWorldMissionKeyframe = gLastWorldNpcKeyframe = {};
+        gLastWorldWeatherScan = gLastWorldMissionKeyframe = gLastWorldNpcKeyframe =
+        gLastWorldWeatherKeyframe = {};
     gWorldRuntimeStarted = {};
     gWorldObserved.clear();
     gWorldVehicleObjects.clear();
@@ -544,6 +618,15 @@ void world_runtime_tick(void* systemManager) {
         now - gLastWorldVehicleScan >= std::chrono::milliseconds(role == 0 ? 100 : 50)) {
         publish_vehicles(systemManager, role);
         gLastWorldVehicleScan = now;
+    }
+
+    if (role == 0 && (!gLastWorldWeatherScan.time_since_epoch().count() ||
+        now - gLastWorldWeatherScan >= std::chrono::milliseconds(500))) {
+        const bool keyframe = !gLastWorldWeatherKeyframe.time_since_epoch().count() ||
+            now - gLastWorldWeatherKeyframe >= std::chrono::seconds(2);
+        publish_weather(keyframe);
+        if (keyframe) gLastWorldWeatherKeyframe = now;
+        gLastWorldWeatherScan = now;
     }
 
     WorldState incoming{};
