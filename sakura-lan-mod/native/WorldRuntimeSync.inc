@@ -1,4 +1,4 @@
-// Host-authoritative shared-world state. Mega-checkpoint integration. Personal data (Money, Likability,
+// Host-authoritative shared-world state. Mega-checkpoint integration build. Personal data (Money, Likability,
 // dialogue history and local appearance choices) deliberately never enters
 // this channel. Client changes are proposals; LanSession assigns canonical
 // revisions before the host applies/broadcasts them.
