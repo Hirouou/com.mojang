@@ -217,6 +217,7 @@ void LanSession::pump(int timeoutMs) {
         WorldStatePayload s{};
         if (!decodePayload(payload, h.payloadBytes, s) || s.sessionId != sessionId_ ||
             !std::memchr(s.entity, 0, sizeof(s.entity)) ||
+            !std::isfinite(s.amount) || !std::isfinite(s.amount2) ||
             !std::isfinite(s.position.x) || !std::isfinite(s.position.y) ||
             !std::isfinite(s.position.z)) return;
         if (s.kind == WorldKind::VehicleState) {
