@@ -59,7 +59,7 @@ jobs:
           tail -n 300 legacy/cpp2il/cpp2il.log
           test "$CODE" -eq 0
 
-      - name: Decompile selected gameplay types
+      - name: Decompile gameplay, world and localization types
         shell: bash
         run: |
           ASM="$(find legacy/cpp2il/out -type f -name Assembly-CSharp.dll | head -n1)"
@@ -73,12 +73,19 @@ jobs:
           ilspycmd "$ASM" -p -o legacy/decompiled > legacy/ilspy.log 2>&1
 
           find legacy/decompiled -type f -name '*.cs' -printf '%p\n' | sort > legacy/decompiled-files.txt
-          grep -RniE --include='*.cs'             'class (CharaMove|CharacterBaseManager|CharaMakeTPCManager|CanvasJoystickManager)|GameObject\.Find|Instantiate\(|SetActive\(|transform\.(position|rotation)|Animator|CharacterController'             legacy/decompiled | head -n 8000 > legacy/player-symbols.txt || true
+          grep -RniE --include='*.cs'             'class (CharaMove|CharacterBaseManager|CharaMakeTPCManager|CanvasJoystickManager|Localize|LocalizeUI|ButtonSetting)|GameObject\.Find|Instantiate\(|SetActive\(|transform\.(position|rotation)|Animator|CharacterController|Vehicle|Car|Bike|Traffic|Garage|Mission|Quest|Event|Money|Item|Pickup|GetItem|GameTime|Weather|Language|Localize|ChangeLanguage'             legacy/decompiled | head -n 8000 > legacy/player-symbols.txt || true
 
-          for n in CharaMove CharacterBaseManager CharaMakeTPCManager CanvasJoystickManager; do
+          for n in CharaMove CharacterBaseManager CharaMakeTPCManager CanvasJoystickManager Localize LocalizeUI ButtonSetting LanguageType; do
             p="$(find legacy/decompiled -type f -name "$n.cs" | head -n1 || true)"
             if [ -n "$p" ]; then cp "$p" "legacy/selected/$n.cs"; fi
           done
+
+          grep -RniE --include='*.cs' 'Vehicle|Car|Bike|Traffic|Garage|Ride|Mission|Quest|Event|Money|Item|Pickup|GetItem|GameTime|Weather|Language|Localize|ChangeLanguage' legacy/decompiled | head -n 16000 > legacy/world-symbols.txt || true
+          cut -d: -f1 legacy/world-symbols.txt | sort -u | head -n 200 > legacy/world-files.txt || true
+          while IFS= read -r p; do
+            [ -f "$p" ] || continue
+            cp "$p" "legacy/selected/world_$(basename "$p")"
+          done < legacy/world-files.txt
 
           find legacy/selected -type f -printf '%f %s\n' | sort
 
@@ -93,6 +100,8 @@ jobs:
             legacy/cpp2il/exit-code.txt
             legacy/ilspy.log
             legacy/player-symbols.txt
+            legacy/world-symbols.txt
+            legacy/world-files.txt
             legacy/decompiled-files.txt
             legacy/selected/
           if-no-files-found: error
