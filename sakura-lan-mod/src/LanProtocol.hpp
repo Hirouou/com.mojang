@@ -85,6 +85,7 @@ enum class WorldKind : uint8_t {
     MissionProgress = 5,
     WorldEvent = 6,
     NpcState = 7,
+    WeatherState = 8,
 };
 struct WorldStatePayload {
     uint32_t sessionId = 0;
