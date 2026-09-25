@@ -1,5 +1,5 @@
 // Included inside SafeRuntimeBridge's namespace: every Unity call stays on the
-// game thread. UDP callbacks only coalesce plain, bounded snapshot structures.
+// game thread. UDP callbacks only coalesce plain, bounded snapshot structures.\n// Mega-checkpoint: appearance descriptors rebuild remote-only topology.
 using VisualState = sakura_lan::VisualStatePayload;
 using VisualKind = sakura_lan::VisualKind;
 
