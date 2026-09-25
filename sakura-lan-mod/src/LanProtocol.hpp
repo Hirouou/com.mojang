@@ -123,6 +123,7 @@ enum class VisualKind : uint8_t {
     Node = 3,
     Material = 4,
     AnimatorParameter = 5,
+    Appearance = 6,
 };
 struct VisualStatePayload {
     uint32_t sessionId = 0;
@@ -149,6 +150,9 @@ struct VisualStatePayload {
     uint8_t parameterReserved[3]{};
     float parameterFloat = 0;
     int32_t parameterInt = 0;
+    // Per-player appearance descriptor. These values are never treated as
+    // shared-world state; they only rebuild the remote avatar.
+    int32_t appearance[15]{};
     float color[4]{1, 1, 1, 1};
 };
 #pragma pack(pop)
