@@ -17,7 +17,7 @@ if (-not (Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled) {
     exit 1
 }
 $check = & $emulator -accel-check 2>&1
-if ($LASTEXITCODE -ne 0) { throw "A aceleração do emulador não está disponível: $check" }
+if (($check -join "`n") -notmatch '(?m)^0\s*$') { throw "A aceleração do emulador não está disponível: $check" }
 
 foreach ($spec in @(@('SakuraHost', '5554'), @('SakuraClient', '5556'))) {
     $name, $port = $spec
