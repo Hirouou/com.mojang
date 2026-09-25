@@ -1,4 +1,4 @@
-param([switch]$SkipInstall)
+param([switch]$SkipInstall, [switch]$ForceInstall)
 $ErrorActionPreference = 'Stop'
 $root = 'D:\SakuraLAN'
 $sdk = Join-Path $root 'sdk'
@@ -48,16 +48,28 @@ foreach ($port in @('5554', '5556')) {
         }
     }
 }
-if (-not $SkipInstall) {
-    foreach ($file in $files) { if (-not (Test-Path $file)) { throw "Falta APK assinado: $file" } }
+$marker = Join-Path $apks 'installed-base.sha256'
+foreach ($file in $files) { if (-not (Test-Path $file)) { throw "Falta APK assinado: $file" } }
+$baseHash = (Get-FileHash $files[0] -Algorithm SHA256).Hash
+$installedHash = if (Test-Path $marker) { (Get-Content $marker -Raw).Trim() } else { '' }
+$bothInstalled = @('5554', '5556') | ForEach-Object {
+    @(& $adb -s "emulator-$_" shell pm path jp.garud.ssimulator 2>$null).Count -ge 3
+}
+$installNeeded = -not $SkipInstall -and ($ForceInstall -or $installedHash -ne $baseHash -or ($bothInstalled -contains $false))
+if ($installNeeded) {
     foreach ($port in @('5554', '5556')) {
         & $adb -s "emulator-$port" shell am force-stop jp.garud.ssimulator | Out-Null
         & $adb -s "emulator-$port" install-multiple -r $files
         if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar APKs em emulator-$port" }
     }
+    Set-Content -Path $marker -Value $baseHash -Encoding ascii
 }
-if ((& $adb -s emulator-5554 emu redir list) -notmatch 'udp:38556') {
+$redirections = (& $adb -s emulator-5554 emu redir list) -join "`n"
+if ($redirections -notmatch 'udp:38556') {
     & $adb -s emulator-5554 emu redir add udp:38556:38556
+}
+foreach ($port in @('5554', '5556')) {
+    & $adb -s "emulator-$port" shell am force-stop jp.garud.ssimulator | Out-Null
 }
 & $adb -s emulator-5554 shell am start -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity --es sakuralan_mode host --ez sakuralan_ci_pose true
 & $adb -s emulator-5556 shell am start -n jp.garud.ssimulator/jp.garud.ssimulator.SakuraLanActivity --es sakuralan_mode join --es sakuralan_host 10.0.2.2 --ei sakuralan_port 38556 --ez sakuralan_ci_pose true

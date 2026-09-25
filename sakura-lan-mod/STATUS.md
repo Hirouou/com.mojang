@@ -59,6 +59,25 @@ Branch: `agent/sakura-lan-20260919`.
 - Usam-se dois usuários Android no mesmo emulador. Alternar o usuário pausa a
   renderização do outro jogo; esse teste não substitui dois celulares simultâneos.
 
+## Teste local em 25/09/2026
+
+- Duas AVDs Android 11 independentes executaram simultaneamente o mesmo conjunto
+  de APKs ARMv7. Host e Client entraram no mapa por IP direto com UDP 38556
+  encaminhado pelo emulador. Os logs confirmaram `NET DIRECT JOIN OK`,
+  `ARMHOOK REMOTE CREATED` e `ARMHOOK REMOTE APPLY` nos dois processos.
+- As capturas e a inspeção durante o jogo não mostraram o personagem remoto.
+  `Transform.GetSiblingIndex/0` aparece como método ausente nos logs. Portanto,
+  criação do clone e aplicação de posição ainda não validam o multiplayer visual.
+- O usuário observou que o carro rosa dirigido numa instância continuou na
+  garagem da outra. Um carro azul apareceu em momentos e posições diferentes nas
+  duas instâncias; isso é compatível com simulações locais independentes, não
+  com sincronização de veículos ou NPCs.
+- Para testes nas AVDs, o script de início bloqueia HTTP/HTTPS de saída dentro
+  dos emuladores, mantendo UDP LAN. Ambos entraram no mapa sem anúncio nessa
+  configuração. Isso não altera o APK para remover anúncios em celulares reais.
+- O menu SAKURA LAN foi ajustado para exibir Host, Client e IP opcional em 720p.
+  A versão atualizada foi instalada e conferida nas duas AVDs.
+
 ## Critérios para confirmar gameplay
 
 1. Ausência de crash/tombstone após `ARMHOOK READY` e `ARMHOOK worker detached`.
