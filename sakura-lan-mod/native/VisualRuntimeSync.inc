@@ -185,15 +185,17 @@ void send_visual(VisualEntity& entity) {
                 visual_packet(entity, &node, VisualKind::AnimatorParameter);
             parameterState.parameterHash = hash;
             parameterState.parameterType = static_cast<uint8_t>(type);
+            const char* hashType[]{"System.Int32"};
+            void* hashArg[]{&hash};
             if (type == 1) { // AnimatorControllerParameterType.Float
-                if (!unbox_value(invoke1(gApi, klass, node.animator, "GetFloat", &hash),
+                if (!unbox_value(invoke(gApi, klass, node.animator, "GetFloat", 1, hashArg, hashType),
                                  parameterState.parameterFloat)) continue;
             } else if (type == 3) { // Int
-                if (!unbox_value(invoke1(gApi, klass, node.animator, "GetInteger", &hash),
+                if (!unbox_value(invoke(gApi, klass, node.animator, "GetInteger", 1, hashArg, hashType),
                                  parameterState.parameterInt)) continue;
             } else if (type == 4) { // Bool
                 bool value = false;
-                if (!unbox_value(invoke1(gApi, klass, node.animator, "GetBool", &hash), value)) continue;
+                if (!unbox_value(invoke(gApi, klass, node.animator, "GetBool", 1, hashArg, hashType), value)) continue;
                 parameterState.parameterInt = value ? 1 : 0;
             } else {
                 // Triggers are intentionally not replayed as parameters: the
