@@ -20,6 +20,7 @@ enum class PacketType : uint8_t {
     Leave = 8,
     VisualState = 9,
     SessionState = 10,
+    WorldState = 11,
 };
 
 #pragma pack(push, 1)
@@ -71,6 +72,28 @@ struct SessionStatePayload {
     int32_t week = 0;
     Vec3 spawn{};
     Quat facing{};
+};
+
+// Host-authoritative persistent world mutations. This channel is deliberately
+// separate from visual snapshots: late joiners need the latest object/mission
+// state, not a replay of old packets.
+enum class WorldKind : uint8_t {
+    ObjectActive = 1,
+    ItemTaken = 2,
+    MissionState = 3,
+    VehicleState = 4,
+};
+struct WorldStatePayload {
+    uint32_t sessionId = 0;
+    uint32_t revision = 0;
+    WorldKind kind = WorldKind::ObjectActive;
+    uint8_t active = 1;
+    uint8_t occupiedBy = 255;
+    uint8_t reserved = 0;
+    char entity[192]{};
+    int32_t value = 0;
+    Vec3 position{};
+    Quat rotation{};
 };
 
 struct PlayerStatePayload {
