@@ -80,6 +80,22 @@ Branch: `agent/sakura-lan-20260919`.
 
 ## Critérios para confirmar gameplay
 
+### Crash de entrada em 25/09/2026
+
+- Client (09:30 UTC) e Host (09:34 UTC) sofreram SIGSEGV na thread do bridge,
+  durante a inicialização do Unity, após conexão/criação de sala bem-sucedida.
+  Os tombstones mostram a mesma passagem por `ndk_translation::DoThunk__setjmp`.
+- O timer do bridge começava no carregamento da tela LAN. Nos dois crashes,
+  expirou aproximadamente um segundo após abrir o jogo; uma espera longa no
+  menu consumia a margem de inicialização. A causa nativa exata ainda não foi
+  simbolizada.
+- A mitigação inicia o worker uma única vez após `onActivityResumed` da Activity
+  original do jogo e conta a margem de 12 segundos a partir desse momento.
+  Isso elimina o tempo gasto no menu LAN da contagem, mas ainda depende de uma
+  margem temporal; validação local da nova build pendente.
+- O workflow agora gera os APKs sem executar o teste inválido com dois usuários
+  na mesma AVD. Compilação aprovada não significa gameplay aprovado.
+
 1. Ausência de crash/tombstone após `ARMHOOK READY` e `ARMHOOK worker detached`.
 2. Host e Client entram no mapa, criam o remoto e aplicam estados continuamente.
 3. Screenshots reais `host-two-players.png` e `client-two-players.png` mostram dois

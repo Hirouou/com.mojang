@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <pthread.h>
+#include <jni.h>
 #include <string>
 #include <thread>
 #include <unistd.h>
@@ -861,10 +862,11 @@ bool install_chara_update_hook() {
 }
 
 void* worker(void*) {
-    LOGI("ARMHOOK worker delayed");
+    LOGI("ARMHOOK worker delayed after game resume");
     sleep(12);
 
     if (!load_api(gApi)) return nullptr;
+    LOGI("ARMHOOK API loaded");
 
     void* domain = nullptr;
     for (int i = 0; i < 600 && !domain; ++i) {
@@ -875,8 +877,10 @@ void* worker(void*) {
         LOGE("ARMHOOK domain unavailable");
         return nullptr;
     }
+    LOGI("ARMHOOK domain available; attaching worker");
     void* attached = gApi.thread_attach(domain);
     if (!attached) return nullptr;
+    LOGI("ARMHOOK worker attached");
     // IL2CPP/GC must stop tracking this pthread before its stack is unmapped.
     // The old worker returned immediately after READY while still attached.
     struct DetachOnExit {
@@ -905,13 +909,20 @@ void* worker(void*) {
 
 } // namespace
 
-__attribute__((constructor))
-static void sakura_lan_safe_bridge_init() {
-    LOGI("ARMHOOK library bridge init");
+// Loading the LAN menu must not start touching IL2CPP. A user can remain there
+// indefinitely; the old constructor timer could expire during Unity startup.
+// Start the existing grace period only after the game Activity has resumed.
+extern "C" __attribute__((visibility("default")))
+JNIEXPORT void JNICALL
+Java_jp_garud_ssimulator_SakuraLanActivity_nativeGameResumed(JNIEnv*, jclass) {
+    static std::atomic<bool> started{false};
+    if (started.exchange(true)) return;
+    LOGI("ARMHOOK game resumed; starting bridge");
     pthread_t t{};
     if (pthread_create(&t, nullptr, worker, nullptr) == 0) {
         pthread_detach(t);
     } else {
+        started.store(false);
         LOGE("ARMHOOK pthread_create failed");
     }
 }

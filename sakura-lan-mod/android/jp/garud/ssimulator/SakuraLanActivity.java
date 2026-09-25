@@ -1,6 +1,7 @@
 package jp.garud.ssimulator;
 
 import android.app.Activity;
+import android.app.Application;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -28,6 +29,7 @@ public final class SakuraLanActivity extends Activity {
     private static native int nativeJoinAddress(String host, int port);
     private static native int nativeConnected();
     private static native void nativeSetCiPose(boolean enabled);
+    private static native void nativeGameResumed();
 
     private LinearLayout root;
     private TextView status;
@@ -209,7 +211,28 @@ public final class SakuraLanActivity extends Activity {
             Intent game = new Intent();
             game.setClassName(getPackageName(), className);
             game.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(game);
+            final String gameClass = className;
+            final Application app = getApplication();
+            Application.ActivityLifecycleCallbacks callbacks = new Application.ActivityLifecycleCallbacks() {
+                @Override public void onActivityResumed(Activity activity) {
+                    if (!activity.getClass().getName().equals(gameClass)) return;
+                    app.unregisterActivityLifecycleCallbacks(this);
+                    nativeGameResumed();
+                }
+                @Override public void onActivityCreated(Activity a, Bundle b) {}
+                @Override public void onActivityStarted(Activity a) {}
+                @Override public void onActivityPaused(Activity a) {}
+                @Override public void onActivityStopped(Activity a) {}
+                @Override public void onActivitySaveInstanceState(Activity a, Bundle b) {}
+                @Override public void onActivityDestroyed(Activity a) {}
+            };
+            app.registerActivityLifecycleCallbacks(callbacks);
+            try {
+                startActivity(game);
+            } catch (Throwable error) {
+                app.unregisterActivityLifecycleCallbacks(callbacks);
+                throw error;
+            }
             finish();
         } catch (Throwable t) {
             setBusy(false, "Erro ao abrir o Sakura: " + t.getClass().getSimpleName());
