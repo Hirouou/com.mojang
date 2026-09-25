@@ -1,4 +1,32 @@
 // Executed from FadeManager.OnGUI on Unity's main thread, including the title.
+
+// Conservative Android performance preset. Mobile Unity defaults commonly
+// settle at 30 fps when targetFrameRate is left at -1. Keep shadows enabled,
+// request 60 fps, and avoid changing simulation timeScale/fixedDeltaTime.
+void apply_sakura_performance_defaults() {
+    static bool applied = false;
+    if (applied || !gUnityCore) return;
+    void* application = gApi.class_from_name(gUnityCore, "UnityEngine", "Application");
+    void* quality = gApi.class_from_name(gUnityCore, "UnityEngine", "QualitySettings");
+    if (!application || !quality) return;
+
+    int32_t fps = 60;
+    invoke1(gApi, application, nullptr, "set_targetFrameRate", &fps);
+
+    // ShadowQuality.All = 2. Preserve the game's lighting instead of using the
+    // usual "optimization" trick of disabling shadows.
+    int32_t shadows = 2;
+    invoke1(gApi, quality, nullptr, "set_shadows", &shadows);
+
+    // A moderate distance keeps nearby characters/vehicles grounded visually
+    // without paying to render distant dynamic shadows across the whole town.
+    float shadowDistance = 55.0f;
+    invoke1(gApi, quality, nullptr, "set_shadowDistance", &shadowDistance);
+
+    applied = true;
+    LOGI("PERF DEFAULT targetFps=60 shadows=all shadowDistance=55");
+}
+
 // Verified against 1.043.04 metadata and original ButtonStart's scene-loading path.
 std::chrono::steady_clock::time_point gLastSessionTick{}, gLastSessionSend{};
 uint32_t gWorldRevision = 0, gClientSpawnRevision = 0;
@@ -73,6 +101,7 @@ void session_tick(void*) {
     if (gLastSessionTick.time_since_epoch().count() && now - gLastSessionTick < std::chrono::milliseconds(50)) return;
     gLastSessionTick = now;
     if (!resolve_runtime_classes()) return;
+    apply_sakura_performance_defaults();
     if (!gSystemClass) gSystemClass = gApi.class_from_name(gAssembly, "", "SystemManager");
     const int role = sakuralan_net_local_player_id();
     if (role < 0) return;
