@@ -33,7 +33,9 @@ tap_fraction() {
   a="${size%x*}"
   b="${size#*x}"
   if (( a > b )); then w="$a"; h="$b"; else w="$b"; h="$a"; fi
-  adb shell input tap "$((w*x/1000))" "$((h*y/1000))"
+  # Hold DOWN across a frame even when ARM translation renders below 5 FPS.
+  adb shell input touchscreen swipe "$((w*x/1000))" "$((h*y/1000))" \
+    "$((w*x/1000))" "$((h*y/1000))" 1000
 }
 
 unlock_user() {
@@ -52,8 +54,11 @@ enter_map() {
   sleep 60
   adb exec-out screencap -p > "$OUT/$role-main-menu.png"
   before="$(adb logcat --pid="$pid" -d -v brief -s SakuraLAN | grep -c 'ARMHOOK UPDATE' || true)"
+  tap_fraction 687 110
+  sleep 3
   tap_fraction 515 465
-  sleep 2
+  sleep 5
+  adb exec-out screencap -p > "$OUT/$role-after-new-game.png"
   tap_fraction 500 480
 
   for attempt in $(seq 1 50); do
