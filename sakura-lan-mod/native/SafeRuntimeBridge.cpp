@@ -446,12 +446,17 @@ void make_visual_replica(void* clone, bool stripScripts) {
             bool on = true;
             invoke1(gApi, klass, component, "set_updateWhenOffscreen", &on);
         } else if (derives_from(klass, "MonoBehaviour")) {
-            if (stripScripts && std::strcmp(name, "CharacterStatus") != 0) {
+            const bool appearanceSupport =
+                std::strcmp(name, "CharacterStatus") == 0 ||
+                std::strcmp(name, "Fly") == 0 ||
+                std::strcmp(name, "JetPackFire") == 0 ||
+                std::strcmp(name, "JetPackOpenClose") == 0;
+            if (stripScripts && !appearanceSupport) {
                 invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
             } else {
-                // Keep CharacterStatus as disabled data on the render-only
-                // replica. Sakura's own appearance helpers expect this
-                // component when swapping hair/accessories/clothing.
+                // Keep only inert data/visual helpers used to rebuild the
+                // independent remote appearance. They remain disabled so the
+                // replica never starts local movement/gameplay logic.
                 invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
             }
         } else if (std::strcmp(name, "Camera") == 0 ||
