@@ -201,6 +201,18 @@ void LanSession::pump(int timeoutMs) {
             !std::memchr(s.asset, 0, sizeof(s.asset))) return;
         if (onVisualState) onVisualState(s);
     }
+    if (h.type == PacketType::WorldState && connected_) {
+        WorldStatePayload s{};
+        if (!decodePayload(payload, h.payloadBytes, s) || s.sessionId != sessionId_ ||
+            !std::memchr(s.entity, 0, sizeof(s.entity)) ||
+            !std::isfinite(s.position.x) || !std::isfinite(s.position.y) ||
+            !std::isfinite(s.position.z)) return;
+        const float norm = s.rotation.x*s.rotation.x + s.rotation.y*s.rotation.y +
+                           s.rotation.z*s.rotation.z + s.rotation.w*s.rotation.w;
+        if (!std::isfinite(norm) || norm < 0.5f || norm > 1.5f) return;
+        if (onWorldState) onWorldState(s);
+        return;
+    }
     if (h.type == PacketType::PlayerState && connected_) {
         PlayerStatePayload s{};
         if (!decodePayload(payload, h.payloadBytes, s) || s.sessionId != sessionId_ ||
@@ -238,3 +250,10 @@ void LanSession::sendSessionState(const SessionStatePayload& in) {
 }
 
 } // namespace sakura_lan
+
+void LanSession::sendWorldState(const WorldStatePayload& in) {
+    if (!connected_ || mode_ == Mode::Offline) return;
+    WorldStatePayload s = in;
+    s.sessionId = sessionId_;
+    sendPacket(game_, sendPeer_, PacketType::WorldState, &s, sizeof(s));
+}
