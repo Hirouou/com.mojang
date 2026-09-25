@@ -23,6 +23,8 @@ std::atomic<bool> gHasRemote{false};
 using VisualKey = std::tuple<uint8_t, std::string, std::string, uint8_t, int32_t>;
 std::map<VisualKey, sakura_lan::VisualStatePayload> gVisualPending;
 std::map<VisualKey, uint32_t> gVisualSequence;
+std::map<std::string, sakura_lan::WorldStatePayload> gWorldLatest;
+std::map<std::string, sakura_lan::WorldStatePayload> gWorldPending;
 std::atomic<bool> gCallbacksConfigured{false};
 std::atomic<bool> gPumpRunning{false};
 std::atomic<bool> gCiPose{false};
@@ -54,6 +56,15 @@ void ensure_callbacks() {
         if (previous == gVisualSequence.end() && gVisualSequence.size() >= 4096) return;
         gVisualSequence[key] = state.sequence;
         gVisualPending[key] = state; // Coalesce; never call Unity from UDP thread.
+    };
+
+    gSession.onWorldState = [](const sakura_lan::WorldStatePayload& state) {
+        std::lock_guard<std::mutex> lock(gRemoteMutex);
+        const std::string key = std::to_string(static_cast<int>(state.kind)) + ":" + state.entity;
+        auto it = gWorldLatest.find(key);
+        if (it != gWorldLatest.end() && state.revision < it->second.revision) return;
+        gWorldLatest[key] = state;
+        gWorldPending[key] = state;
     };
 
     gSession.onRemoteState = [](const sakura_lan::PlayerStatePayload& state) {
@@ -100,6 +111,8 @@ void reset_remote_state() {
     gRemote = {};
     gVisualPending.clear();
     gVisualSequence.clear();
+    gWorldLatest.clear();
+    gWorldPending.clear();
     gHostSnapshot = {};
     gHostSnapshotTime = {};
 }
@@ -243,6 +256,24 @@ int sakuralan_net_local_player_id() {
 extern "C" __attribute__((visibility("default")))
 int sakuralan_net_ci_pose() {
     return gCiPose.load() ? 1 : 0;
+}
+
+extern "C" __attribute__((visibility("default")))
+void sakuralan_net_send_world(const sakura_lan::WorldStatePayload* state) {
+    if (!state) return;
+    std::lock_guard<std::mutex> lock(gSessionMutex);
+    gSession.sendWorldState(*state);
+}
+
+extern "C" __attribute__((visibility("default")))
+int sakuralan_net_take_world(sakura_lan::WorldStatePayload* state) {
+    if (!state) return 0;
+    std::lock_guard<std::mutex> lock(gRemoteMutex);
+    if (gWorldPending.empty()) return 0;
+    auto it = gWorldPending.begin();
+    *state = it->second;
+    gWorldPending.erase(it);
+    return 1;
 }
 
 extern "C" __attribute__((visibility("default")))
