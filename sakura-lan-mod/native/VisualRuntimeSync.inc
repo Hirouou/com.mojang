@@ -301,9 +301,24 @@ void apply_visual(VisualEntity& entity, const VisualState& state) {
         const char* hasTypes[]{"System.Int32", "System.Int32"};
         bool hasState = false;
         if (!unbox_value(invoke(gApi, klass, node.animator, "HasState", 2, hasArgs, hasTypes), hasState) || !hasState) return;
-        void* args[]{&hash, &layer, &time};
-        const char* types[]{"System.Int32", "System.Int32", "System.Single"};
-        invoke(gApi, klass, node.animator, "Play", 3, args, types);
+        // Do not restart the same state on every network snapshot. Repeated
+        // Animator.Play calls can pin blend trees and make locomotion look like
+        // sliding. Only seek when the remote actually changed state; float/int/
+        // bool parameters then drive the active blend tree continuously.
+        bool seek = true;
+        void* current = invoke1(gApi, klass, node.animator, "GetCurrentAnimatorStateInfo", &layer);
+        if (current) {
+            void* currentClass = gApi.object_get_class(current);
+            void* currentValue = gApi.object_unbox(current);
+            int32_t currentHash = 0;
+            if (unbox_value(invoke0(gApi, currentClass, currentValue, "get_fullPathHash"), currentHash) &&
+                currentHash == hash) seek = false;
+        }
+        if (seek) {
+            void* args[]{&hash, &layer, &time};
+            const char* types[]{"System.Int32", "System.Int32", "System.Single"};
+            invoke(gApi, klass, node.animator, "Play", 3, args, types);
+        }
         invoke1(gApi, klass, node.animator, "set_speed", &speed);
         void* weightArgs[]{&layer, &weight};
         invoke(gApi, klass, node.animator, "SetLayerWeight", 2, weightArgs);
@@ -379,11 +394,11 @@ void visual_sync_tick() {
         }
         lastHierarchyRefresh = now;
     }
-    if (gLastNpcScan.time_since_epoch().count() == 0 || now - gLastNpcScan >= std::chrono::seconds(3)) {
+    if (gLastNpcScan.time_since_epoch().count() == 0 || now - gLastNpcScan >= std::chrono::milliseconds(500)) {
         scan_visual_npcs();
         gLastNpcScan = now;
     }
-    if (gLastVisualSend.time_since_epoch().count() == 0 || now - gLastVisualSend >= std::chrono::milliseconds(100)) {
+    if (gLastVisualSend.time_since_epoch().count() == 0 || now - gLastVisualSend >= std::chrono::milliseconds(50)) {
         send_visual(gVisualLocal);
         if (sakuralan_net_local_player_id() == 0)
             for (auto& entry : gVisualNpcs) send_visual(entry.second);
