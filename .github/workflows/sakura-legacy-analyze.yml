@@ -43,34 +43,44 @@ jobs:
           echo "metadata_magic=$(xxd -p -l 16 "$META")" | tee -a legacy/env.txt
           echo "exports=$(nm -D --defined-only "$IL2CPP" | grep -c ' il2cpp_' || true)" | tee -a legacy/env.txt
 
-      - name: Run Cpp2IL
+      - name: Dump IL2CPP metadata
+        id: dump
+        continue-on-error: true
         shell: bash
         run: |
           source legacy/env.txt
-          mkdir -p legacy/cpp2il/out
-          curl -L --fail --retry 3             -o legacy/cpp2il/Cpp2IL             https://github.com/SamboyCoding/Cpp2IL/releases/download/2022.1.0-pre-release.21/Cpp2IL-2022.1.0-pre-release.21-Linux
-          chmod +x legacy/cpp2il/Cpp2IL
+          mkdir -p legacy/dumper legacy/dumper/out
+          strings -a "$META" > legacy/metadata-strings.txt || true
+          curl -L --fail --retry 3 \
+            -o legacy/dumper/Il2CppDumper.zip \
+            https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.46/Il2CppDumper-net6-v6.7.46.zip
+          unzip -q legacy/dumper/Il2CppDumper.zip -d legacy/dumper/tool
 
           set +e
-          NO_COLOR=1 legacy/cpp2il/Cpp2IL             --force-binary-path="$IL2CPP"             --force-metadata-path="$META"             --force-unity-version="$VERSION"             --output-as dummydll             --output-to="$PWD/legacy/cpp2il/out"             --verbose             > legacy/cpp2il/cpp2il.log 2>&1
+          dotnet legacy/dumper/tool/Il2CppDumper.dll \
+            "$IL2CPP" "$META" "$PWD/legacy/dumper/out" \
+            > legacy/dumper/dumper.log 2>&1
           CODE=$?
           set -e
-          echo "$CODE" > legacy/cpp2il/exit-code.txt
-          tail -n 300 legacy/cpp2il/cpp2il.log
+          echo "$CODE" > legacy/dumper/exit-code.txt
+          tail -n 300 legacy/dumper/dumper.log || true
           test "$CODE" -eq 0
 
       - name: Decompile gameplay, world and localization types
+        if: always()
         shell: bash
         run: |
-          ASM="$(find legacy/cpp2il/out -type f -name Assembly-CSharp.dll | head -n1)"
-          test -n "$ASM"
+          ASM="$(find legacy/dumper/out -type f -name Assembly-CSharp.dll | head -n1 || true)"
           echo "assembly=$ASM" | tee legacy/assembly-path.txt
-
-          dotnet tool install --global ilspycmd
-          export PATH="$PATH:$HOME/.dotnet/tools"
           mkdir -p legacy/decompiled legacy/selected
 
-          ilspycmd "$ASM" -p -o legacy/decompiled > legacy/ilspy.log 2>&1
+          if [ -n "$ASM" ]; then
+            dotnet tool install --global ilspycmd
+            export PATH="$PATH:$HOME/.dotnet/tools"
+            ilspycmd "$ASM" -p -o legacy/decompiled > legacy/ilspy.log 2>&1
+          else
+            echo "Assembly-CSharp.dll was not generated; retaining raw metadata strings for inspection." | tee legacy/ilspy.log
+          fi
 
           find legacy/decompiled -type f -name '*.cs' -printf '%p\n' | sort > legacy/decompiled-files.txt
           grep -RniE --include='*.cs'             'class (CharaMove|CharacterBaseManager|CharaMakeTPCManager|CanvasJoystickManager|Localize|LocalizeUI|ButtonSetting)|GameObject\.Find|Instantiate\(|SetActive\(|transform\.(position|rotation)|Animator|CharacterController|Vehicle|Car|Bike|Traffic|Garage|Mission|Quest|Event|Money|Item|Pickup|GetItem|GameTime|Weather|Language|Localize|ChangeLanguage'             legacy/decompiled | head -n 8000 > legacy/player-symbols.txt || true
@@ -90,14 +100,18 @@ jobs:
           find legacy/selected -type f -printf '%f %s\n' | sort
 
       - name: Upload legacy analysis
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sakura-legacy-104304-analysis
           path: |
             legacy/env.txt
             legacy/assembly-path.txt
-            legacy/cpp2il/cpp2il.log
-            legacy/cpp2il/exit-code.txt
+            legacy/dumper/dumper.log
+            legacy/dumper/exit-code.txt
+            legacy/dumper/out/dump.cs
+            legacy/dumper/out/script.json
+            legacy/metadata-strings.txt
             legacy/ilspy.log
             legacy/player-symbols.txt
             legacy/world-symbols.txt
