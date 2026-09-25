@@ -243,6 +243,14 @@ void acquire_npc_replica(VisualEntity& entity) {
         const char* setter = nullptr;
         bool value = false;
         if (derives_from(klass, "MonoBehaviour")) {
+            // Social state is intentionally per-player. Keep the NPC's local
+            // CharacterStatus/Likability and chat presentation alive while
+            // suspending movement/AI scripts that would fight the host pose.
+            if (std::strcmp(name, "CharacterStatus") == 0 ||
+                std::strcmp(name, "ChatEvent") == 0 ||
+                std::strcmp(name, "ChatChange") == 0) {
+                continue;
+            }
             getter = "get_enabled"; setter = "set_enabled";
         } else if (std::strcmp(name, "Animator") == 0) {
             getter = "get_applyRootMotion"; setter = "set_applyRootMotion";
