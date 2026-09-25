@@ -83,8 +83,9 @@ void patch_localize_group(void* instance, const char* getter, const char* group,
         const std::string cacheKey = ptbr_original_key(group, word, key);
         if (enable) {
             if (!gPtBrOriginalEnglish.count(cacheKey)) gPtBrOriginalEnglish[cacheKey] = english;
-            const char* translated = ptbr_lookup(group, key, english);
-            if (translated) write_ref_field_raw(klass, word, "English", gApi.string_new(translated));
+            const std::string translated = ptbr_translate(group, key, english);
+            if (!translated.empty())
+                write_ref_field_raw(klass, word, "English", gApi.string_new(translated.c_str()));
         } else {
             auto it = gPtBrOriginalEnglish.find(cacheKey);
             if (it != gPtBrOriginalEnglish.end())
@@ -106,8 +107,9 @@ void patch_localize_ui_strings(bool enable) {
             std::to_string(reinterpret_cast<uintptr_t>(ui));
         if (enable) {
             if (!gPtBrOriginalEnglish.count(cacheKey)) gPtBrOriginalEnglish[cacheKey] = english;
-            const char* translated = ptbr_lookup("*", "", english);
-            if (translated) write_ref_field_raw(klass, ui, "strEng", gApi.string_new(translated));
+            const std::string translated = ptbr_translate("*", "", english);
+            if (!translated.empty())
+                write_ref_field_raw(klass, ui, "strEng", gApi.string_new(translated.c_str()));
         } else {
             auto it = gPtBrOriginalEnglish.find(cacheKey);
             if (it != gPtBrOriginalEnglish.end())
