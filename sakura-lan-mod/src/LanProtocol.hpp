@@ -5,7 +5,7 @@
 namespace sakura_lan {
 
 static constexpr uint32_t kMagic = 0x534B4C4Eu; // SKLN
-static constexpr uint16_t kProtocolVersion = 2;
+static constexpr uint16_t kProtocolVersion = 3;
 static constexpr uint16_t kDiscoveryPort = 38555;
 static constexpr uint16_t kGamePort = 38556;
 
@@ -19,6 +19,7 @@ enum class PacketType : uint8_t {
     Pong = 7,
     Leave = 8,
     VisualState = 9,
+    SessionState = 10,
 };
 
 #pragma pack(push, 1)
@@ -55,6 +56,21 @@ struct JoinAcceptPayload {
 
 struct Vec3 { float x=0, y=0, z=0; };
 struct Quat { float x=0, y=0, z=0, w=1; };
+
+// Host-authoritative entry snapshot. The client stays in the title until the
+// host has a playable character, then loads the supported map and applies it.
+struct SessionStatePayload {
+    uint32_t sessionId = 0;
+    uint32_t revision = 0;
+    uint8_t ready = 0;
+    uint8_t reserved[3]{};
+    char scene[64]{};
+    float gameTime = 0;
+    int32_t day = 0;
+    int32_t week = 0;
+    Vec3 spawn{};
+    Quat facing{};
+};
 
 struct PlayerStatePayload {
     uint32_t sessionId = 0;

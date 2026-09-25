@@ -21,6 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify LAN protocol and ARM relay
+        run: |
+          cmake -S sakura-lan-mod -B sakura-lan-mod/core-build
+          cmake --build sakura-lan-mod/core-build --parallel
+          ctest --test-dir sakura-lan-mod/core-build --output-on-failure
+
       - name: Build ARMv7 injected library
         run: |
           cmake -S sakura-lan-mod/native -B sakura-lan-mod/legacy-fast/native-build \

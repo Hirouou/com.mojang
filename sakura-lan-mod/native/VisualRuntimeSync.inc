@@ -56,11 +56,19 @@ std::string visual_path(void* transform, void* root = nullptr) {
         void* klass = gApi.object_get_class(transform);
         const std::string name = string_utf8(invoke0(gApi, gObjectClass, transform, "get_name"));
         int32_t sibling = 0;
-        unbox_value(invoke0(gApi, klass, transform, "GetSiblingIndex"), sibling);
+        void* parent = invoke0(gApi, klass, transform, "get_parent");
+        // GetSiblingIndex is stripped in 1.043.04. Enumerate the parent's
+        // children instead, preserving duplicate-name identity on both peers.
+        if (parent) {
+            int32_t count = 0;
+            unbox_value(invoke0(gApi, klass, parent, "get_childCount"), count);
+            for (int32_t i = 0; i < std::min(count, 4096); ++i)
+                if (invoke1(gApi, klass, parent, "GetChild", &i) == transform) { sibling = i; break; }
+        }
         // Length prefix avoids collisions from '/' and ':' in object names.
         path = std::to_string(name.size()) + ":" + name + ":" +
                std::to_string(sibling) + "/" + path;
-        transform = invoke0(gApi, klass, transform, "get_parent");
+        transform = parent;
     }
     return path;
 }
@@ -109,7 +117,7 @@ void scan_visual_npcs() {
     for (void* move : array_objects(invoke1(gApi, gObjectClass, nullptr, "FindObjectsOfType", type))) {
         if (move == gLocalMove.load()) continue;
         void* go = invoke0(gApi, gComponentClass, move, "get_gameObject");
-        if (!go || go == gRemoteGameObject) continue;
+        if (!go || go == gRemoteGameObject || go == gLocalGameObject) continue;
         std::string name = string_utf8(invoke0(gApi, gObjectClass, go, "get_name"));
         if (name.find("Player") != std::string::npos || name.find("SAKURA_LAN_") != std::string::npos) continue;
         void* transform = invoke0(gApi, gGameObjectClass, go, "get_transform");

@@ -30,6 +30,8 @@ void sakuralan_net_send_state(float px, float py, float pz,
 int sakuralan_net_take_remote(float* out13);
 void sakuralan_net_send_visual(const sakura_lan::VisualStatePayload*);
 int sakuralan_net_take_visual(sakura_lan::VisualStatePayload*);
+void sakuralan_net_send_session(const sakura_lan::SessionStatePayload*);
+int sakuralan_net_host_snapshot(sakura_lan::SessionStatePayload*);
 }
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "SakuraLAN", __VA_ARGS__)
@@ -65,6 +67,11 @@ using ObjectNew = void* (*)(void*);
 using ClassGetParent = void* (*)(void*);
 using GcHandleNew = uint32_t (*)(void*, bool);
 using GcHandleFree = void (*)(uint32_t);
+using ClassGetField = void* (*)(void*, const char*);
+using FieldGetValue = void (*)(void*, void*, void*);
+using FieldSetValue = void (*)(void*, void*, void*);
+using FieldStaticGetValue = void (*)(void*, void*);
+using FieldGetType = const void* (*)(void*);
 
 struct Api {
     void* lib = nullptr;
@@ -96,6 +103,11 @@ struct Api {
     ClassGetParent class_get_parent = nullptr;
     GcHandleNew gchandle_new = nullptr;
     GcHandleFree gchandle_free = nullptr;
+    ClassGetField class_get_field = nullptr;
+    FieldGetValue field_get_value = nullptr;
+    FieldSetValue field_set_value = nullptr;
+    FieldStaticGetValue field_static_get_value = nullptr;
+    FieldGetType field_get_type = nullptr;
 };
 
 template <typename T>
@@ -145,6 +157,11 @@ bool load_api(Api& a) {
     ok &= load_symbol(a.lib, "il2cpp_class_get_parent", a.class_get_parent);
     ok &= load_symbol(a.lib, "il2cpp_gchandle_new", a.gchandle_new);
     ok &= load_symbol(a.lib, "il2cpp_gchandle_free", a.gchandle_free);
+    ok &= load_symbol(a.lib, "il2cpp_class_get_field_from_name", a.class_get_field);
+    ok &= load_symbol(a.lib, "il2cpp_field_get_value", a.field_get_value);
+    ok &= load_symbol(a.lib, "il2cpp_field_set_value", a.field_set_value);
+    ok &= load_symbol(a.lib, "il2cpp_field_static_get_value", a.field_static_get_value);
+    ok &= load_symbol(a.lib, "il2cpp_field_get_type", a.field_get_type);
     return ok;
 }
 
@@ -287,6 +304,7 @@ void* gGameObjectClass = nullptr;
 void* gBehaviourClass = nullptr;
 void* gAnimatorClass = nullptr;
 void* gCharaMoveClass = nullptr;
+void* gSystemClass = nullptr;
 
 std::atomic<void*> gLocalMove{nullptr};
 void* gLocalGameObject = nullptr;
@@ -316,43 +334,54 @@ bool resolve_runtime_classes() {
         if (animationImage) gAnimatorClass = gApi.class_from_name(animationImage, "UnityEngine", "Animator");
     }
     if (!gCharaMoveClass)
-        gCharaMoveClass = gApi.class_from_name(gAssembly, "", "CharaMove");
+        gCharaMoveClass = gApi.class_from_name(gAssembly, "", "CharacterAI");
 
     return gObjectClass && gComponentClass && gGameObjectClass &&
            gBehaviourClass && gCharaMoveClass;
 }
 
-bool cache_local_player(void* self) {
-    if (!resolve_runtime_classes() || !self) return false;
+// Resolve fields by name and verify their managed types; never use build offsets.
+void* typed_field(void* klass, const char* name, const char* expected) {
+    if (!klass) return nullptr;
+    void* f = gApi.class_get_field(klass, name);
+    if (!f) return nullptr;
+    char* type = gApi.type_get_name(gApi.field_get_type(f));
+    const bool match = type && std::strcmp(type, expected) == 0;
+    if (type) gApi.free_fn(type);
+    return match ? f : nullptr;
+}
+template <typename T>
+bool read_field(void* klass, void* object, const char* name, const char* type, T& out) {
+    void* f = typed_field(klass, name, type);
+    if (!f) return false;
+    if (object) gApi.field_get_value(object, f, &out);
+    else gApi.field_static_get_value(f, &out);
+    return true;
+}
+template <typename T>
+bool write_field(void* klass, void* object, const char* name, const char* type, T value) {
+    void* f = typed_field(klass, name, type);
+    if (!f || !object) return false;
+    gApi.field_set_value(object, f, &value);
+    return true;
+}
 
-    void* go = invoke0(gApi, gComponentClass, self, "get_gameObject");
-    if (!go) return false;
-
-    const std::string name =
-        string_utf8(invoke0(gApi, gObjectClass, go, "get_name"));
-
-    // Unity is calling Update on the active CharaMove controller. Its scene
-    // object name is not a stable player identifier (and need not say Player).
-    if (name.find("SAKURA_LAN_") != std::string::npos) {
+bool cache_local_player(void* manager) {
+    if (!resolve_runtime_classes() || !manager) return false;
+    void* go = nullptr;
+    void* transform = nullptr;
+    if (!read_field(gSystemClass, manager, "m_Character", "UnityEngine.GameObject", go) || !go ||
+        !read_field(gSystemClass, manager, "m_Charactertransform", "UnityEngine.Transform", transform) || !transform)
         return false;
-    }
-
-    void* transform = invoke0(gApi, gGameObjectClass, go, "get_transform");
-    if (!transform) return false;
-
-    void* expected = nullptr;
-    if (!gLocalMove.compare_exchange_strong(expected, self) &&
-        gLocalMove.load() != self) {
-        return false;
-    }
-
-    retain_player_object(self);
+    const std::string name = string_utf8(invoke0(gApi, gObjectClass, go, "get_name"));
+    gLocalMove = manager;
+    retain_player_object(manager);
     retain_player_object(go);
     retain_player_object(transform);
     gLocalGameObject = go;
     gLocalTransform = transform;
-    LOGI("ARMHOOK LOCAL name=%s move=%p go=%p transform=%p",
-         name.c_str(), self, go, transform);
+    LOGI("ARMHOOK LOCAL source=SystemManager.m_Character name=%s go=%p transform=%p",
+         name.c_str(), go, transform);
     return true;
 }
 
@@ -409,6 +438,7 @@ void make_visual_replica(void* clone, bool stripScripts) {
             if (stripScripts) invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", component);
             else invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
         } else if (std::strcmp(name, "Camera") == 0 ||
+                   std::strcmp(name, "NavMeshAgent") == 0 ||
                    std::strcmp(name, "AudioListener") == 0 ||
                    std::strcmp(name, "AudioSource") == 0) {
             invoke1(gApi, gBehaviourClass, component, "set_enabled", &off);
@@ -473,11 +503,15 @@ bool create_remote_avatar() {
         return false;
     }
     invoke1(gApi, gObjectClass, nullptr, "DestroyImmediate", stage);
+    bool on = true;
+    invoke1(gApi, gGameObjectClass, clone, "SetActive", &on);
     gRemoteGameObject = clone;
     gRemoteTransform = transform;
     retain_player_object(clone);
     retain_player_object(transform);
     LOGI("ARMHOOK REMOTE CREATED go=%p transform=%p", clone, transform);
+    void* rendererClass = gApi.class_from_name(gUnityCore, "UnityEngine", "Renderer");
+    LOGI("ARMHOOK REMOTE RENDERERS count=%zu", child_components(clone, rendererClass).size());
     return true;
 }
 
@@ -574,6 +608,8 @@ void multiplayer_tick(void* self) {
     }
 }
 
+#include "SessionRuntime.inc"
+
 using CharaUpdate = void (*)(void*, const void*);
 std::atomic<CharaUpdate> gOriginalUpdate{nullptr};
 std::atomic<uint64_t> gHookCalls{0};
@@ -584,7 +620,7 @@ void hooked_update(void* self, const void* methodInfo) {
                      static_cast<unsigned long long>(n), self);
     CharaUpdate original = gOriginalUpdate.load(std::memory_order_acquire);
     if (original) original(self, methodInfo);
-    multiplayer_tick(self);
+    session_tick(self);
 
     if (n <= 10 || n % 5000 == 0) {
         LOGI("ARMHOOK UPDATE call=%llu self=%p",
@@ -639,8 +675,8 @@ bool install_arm32_hook(void* target, void* hook, void** trampolineOut) {
 
     // Verified 1.043.04 ARM32 prologue: PUSH + VPUSH, neither reads PC.
     // Fail closed on another build rather than pretending to relocate ARM.
-    if (first[0] != 0xe92d4bf0u || first[1] != 0xed2d8b06u) {
-        LOGE("ARMHOOK unsupported CharaMove.Update prologue");
+    if (first[0] != 0xe92d4bf0u || first[1] != 0xed2d8b04u) {
+        LOGE("ARMHOOK unsupported FadeManager.OnGUI prologue");
         return false;
     }
 
@@ -813,25 +849,20 @@ bool install_arm64_hook(void* target, void* hook, void** trampolineOut) {
 }
 #endif
 
-bool install_chara_update_hook() {
+bool install_session_hook() {
     if (!gAssembly) return false;
 
-    gCharaMoveClass = gApi.class_from_name(gAssembly, "", "CharaMove");
-    if (!gCharaMoveClass) {
-        LOGE("ARMHOOK CharaMove class missing");
-        return false;
-    }
-
-    const void* method =
-        gApi.class_get_method_from_name(gCharaMoveClass, "Update", 0);
+    void* fadeClass = gApi.class_from_name(gAssembly, "", "FadeManager");
+    if (!fadeClass) return false;
+    const void* method = gApi.class_get_method_from_name(fadeClass, "OnGUI", 0);
     if (!method) {
-        LOGE("ARMHOOK CharaMove.Update missing");
+        LOGE("ARMHOOK FadeManager.OnGUI missing");
         return false;
     }
 
     void* target = *reinterpret_cast<void* const*>(method);
     if (!target) {
-        LOGE("ARMHOOK CharaMove.Update target null");
+        LOGE("ARMHOOK FadeManager.OnGUI target null");
         return false;
     }
 
@@ -903,7 +934,7 @@ void* worker(void*) {
 
     // Install while the menu is loading, independently of the peer handshake.
     // A host may wait indefinitely for a client or for the rewarded ad to end.
-    install_chara_update_hook();
+    install_session_hook();
     return nullptr;
 }
 

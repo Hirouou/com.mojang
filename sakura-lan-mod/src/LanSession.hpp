@@ -28,6 +28,7 @@ public:
     void pump(int timeoutMs = 0);
     void sendLocalState(const PlayerStatePayload& state);
     void sendVisualState(const VisualStatePayload& state);
+    void sendSessionState(const SessionStatePayload& state);
 
     Mode mode() const { return mode_; }
     bool connected() const { return connected_; }
@@ -36,6 +37,7 @@ public:
 
     std::function<void(const PlayerStatePayload&)> onRemoteState;
     std::function<void(const VisualStatePayload&)> onVisualState;
+    std::function<void(const SessionStatePayload&)> onSessionState;
     std::function<void(const std::string&)> onLog;
 
 private:
@@ -50,6 +52,8 @@ private:
     uint32_t sequence_ = 1;
     uint32_t remoteStateSequence_ = 0;
     bool hasRemoteStateSequence_ = false;
+    uint32_t sessionStateSequence_ = 0;
+    bool hasSessionStateSequence_ = false;
     std::string roomName_;
     Endpoint peer_{};
     UdpTransport discovery_;

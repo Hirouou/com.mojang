@@ -6,8 +6,8 @@ from pathlib import Path
 
 MARKER = b"SAKURA_LAN_RELAY_V1\0"
 ALIGN = 0x4000  # Keeps the relay separate from program headers on 4K/16K pages.
-TARGET_RVA = 0x11FBE24
-PROLOGUE = bytes.fromhex("f04b2de9068b2ded")
+TARGET_RVA = 0x1064B48
+PROLOGUE = bytes.fromhex("f04b2de9048b2ded")
 PHDR = struct.Struct("<8I")
 
 
@@ -27,10 +27,10 @@ def reserve_relay(original, target_rva=TARGET_RVA, prologue=PROLOGUE):
     target_segment = next((h for h in loads if h[2] <= target_rva and
                            target_rva + len(prologue) <= h[2] + h[4]), None)
     if target_segment is None:
-        raise ValueError("CharaMove.Update is outside file-backed LOAD segments")
+        raise ValueError("FadeManager.OnGUI is outside file-backed LOAD segments")
     offset = target_segment[1] + target_rva - target_segment[2]
     if data[offset:offset + len(prologue)] != prologue:
-        raise ValueError("unrecognized 1.043.04 CharaMove.Update prologue")
+        raise ValueError("unrecognized 1.043.04 FadeManager.OnGUI prologue")
     align = lambda n: (n + ALIGN - 1) & ~(ALIGN - 1)
     file_offset = align(len(data))
     address = align(max(h[2] + h[5] for h in loads))

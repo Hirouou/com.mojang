@@ -3,6 +3,7 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <limits>
 
 using namespace sakura_lan;
 
@@ -81,6 +82,39 @@ int main() {
     if (atHost.playerId != 1 || atHost.position.x != 12.5f || atHost.animationId != 7) return 6;
     if (atClient.playerId != 0 || atClient.position.x != -4.0f || atClient.animationId != 3) return 7;
 
-    std::cout << "PASS two-way LAN sync\n";
+    int snapshots = 0;
+    SessionStatePayload received{};
+    client.onSessionState = [&](const SessionStatePayload& s) { received = s; ++snapshots; };
+    SessionStatePayload world{};
+    world.revision = 4;
+    world.ready = 1;
+    std::strcpy(world.scene, "wsimulator");
+    world.gameTime = 510;
+    world.day = 3;
+    world.week = 2;
+    world.spawn = {21, 4, -8};
+    host.sendSessionState(world);
+    for (int i = 0; i < 40 && snapshots == 0; ++i) client.pump(10);
+    if (snapshots != 1 || received.sessionId != 0x12345678 || received.revision != 4 ||
+        received.day != 3 || received.gameTime != 510 || received.spawn.x != 21 ||
+        std::strcmp(received.scene, "wsimulator")) return 8;
+    // A Client cannot supply authoritative world snapshots to the Host.
+    int forbidden = 0;
+    host.onSessionState = [&](const SessionStatePayload&) { ++forbidden; };
+    client.sendSessionState(world);
+    for (int i = 0; i < 5; ++i) host.pump(10);
+    if (forbidden) return 9;
+    // Reject malformed world state; preserve the last valid snapshot.
+    world.spawn.x = std::numeric_limits<float>::quiet_NaN();
+    host.sendSessionState(world);
+    for (int i = 0; i < 5; ++i) client.pump(10);
+    if (snapshots != 1) return 10;
+    world.spawn.x = 21;
+    world.ready = 0;
+    host.sendSessionState(world);
+    for (int i = 0; i < 40 && snapshots == 1; ++i) client.pump(10);
+    if (snapshots != 2 || received.ready) return 11;
+
+    std::cout << "PASS two-way LAN sync and host session snapshots\n";
     return 0;
 }

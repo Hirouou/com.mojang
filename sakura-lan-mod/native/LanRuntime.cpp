@@ -26,12 +26,22 @@ std::map<VisualKey, uint32_t> gVisualSequence;
 std::atomic<bool> gCallbacksConfigured{false};
 std::atomic<bool> gPumpRunning{false};
 std::atomic<bool> gCiPose{false};
+sakura_lan::SessionStatePayload gHostSnapshot{};
+std::chrono::steady_clock::time_point gHostSnapshotTime{};
 
 void ensure_callbacks() {
     if (gCallbacksConfigured.exchange(true)) return;
 
     gSession.onLog = [](const std::string& s) {
         LOGI("NET %s", s.c_str());
+    };
+    gSession.onSessionState = [](const sakura_lan::SessionStatePayload& state) {
+        std::lock_guard<std::mutex> lock(gRemoteMutex);
+        if (gHostSnapshotTime.time_since_epoch().count() == 0 ||
+            gHostSnapshot.revision != state.revision || gHostSnapshot.ready != state.ready)
+            LOGI("SESSION received ready=%u revision=%u scene=%s", state.ready, state.revision, state.scene);
+        gHostSnapshot = state;
+        gHostSnapshotTime = std::chrono::steady_clock::now();
     };
 
     gSession.onVisualState = [](const sakura_lan::VisualStatePayload& state) {
@@ -90,6 +100,8 @@ void reset_remote_state() {
     gRemote = {};
     gVisualPending.clear();
     gVisualSequence.clear();
+    gHostSnapshot = {};
+    gHostSnapshotTime = {};
 }
 
 bool ensure_client_locked() {
@@ -102,6 +114,19 @@ bool ensure_client_locked() {
 }
 
 } // namespace
+
+extern "C" void sakuralan_net_send_session(const sakura_lan::SessionStatePayload* state) {
+    if (!state) return;
+    std::lock_guard<std::mutex> lock(gSessionMutex);
+    gSession.sendSessionState(*state);
+}
+extern "C" int sakuralan_net_host_snapshot(sakura_lan::SessionStatePayload* out) {
+    std::lock_guard<std::mutex> lock(gRemoteMutex);
+    if (!out || !gHostSnapshotTime.time_since_epoch().count() ||
+        std::chrono::steady_clock::now() - gHostSnapshotTime > std::chrono::seconds(3)) return 0;
+    *out = gHostSnapshot;
+    return 1;
+}
 
 extern "C" __attribute__((visibility("default")))
 int sakuralan_net_host(const char* roomName, uint32_t sessionId) {
