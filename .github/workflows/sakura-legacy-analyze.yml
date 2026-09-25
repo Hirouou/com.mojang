@@ -30,72 +30,34 @@ jobs:
       - name: Extract Unity text assets
         shell: bash
         run: |
-          python3 -m pip install --quiet UnityPy TypeTreeGeneratorAPI
+          python3 -m pip install --quiet UnityPy
           mkdir -p legacy/unity-text
           python3 - <<'PY'
           import json, pathlib, re
           import UnityPy
-          from UnityPy.helpers.TypeTreeGenerator import TypeTreeGenerator
-
           roots = list(pathlib.Path("legacy/unpacked").rglob("datapack.unity3d"))
           roots += list(pathlib.Path("legacy/unpacked").rglob("data.unity3d"))
-          if not roots:
-              raise SystemExit("Unity data files not found")
-          il2cpp = next(pathlib.Path("legacy/unpacked").rglob("libil2cpp.so"))
-          metadata = next(pathlib.Path("legacy/unpacked").rglob("global-metadata.dat"))
-
+          index, used = [], {}
           outdir = pathlib.Path("legacy/unity-text")
-          mono = outdir / "monobehaviour"
-          mono.mkdir(exist_ok=True)
-          index, mono_index = [], []
-          used = {}
-
-          generator = None
           for source in roots:
               env = UnityPy.load(str(source))
-              objects = list(env.objects)
-              if generator is None and objects:
-                  version = objects[0].assets_file.unity_version
-                  generator = TypeTreeGenerator(version)
-                  generator.load_il2cpp(il2cpp.read_bytes(), metadata.read_bytes())
-              if generator is not None:
-                  env.typetree_generator = generator
-
-              for obj in objects:
-                  if obj.type.name == "TextAsset":
-                      try:
-                          data = obj.read()
-                          name = getattr(data, "m_Name", "") or f"text_{obj.path_id}"
-                          raw = getattr(data, "m_Script", b"")
-                          blob = raw.encode("utf-8", "replace") if isinstance(raw, str) else bytes(raw)
-                          safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or f"text_{obj.path_id}"
-                          n = used.get(safe, 0); used[safe] = n + 1
-                          if n: safe += f"_{n}"
-                          path = outdir / (safe + ".txt")
-                          path.write_bytes(blob)
-                          index.append({"source": str(source), "name": name, "path_id": obj.path_id, "file": path.name, "bytes": len(blob)})
-                      except Exception as exc:
-                          index.append({"source": str(source), "path_id": obj.path_id, "error": repr(exc)})
-                  elif obj.type.name == "MonoBehaviour":
-                      try:
-                          tree = obj.read_typetree()
-                          probe = json.dumps(tree, ensure_ascii=False, default=str)
-                          markers = ("English", "strEng", "ButtonLabel", "ButtonName", "EventNotice",
-                                     "Aisatu", "Damage", "Shop", "Message", "CurrentLanguageKey")
-                          if not any(m in probe for m in markers):
-                              continue
-                          name = str(tree.get("m_Name") or f"mono_{obj.path_id}")
-                          safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or f"mono_{obj.path_id}"
-                          path = mono / f"{safe}_{obj.path_id}.json"
-                          path.write_text(json.dumps(tree, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-                          mono_index.append({"source": str(source), "name": name, "path_id": obj.path_id, "file": path.name})
-                      except Exception:
-                          pass
-
+              for obj in env.objects:
+                  if obj.type.name != "TextAsset":
+                      continue
+                  try:
+                      data = obj.read()
+                      name = getattr(data, "m_Name", "") or f"text_{obj.path_id}"
+                      raw = getattr(data, "m_Script", b"")
+                      blob = raw.encode("utf-8", "replace") if isinstance(raw, str) else bytes(raw)
+                      safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or f"text_{obj.path_id}"
+                      n = used.get(safe, 0); used[safe] = n + 1
+                      if n: safe += f"_{n}"
+                      path = outdir / (safe + ".txt")
+                      path.write_bytes(blob)
+                      index.append({"source": str(source), "name": name, "path_id": obj.path_id, "file": path.name, "bytes": len(blob)})
+                  except Exception as exc:
+                      index.append({"source": str(source), "path_id": obj.path_id, "error": repr(exc)})
           (outdir / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
-          (mono / "index.json").write_text(json.dumps(mono_index, ensure_ascii=False, indent=2), encoding="utf-8")
-          print("TextAssets:", len(index), "Localization MonoBehaviours:", len(mono_index))
-          print("\n".join(f"MONO {x['name']} {x['path_id']}" for x in mono_index[:300]))
           PY
 
       - name: Resolve IL2CPP inputs
@@ -136,6 +98,62 @@ jobs:
           echo "$CODE" > legacy/dumper/exit-code.txt
           tail -n 300 legacy/dumper/dumper.log || true
           test "$CODE" -eq 0
+
+      - name: Extract serialized localization tables
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          DLLDIR="legacy/dumper/out/DummyDll"
+          if [ ! -d "$DLLDIR" ]; then
+            echo "DummyDll output unavailable; skipping serialized localization extraction."
+            exit 0
+          fi
+          python3 -m pip install --quiet UnityPy TypeTreeGeneratorAPI
+          mkdir -p legacy/unity-text/monobehaviour
+          python3 - <<'PY'
+          import json, pathlib, re
+          import UnityPy
+          from UnityPy.helpers.TypeTreeGenerator import TypeTreeGenerator
+
+          roots = list(pathlib.Path("legacy/unpacked").rglob("datapack.unity3d"))
+          roots += list(pathlib.Path("legacy/unpacked").rglob("data.unity3d"))
+          if not roots:
+              raise SystemExit("Unity data files not found")
+
+          env0 = UnityPy.load(str(roots[0]))
+          first = next(iter(env0.objects), None)
+          if first is None:
+              raise SystemExit("No Unity objects found")
+          generator = TypeTreeGenerator(first.assets_file.unity_version)
+          generator.load_dll_folder("legacy/dumper/out/DummyDll")
+
+          outdir = pathlib.Path("legacy/unity-text/monobehaviour")
+          index = []
+          markers = ("English", "strEng", "ButtonLabel", "ButtonName", "EventNotice",
+                     "Aisatu", "Damage", "Shop", "Message", "CurrentLanguageKey")
+          for source in roots:
+              env = UnityPy.load(str(source))
+              env.typetree_generator = generator
+              for obj in env.objects:
+                  if obj.type.name != "MonoBehaviour":
+                      continue
+                  try:
+                      tree = obj.read_typetree()
+                      probe = json.dumps(tree, ensure_ascii=False, default=str)
+                      if not any(m in probe for m in markers):
+                          continue
+                      name = str(tree.get("m_Name") or f"mono_{obj.path_id}")
+                      safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or f"mono_{obj.path_id}"
+                      path = outdir / f"{safe}_{obj.path_id}.json"
+                      path.write_text(json.dumps(tree, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+                      index.append({"source": str(source), "name": name, "path_id": obj.path_id, "file": path.name})
+                  except Exception:
+                      pass
+          (outdir / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+          print("Localization MonoBehaviours:", len(index))
+          print("\n".join(f"{x['name']} {x['path_id']}" for x in index[:300]))
+          PY
 
       - name: Decompile gameplay, world and localization types
         if: always()
