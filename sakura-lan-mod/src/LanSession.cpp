@@ -11,6 +11,10 @@ static uint32_t nowMs() {
     return static_cast<uint32_t>(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
 }
 
+static std::string worldKey(const WorldStatePayload& s) {
+    return std::to_string(static_cast<int>(s.kind)) + ":" + std::string(s.entity);
+}
+
 void LanSession::log(const std::string& s) const { if (onLog) onLog(s); }
 
 bool LanSession::startHost(const std::string& roomName, uint32_t sessionId) {
@@ -47,6 +51,8 @@ void LanSession::stop() {
     sendPeer_ = {};
     hasRemoteStateSequence_ = false;
     hasSessionStateSequence_ = false;
+    worldRevision_ = 1;
+    worldState_.clear();
 }
 
 void LanSession::sendPacket(UdpTransport& tx, const Endpoint& to, PacketType type, const void* payload, uint32_t payloadBytes) {
@@ -170,6 +176,12 @@ void LanSession::pump(int timeoutMs) {
         a.clientNonce = req.clientNonce;
         a.playerId = 1;
         sendPacket(game_, peer_, PacketType::JoinAccept, &a, sizeof(a));
+        // Replay the latest authoritative snapshot so late joiners converge
+        // immediately instead of waiting for every object to change again.
+        for (const auto& entry : worldState_) {
+            sendPacket(game_, sendPeer_, PacketType::WorldState,
+                       &entry.second, sizeof(entry.second));
+        }
         req.playerName[sizeof(req.playerName) - 1] = 0;
         log(std::string("Client joined: ") + req.playerName);
         return;
@@ -207,16 +219,26 @@ void LanSession::pump(int timeoutMs) {
             !std::memchr(s.entity, 0, sizeof(s.entity)) ||
             !std::isfinite(s.position.x) || !std::isfinite(s.position.y) ||
             !std::isfinite(s.position.z)) return;
-        const float norm = s.rotation.x*s.rotation.x + s.rotation.y*s.rotation.y +
-                           s.rotation.z*s.rotation.z + s.rotation.w*s.rotation.w;
-        if (!std::isfinite(norm) || norm < 0.5f || norm > 1.5f) return;
-        if (onWorldState) onWorldState(s);
-        // Host is authoritative. A client may propose a mutation (mission/item/
-        // vehicle interaction); after accepting it locally the host echoes the
-        // canonical state back so both peers converge on the same revision.
+        if (s.kind == WorldKind::VehicleState) {
+            const float norm = s.rotation.x*s.rotation.x + s.rotation.y*s.rotation.y +
+                               s.rotation.z*s.rotation.z + s.rotation.w*s.rotation.w;
+            if (!std::isfinite(norm) || norm < 0.5f || norm > 1.5f) return;
+        }
+
         if (mode_ == Mode::Host) {
-            if (!s.revision) s.revision = sequence_;
+            // Client packets are proposals only. The host owns the canonical
+            // revision and only the accepted host snapshot is persisted/broadcast.
+            s.revision = ++worldRevision_;
+            const std::string key = worldKey(s);
+            worldState_[key] = s;
+            if (onWorldState) onWorldState(s);
             sendPacket(game_, sendPeer_, PacketType::WorldState, &s, sizeof(s));
+        } else {
+            const std::string key = worldKey(s);
+            auto it = worldState_.find(key);
+            if (it != worldState_.end() && s.revision < it->second.revision) return;
+            worldState_[key] = s;
+            if (onWorldState) onWorldState(s);
         }
         return;
     }
@@ -260,6 +282,13 @@ void LanSession::sendWorldState(const WorldStatePayload& in) {
     if (!connected_ || mode_ == Mode::Offline) return;
     WorldStatePayload s = in;
     s.sessionId = sessionId_;
+    if (mode_ == Mode::Host) {
+        s.revision = ++worldRevision_;
+        worldState_[worldKey(s)] = s;
+    } else {
+        // A client never publishes an authoritative revision.
+        s.revision = 0;
+    }
     sendPacket(game_, sendPeer_, PacketType::WorldState, &s, sizeof(s));
 }
 
