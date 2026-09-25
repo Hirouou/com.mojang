@@ -84,6 +84,7 @@ enum class WorldKind : uint8_t {
     VehicleState = 4,
     MissionProgress = 5,
     WorldEvent = 6,
+    NpcState = 7,
 };
 struct WorldStatePayload {
     uint32_t sessionId = 0;
@@ -102,6 +103,8 @@ struct WorldStatePayload {
     int32_t progress = 0;
     int32_t target = 0;
     uint32_t flags = 0;
+    float amount = 0;   // health/progress scalar when a kind needs decimals
+    float amount2 = 0;  // optional secondary scalar (e.g. shield)
     Vec3 position{};
     Quat rotation{};
 };
