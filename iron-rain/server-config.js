@@ -1,2 +1,3 @@
-// Temporary dedicated authority hosted on Alan's PC. See server/README.md.
-export const WAR_SERVER_URL = 'https://reload-act-aspects-myth.trycloudflare.com';
+// Future hosted authority. Local play automatically uses this computer.
+// Leave blank until a permanent server is configured; never reuse an old tunnel.
+export const WAR_SERVER_URL = '';

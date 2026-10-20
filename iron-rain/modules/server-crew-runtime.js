@@ -4,7 +4,8 @@ import { createCrewReplication } from './crew-replication.js';
 export function createServerCrewRuntime({ endpoint, storage = globalThis.localStorage, fetcher = globalThis.fetch, onStatus = () => {} } = {}) {
   const base = String(endpoint || '').replace(/\/$/, '');
   let token = '', id = '', connected = false, snapshot = null, lastEvent = '', pose = null, exteriorPose = null, replication = null;
-  let timer = null, stopped = false, after = null, polling = false, sending = false;
+  let timer = null, stopped = false, after = null, sending = false;
+  let generation = 0, connectionTask = null, identityLoaded = false, renewedIdentity = false, retryDelay = 500;
   const queue = [];
   let sequence = 0;
   const effects = new Set(), snapshots = new Set(), commands = new Set(), pendingClaims = new Set();
@@ -19,7 +20,10 @@ export function createServerCrewRuntime({ endpoint, storage = globalThis.localSt
     const first = after === null;
     // Delta snapshots omit unchanged, comparatively large world sections.
     next = { ...snapshot, ...next };
-    snapshot = next; connected = true;
+    snapshot = next;
+    if (renewedIdentity) lastEvent = 'server-identity-renewed';
+    else if (!connected && lastEvent) lastEvent = 'server-reconnected';
+    renewedIdentity = false; connected = true; retryDelay = 500;
     sequence = Math.max(sequence, next.sequence || 0);
     const currentIds = new Set(next.peers.filter(p => !p.exterior).map(p => p.id));
     for (const remote of replication.snapshot().remotes) if (!currentIds.has(remote.id)) replication.remove(remote.id);
@@ -30,43 +34,90 @@ export function createServerCrewRuntime({ endpoint, storage = globalThis.localSt
     }
     after = Math.max(after || 0, next.eventHead); publish();
   }
-  async function post(path, body = {}) {
-    const result = await fetcher(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  const active = run => !stopped && run === generation;
+  const disconnected = () => ({ ok: false, reason: 'disconnected', status: status() });
+  async function post(path, body = {}, credential = token) {
+    const result = await fetcher(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(credential ? { Authorization: `Bearer ${credential}` } : {}) },
       body: JSON.stringify(body), signal: AbortSignal.timeout(6000) });
-    if (!result.ok) throw new Error(`server-${result.status}`);
+    if (!result.ok) throw Object.assign(new Error(`server-${result.status}`), { status: result.status, path });
     return result.json();
   }
-  async function connect() {
-    stopped = false;
-    try {
-      let saved; try { saved = JSON.parse(storage?.getItem(key) || 'null'); } catch {}
-      if (saved?.token) { token = saved.token; id = saved.playerId; }
-      else { const identity = await post('/identity'); if (!identity.ok) throw new Error(identity.reason); token = identity.token; id = identity.playerId; storage?.setItem(key, JSON.stringify({ token, playerId: id })); }
-      replication = createCrewReplication({ localId: id, staleAfter: 10 });
-      await poll(); if (!connected) throw new Error(lastEvent || 'server-unavailable');
-      if (!timer) timer = setInterval(poll, 200);
-      return { ok: true, status: status() };
-    } catch (error) { lastEvent = error.message; connected = false; publish(); return { ok: false, reason: lastEvent, status: status() }; }
+  function schedule() {
+    clearTimeout(timer); timer = null;
+    if (stopped) return;
+    const run = generation, delay = connected ? 200 : retryDelay;
+    if (!connected) retryDelay = Math.min(5000, retryDelay * 2);
+    timer = setTimeout(() => { timer = null; if (active(run)) void connect(); }, delay);
   }
-  async function poll() {
-    if (polling || stopped || !token) return;
-    polling = true;
-    try { const next = await post('/poll', { pose, exteriorPose, ...(after === null ? {} : { after }), strategicSince: snapshot?.strategicRevision }); if (!next.ok) throw new Error(next.reason); accept(next); }
-    catch (error) { connected = false; lastEvent = error.message; publish(); }
-    finally { polling = false; }
+  function fail(error, run, credential = token) {
+    if (!active(run) || credential !== token) return disconnected();
+    connected = false;
+    if (error.status === 401 && error.path !== '/identity') {
+      // Only a rejected credential permits replacing a saved identity. A stopped
+      // local server or lost response must preserve the player's Mamute/token.
+      generation++; token = ''; id = ''; snapshot = null; after = null; sequence = 0;
+      replication = null; renewedIdentity = true; pendingClaims.clear();
+      try { storage?.removeItem?.(key); } catch {}
+      for (const entry of queue.splice(0)) for (const resolve of entry.waiters) resolve({ ok: false, reason: 'server-identity-expired' });
+      lastEvent = 'server-identity-expired';
+    } else lastEvent = error.message;
+    publish(); schedule();
+    return { ok: false, reason: lastEvent, status: status() };
+  }
+  async function connectOnce(run) {
+    try {
+      if (!identityLoaded) {
+        let saved; try { saved = JSON.parse(storage?.getItem(key) || 'null'); } catch {}
+        identityLoaded = true;
+        if (saved?.token && saved.playerId) { token = saved.token; id = saved.playerId; }
+      }
+      if (!token) {
+        const identity = await post('/identity', {}, '');
+        if (!active(run)) return disconnected();
+        if (!identity.ok || !identity.token || !identity.playerId) throw new Error(identity.reason || 'invalid-identity');
+        token = identity.token; id = identity.playerId;
+        try { storage?.setItem?.(key, JSON.stringify({ token, playerId: id })); } catch {}
+      }
+      if (!replication) replication = createCrewReplication({ localId: id, staleAfter: 10 });
+      const credential = token;
+      const next = await post('/poll', { pose, exteriorPose, ...(after === null ? {} : { after }), strategicSince: snapshot?.strategicRevision }, credential);
+      if (!active(run) || credential !== token) return disconnected();
+      if (!next.ok) throw new Error(next.reason);
+      accept(next);
+      if (!connected) throw new Error('invalid-server-snapshot');
+      return { ok: true, status: status() };
+    } catch (error) { return fail(error, run); }
+  }
+  function connect() {
+    if (stopped) { stopped = false; generation++; }
+    const run = generation;
+    if (connectionTask?.run === run) return connectionTask.promise;
+    clearTimeout(timer); timer = null;
+    const task = { run, promise: null };
+    connectionTask = task;
+    task.promise = connectOnce(run).finally(() => {
+      if (connectionTask === task) connectionTask = null;
+      if (active(run) && timer === null) schedule();
+    });
+    return task.promise;
   }
   const continuous = type => type === 'drive-vector' || type === 'aim-delta';
   const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0;
   const compatibleAim = (a, b) => ['bearing', 'elevation'].every(key => !a[key] || !b[key] || Math.sign(a[key]) === Math.sign(b[key]));
   async function send(request) {
       if (!connected || stopped) return { ok: false, reason: 'not-connected' };
+      const run = generation, credential = token;
       // Retry exactly the same id: a lost response cannot duplicate the action.
       let response;
       for (let attempt = 0; attempt < 2; attempt++) {
-        try { response = await post('/command', { ...request, pose, exteriorPose, after, strategicSince: snapshot?.strategicRevision }); break; }
-        catch (error) { if (attempt) { connected = false; lastEvent = error.message; publish(); return { ok: false, reason: lastEvent }; } }
+        if (!active(run) || credential !== token) return { ok: false, reason: 'disconnected' };
+        try { response = await post('/command', { ...request, pose, exteriorPose, after, strategicSince: snapshot?.strategicRevision }, credential); break; }
+        catch (error) {
+          if (!active(run) || credential !== token) return { ok: false, reason: 'disconnected' };
+          if (error.status === 401 || attempt) return fail(error, run, credential);
+        }
       }
-      if (stopped) return { ok: false, reason: 'disconnected' };
+      if (!active(run) || credential !== token) return { ok: false, reason: 'disconnected' };
       accept(response.snapshot);
       for (const fn of commands) fn(response, request);
       return response;
@@ -131,7 +182,8 @@ export function createServerCrewRuntime({ endpoint, storage = globalThis.localSt
       if (snapshot?.mamute?.stations?.[station] === id) return { ok: true, owner: id };
       if (!pendingClaims.has(station)) {
         pendingClaims.add(station);
-        command('claim', { station }).then(result => { pendingClaims.delete(station); lastEvent = result.ok ? `station-claimed:${station}` : `station-denied:${station}`; publish(); });
+        const run = generation;
+        command('claim', { station }).then(result => { if (!active(run)) return; pendingClaims.delete(station); lastEvent = result.ok ? `station-claimed:${station}` : `station-denied:${station}`; publish(); });
       }
       return { pending: true, reason: 'pending-host' };
     },
@@ -142,9 +194,9 @@ export function createServerCrewRuntime({ endpoint, storage = globalThis.localSt
     subscribeSnapshots(fn) { snapshots.add(fn); if (snapshot) fn(snapshot); return () => snapshots.delete(fn); },
     subscribeCommands(fn) { commands.add(fn); return () => commands.delete(fn); },
     disconnect() {
-      stopped = true; clearInterval(timer); timer = null;
+      stopped = true; generation++; clearTimeout(timer); timer = null; pendingClaims.clear();
       for (const entry of queue.splice(0)) for (const resolve of entry.waiters) resolve({ ok: false, reason: 'disconnected' });
-      post('/leave').catch(() => {}); connected = false; publish();
+      if (token) post('/leave').catch(() => {}); connected = false; publish();
     },
   };
 }

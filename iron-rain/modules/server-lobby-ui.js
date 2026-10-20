@@ -1,11 +1,11 @@
 /** One shared theatre; a Mamute is a three-seat vehicle, never a world host. */
-export function createServerLobbyUI({ runtime, onEnter }) {
+export function createServerLobbyUI({ runtime, onEnter, local = false, configured = true }) {
   const element = document.createElement('section');
   element.className = 'server-lobby';
   element.innerHTML = `<div class="server-lobby-card">
     <header class="server-lobby-head"><div class="server-lobby-brand">
       <svg viewBox="0 0 90 64" aria-hidden="true"><path d="M11 34h57l12 10v9H9V39zm10-10h37v12H21zm29 1V19h35v6M18 55h48M21 44h3m10 0h3m10 0h3m10 0h3" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="bevel"/></svg>
-      <div><small>TEATRO DE GUERRA</small><h1>IRON RAIN</h1></div></div>
+      <div><small data-server-mode>TEATRO DE GUERRA</small><h1>IRON RAIN</h1></div></div>
       <div class="server-lobby-seal"><b>MAMUTE</b><span>03 ASSENTOS</span></div></header>
     <p data-server-notice role="status" aria-live="polite">Conectando à guerra…</p>
     <div class="server-lobby-body">
@@ -20,12 +20,27 @@ export function createServerLobbyUI({ runtime, onEnter }) {
         <h2 class="server-vehicles-title">MAMUTES DA SUA FACÇÃO</h2><div data-server-list></div>
       </section>
     </div>
-    <footer class="server-lobby-foot"><small>UMA GUERRA · VÁRIOS MAMUTES · ATÉ 3 TRIPULANTES POR VEÍCULO</small><button data-server-retry hidden>RECONECTAR</button></footer>
+    <footer class="server-lobby-foot"><small data-server-footnote>UMA GUERRA · VÁRIOS MAMUTES · ATÉ 3 TRIPULANTES POR VEÍCULO</small><button data-server-retry hidden>RECONECTAR</button></footer>
   </div>`;
   document.body.appendChild(element);
-  let faction = null, busy = false, lastList = '', lastSpawns = '', actionError = '';
+  let faction = null, busy = false, connecting = false, attempted = false, lastList = '', lastSpawns = '', actionError = '';
   const $ = selector => element.querySelector(selector);
   const notice = text => { $('[data-server-notice]').textContent = text; };
+  if (local) {
+    element.dataset.local = 'true';
+    $('[data-server-mode]').textContent = 'CAMPANHA LOCAL';
+    $('[data-server-create]').innerHTML = 'JOGAR SOZINHO <span>CRIAR MEU MAMUTE</span>';
+    $('[data-server-footnote]').textContent = 'PROGRESSO SALVO NESTE COMPUTADOR · NÃO PRECISA DE INTERNET';
+    $('[data-server-code]').placeholder = 'Código do Mamute';
+    $('.server-enlist h2').innerHTML = '<span>02</span> ENTRAR EM UM MAMUTE';
+  }
+  function connectionNotice(status) {
+    if (!configured) return 'O jogo está disponível no computador. Abra pelo atalho ABRIR-IRON-RAIN para jogar localmente.';
+    if (status.connected) return `${local ? 'PARTIDA LOCAL' : 'GUERRA EM ANDAMENTO'} · ${faction ? 'Escolha seu Mamute.' : 'Escolha sua facção.'}`;
+    if (connecting || !attempted) return local ? 'Abrindo sua partida neste computador…' : 'Conectando à guerra…';
+    if (local) return 'Não foi possível abrir a partida local. Mantenha a janela do jogo aberta e toque em RECONECTAR.';
+    return 'A conexão com a guerra foi interrompida. Confira sua conexão e toque em RECONECTAR.';
+  }
   function refresh() {
     const status = runtime.status(), snapshot = runtime.snapshot();
     faction = snapshot?.faction || faction;
@@ -44,13 +59,15 @@ export function createServerLobbyUI({ runtime, onEnter }) {
       if (spawns.some(spawn => spawn.id === previous)) $('[data-server-spawn]').value = previous;
       lastSpawns = spawnKey;
     }
-    $('[data-server-create]').disabled = busy || !status.connected || !faction || !spawns.length;
-    $('[data-server-code-join]').disabled = busy || !status.connected;
+    $('[data-server-spawn]').disabled = busy || !status.connected || !spawns.length;
+    $('[data-server-create]').disabled = busy || !configured || !status.connected || !faction || !spawns.length;
+    $('[data-server-code-join]').disabled = busy || !configured || !status.connected;
     $('[data-server-resume]').hidden = !snapshot?.mamute;
     $('[data-server-resume]').disabled = busy || !status.connected;
-    $('[data-server-retry]').hidden = status.connected;
+    $('[data-server-retry]').hidden = !configured || status.connected;
+    $('[data-server-retry]').disabled = connecting;
     const vehicles = (snapshot?.lobbyMamutes || []).filter(m => m.faction === faction);
-    const key = JSON.stringify({ faction, vehicles });
+    const key = JSON.stringify({ faction, vehicles, busy, connected: status.connected });
     if (key !== lastList) {
       const list = $('[data-server-list]'); list.replaceChildren();
       if (!vehicles.length) { const text = document.createElement('p'); text.className = 'server-list-empty'; text.textContent = faction ? 'Nenhum Mamute disponível. Crie o primeiro da sua facção.' : 'Escolha uma facção para ver os Mamutes.'; list.appendChild(text); }
@@ -58,16 +75,16 @@ export function createServerLobbyUI({ runtime, onEnter }) {
         const button = document.createElement('button'), name = document.createElement('b'), crew = document.createElement('small'), state = document.createElement('span');
         name.textContent = m.name; crew.textContent = `${m.crew}/3 TRIPULANTES`; state.textContent = m.destroyed ? 'DESTRUÍDO' : m.crew >= 3 ? 'LOTADO' : 'ENTRAR ↗';
         button.append(name, crew, state);
-        button.dataset.serverJoin = m.id; button.disabled = m.destroyed || m.crew >= 3;
+        button.dataset.serverJoin = m.id; button.disabled = busy || !configured || !status.connected || m.destroyed || m.crew >= 3;
         button.onclick = () => act('join', { mamuteId: m.id, faction }); list.appendChild(button);
       }
       lastList = key;
     }
     element.dataset.connected = String(status.connected);
-    if (!busy) notice(actionError || (status.connected ? faction ? 'GUERRA EM ANDAMENTO · Escolha seu Mamute.' : 'GUERRA EM ANDAMENTO · Escolha sua facção.' : 'Reconectando à guerra. Seu Mamute permanece no campo.'));
+    if (!busy) notice(actionError || connectionNotice(status));
   }
   async function act(type, payload) {
-    if (busy) return;
+    if (busy || !configured || !runtime.status().connected) return;
     busy = true; actionError = ''; refresh(); notice('Preparando sua entrada…');
     try {
       const result = await runtime.command(type, payload);
@@ -81,8 +98,15 @@ export function createServerLobbyUI({ runtime, onEnter }) {
   $('[data-server-code]').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); $('[data-server-code-join]').click(); } });
   $('[data-server-create]').onclick = () => act('create', { faction, spawnId: $('[data-server-spawn]').value });
   $('[data-server-resume]').onclick = () => onEnter(runtime.status());
-  $('[data-server-retry]').onclick = () => runtime.connect().then(refresh);
+  async function connect() {
+    if (!configured || connecting) return;
+    connecting = true; actionError = ''; refresh();
+    try { await runtime.connect(); }
+    catch { actionError = local ? 'Não foi possível abrir a partida local. Abra o jogo novamente e tente reconectar.' : 'Não foi possível conectar à guerra. Tente novamente.'; }
+    finally { attempted = true; connecting = false; refresh(); }
+  }
+  $('[data-server-retry]').onclick = connect;
   const unsubscribe = runtime.subscribeSnapshots(refresh);
-  refresh(); runtime.connect().then(refresh);
+  refresh(); void connect();
   return { element, faction: () => faction, setStatus: refresh, show: () => element.classList.remove('hidden'), hide: () => element.classList.add('hidden'), destroy() { unsubscribe(); element.remove(); } };
 }

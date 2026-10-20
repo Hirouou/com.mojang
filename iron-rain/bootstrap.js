@@ -1,4 +1,5 @@
 import { WAR_SERVER_URL } from './server-config.js';
+import { resolveWarConnection } from './modules/server-endpoint.js';
 import { createServerCrewRuntime } from './modules/server-crew-runtime.js';
 import { createServerLobbyUI } from './modules/server-lobby-ui.js';
 import { createCrewLobbyUI } from './modules/crew-lobby-ui.js';
@@ -11,12 +12,12 @@ import { normalizeFaction, factionInfo } from './modules/factions.js';
 
 const params = new URLSearchParams(location.search);
 const crewQa = params.has('crewqa');
-const localPreview=['localhost','127.0.0.1'].includes(location.hostname);
-const serverEndpoint=crewQa?'':(localPreview&&params.get('server')||WAR_SERVER_URL);
+const connection = resolveWarConnection({ location, configuredEndpoint: WAR_SERVER_URL });
+const serverEndpoint = connection.endpoint;
 const serverStyle=document.createElement('link');serverStyle.rel='stylesheet';serverStyle.href='./server-ui.css';document.head.appendChild(serverStyle);
 const app = document.getElementById('app');
-const CLIENT_BUILD = '20260913-war-feedback';
-const EXPECTED_CACHE_SUFFIX = 'v7.36';
+const CLIENT_BUILD = '20261020-local-play';
+const EXPECTED_CACHE_SUFFIX = 'v7.37';
 const BOOT_RECOVERY_PARAM = 'ir_recovery';
 const BOOT_TIMEOUT_MS = 8000;
 const FIRE_AMMO_COUNTER_ID = Object.freeze({ HE: 'heCount', SMOKE: 'smokeCount', FRAG: 'fragCount' });
@@ -98,7 +99,7 @@ function localPlayerId() {
 
 const localId = localPlayerId();
 const transportFactory = crewQa ? options => createCrewBroadcastTransport(options) : options => createCrewMqttTransport(options);
-const runtime = serverEndpoint ? createServerCrewRuntime({endpoint:serverEndpoint,onStatus:status=>lobby?.setStatus(status)}) : createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status), onCommandResult: handleMamuteCommandResult });
+const runtime = !crewQa ? createServerCrewRuntime({endpoint:serverEndpoint,onStatus:status=>lobby?.setStatus(status)}) : createCrewRuntime({ localId, transportFactory, onStatus: status => lobby?.setStatus(status), onCommandResult: handleMamuteCommandResult });
 
 function setNotice(title, copy = '') {
   const root = lobby?.element;
@@ -335,7 +336,7 @@ function beginCrew(mode, room, faction) {
   return result;
 }
 
-lobby = serverEndpoint ? createServerLobbyUI({runtime,onEnter:status=>startGame(status,'server')}) : createCrewLobbyUI({
+lobby = !crewQa ? createServerLobbyUI({runtime,local:connection.mode==='local',configured:Boolean(serverEndpoint),onEnter:status=>startGame(status,'server')}) : createCrewLobbyUI({
   root: document.body,
   onHost(room, faction) { beginCrew('host', room, faction); },
   onJoin(room, faction) { beginCrew('guest', room, faction); },
@@ -344,7 +345,7 @@ lobby = serverEndpoint ? createServerLobbyUI({runtime,onEnter:status=>startGame(
 });
 
 lobby.setStatus({ mode: 'offline', faction: null, localId, seat: 0, count: 1, capacity: 3, lastEvent: 'choose-faction' });
-if(!serverEndpoint)setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
+if(crewQa)setNotice('ESCOLHA ALIADOS OU EIXO', 'Escolha seu lado, depois o hexágono 100% dominado onde o Mamute vai nascer.');
 lobby.show();
 void refreshServiceWorker();
 void loadLiveIntegration();
@@ -355,6 +356,6 @@ window.addEventListener('beforeunload', () => {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (crewToastTimer) clearTimeout(crewToastTimer);
   stopCrewFrame();
-  runtime.disconnect('page-close');
+  if (crewQa || serverEndpoint) runtime.disconnect('page-close');
 }, { once: true });
 

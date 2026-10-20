@@ -1,4 +1,16 @@
-# Servidor da guerra — operação temporária no PC
+# Servidor da guerra
+
+## Modo local atual — 20/10/2026
+
+Por pedido do owner, o jogo roda localmente enquanto a hospedagem permanente fica para depois. Em `iron-rain/`, execute **`npm start`** com Node 24 ou mais recente e abra **http://localhost:4173/**. Um único comando inicia o cliente e a autoridade existente. A API é acessada pelo mesmo endereço, em `/war-api`; a autoridade interna usa uma porta livre somente em loopback. Não é necessário editar endpoint, executar túnel ou abrir uma segunda janela.
+
+O banco padrão deste modo é `server/data/local-war.sqlite`, separado do banco histórico `war.sqlite`. Ambos permanecem ignorados pelo Git. `WAR_DB` permite escolher outro caminho. O processo salva automaticamente e, ao receber Ctrl+C, salva e fecha a autoridade e o cliente. A simulação avança enquanto o processo está aberto; fechar apenas a aba não encerra a guerra. Ao reiniciar, a autoridade existente recupera gradualmente o tempo decorrido desde o salvamento, portanto o encerramento não pausa a campanha.
+
+O jogo local não publica portas na rede por padrão. O comando separado `npm run server` e o override de desenvolvimento `?server=http://127.0.0.1:8787` continuam disponíveis. O endpoint de produção em `server-config.js` fica vazio até existir uma nova hospedagem; não reutilizar o antigo túnel temporário. Consulte [../README.md](../README.md) para jogar e retomar a partida.
+
+## Registro histórico — operação temporária no PC (setembro)
+
+As instruções abaixo descrevem a instalação anterior. Não são pré-requisito para o modo local atual e não comprovam que aquele computador ou túnel continua disponível.
 
 O GitHub Pages serve o cliente. A autoridade é `server/http.mjs`, Node 24, rodando no PC do Alan, com SQLite. Cada Mamute tem até três pessoas; todos os Mamutes pertencem ao mesmo teatro. Não existe promoção de navegador a host.
 

@@ -1256,3 +1256,11 @@ Manivelas 2D e alcance restaurados, toque testado em cinco viewports; notebook c
 
 ### 2026-09-13 — CODEX / integração de rede e apresentação
 Build 20260913-war-feedback, cache v7.36. Publicação incremental de dano discreto, trajetórias, agrupamento de entrada, snapshots leves, economia otimizada, front/aviação/recon, arte da cabine e lobby/menu responsivos. 766 testes aprovados; navegador: quatro viewports para lobby/menu e armário finito sem novas geometrias. Exterior está em desenvolvimento separado; não remover primeira pessoa ou manivelas 2D mobile. A autoridade permanece server/world.mjs e o banco local preservado. Detalhes e pendências no mesmo pedido IR-CODEX-20260913-LEAD-shared-war-followup.md.
+
+### 2026-10-20 — CODEX / continuação local solicitada pelo owner
+- **FEITO:** localizado Iron Rain na branch de continuação e preparado fluxo local com um comando, banco separado, endpoint automático, entrada solo e reconexão resiliente. Pedido atual do owner adia hospedagem no PC/servidor externo; entregue em `codex/iron-rain-local-development` para revisão sem disparar Pages. Diretrizes históricas preservadas quanto à cabine, simulação única e regras; não tocados mapas, balística, economia, captura ou intel.
+- **ARQUIVOS:** `serve.mjs`, `bootstrap.js`, `server-config.js`, módulos de endpoint/runtime/lobby, `package.json`, atalho Windows, `sw.js`, README/documentação e testes locais/reconexão. Build `20261020-local-play` / `v7.37`.
+- **TESTE:** 784/784 unitários. Chromium local: cabine, tiro único, mapa, reinício com Mamute/identidade/munição preservados, touch em retrato/paisagem, PWA e cópia pública sem endpoint. Integração três clientes com Mamutes opostos/passageiro, dano, eventos, porta e reconexão passou. Zero erros JavaScript. Revisão independente aprovada; mobile emulado, sem afirmar aparelho físico.
+- **PRÓXIMO:** gameplay/exterior conforme prioridade do owner; hospedagem permanente somente em etapa futura. README descreve a recuperação existente de tempo quando a campanha é reaberta.
+- **RISCO:** bancos/identidades locais não publicados. A cópia desta branch precisa ser executada com Node >=24. Não houve deploy nem mudança do banco histórico. Resultado detalhado em `codex-requests/IR-CODEX-20261020-OWNER-local-play.md`.
+- **COMMIT:** commit desta entrega na branch de revisão; branch-base preservada.

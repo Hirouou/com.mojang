@@ -1,5 +1,7 @@
 # Continuação obrigatória — servidor compartilhado, 13/09/2026
 
+> **Atualização do owner — 20/10/2026:** continuar o Iron Rain com execução local por enquanto; configurar computador como hospedagem pública/servidor permanente fica para depois. O fluxo atual está em `../README.md`: `npm start` inicia cliente + autoridade Node/SQLite em loopback, sem túnel e com banco local separado. A entrega usa a branch `codex/iron-rain-local-development` para revisão sem disparar o deploy Pages da branch de continuação. As regras históricas abaixo sobre verificar/reiniciar o túnel e publicar cada incremento não se aplicam a esta entrega local. Preservar cabine, autoridade única, persistência e mecânicas.
+
 ## Estado e arquitetura que devem ser preservados
 - Branch única: `iron-rain-v6-1-continuation`. Nunca editar `iron-rain-frontline`, nunca force-push. Fetch, comparar HEAD e ler commits antes de cada claim/push.
 - A entrada pública continua https://hirouou.github.io/com.mojang/. Pages entrega somente arquivos estáticos.
