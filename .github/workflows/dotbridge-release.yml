@@ -1,0 +1,70 @@
+name: Publish DotBridge 1.0.0
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dotbridge-release-1.0.0
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: dotbridge
+    steps:
+      - name: Check out the validated source and binary
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify the retained binaries and installer
+        run: |
+          sha256sum --check SHA256SUMS.txt
+          python3 -m unittest discover -s client -p 'test_*.py'
+          python3 -m unittest discover -s tools -p 'test_*.py'
+          python3 tools/check_profile.py docs/aetherfall-manifest.json
+
+      - name: Package the tested binary with the Linux installer
+        run: |
+          python3 tools/package_release.py --jar dotbridge-1.0.0.jar --output build/release
+          cd build/release
+          sha256sum --check SHA256SUMS.txt
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > build/release-notes.md <<'EOF'
+          Mod de cliente para Minecraft Java 1.21.1, Java 21 e NeoForge 21.1.259, confirmado no manifesto do Aetherfall 2.0.
+
+          Inclui API local, cliente Python, instalador Linux e troca de câmera/F5.
+          Extraia o ZIP e execute: `python3 install.py --game-dir "/caminho/da/instancia/Aetherfall"`.
+          Abra o jogo, entre no mundo e use `python3 dot health`, `python3 dot state`, `python3 dot camera --wait` e `python3 dot stop`.
+
+          Guia completo: `INSTRUCOES_PARA_O_DOT.md` na raiz do repositório; `COMO_USAR_COM_O_DOT.md` no pacote.
+          Validação: 131 testes automatizados e 13 verificações em jogo com NeoForge 21.1.259 e Shoulder Surfing 5.2.0.
+          O modpack completo e o TLauncher não foram testados.
+
+          O modpack original permanece na release `aetherfall-2.0-2026-10-19`.
+          EOF
+          gh release create dotbridge-v1.0.0 build/release/* \
+            --target "$GITHUB_SHA" \
+            --title "DotBridge 1.0.0 — Aetherfall 2.0 / Linux" \
+            --notes-file build/release-notes.md \
+            --latest=false
