@@ -1,4 +1,4 @@
-name: Publish DotBridge 1.0.0
+name: Publish DotBridge 1.1.0
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dotbridge-release-1.0.0
+  group: dotbridge-release-1.1.0
   cancel-in-progress: false
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Package the tested binary with the Linux installer
         run: |
-          python3 tools/package_release.py --jar dotbridge-1.0.0.jar --output build/release
+          python3 tools/package_release.py --jar dotbridge-1.1.0.jar --output build/release
           cd build/release
           sha256sum --check SHA256SUMS.txt
 
@@ -51,20 +51,20 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           cat > build/release-notes.md <<'EOF'
-          Mod de cliente para Minecraft Java 1.21.1, Java 21 e NeoForge 21.1.259, confirmado no manifesto do Aetherfall 2.0.
+          Atualização do DotBridge existente para Minecraft Java 1.21.1, NeoForge 21.1.259 e Linux.
 
-          Inclui API local, cliente Python, instalador Linux e troca de câmera/F5.
-          Extraia o ZIP e execute: `python3 install.py --game-dir "/caminho/da/instancia/Aetherfall"`.
-          Abra o jogo, entre no mundo e use `python3 dot health`, `python3 dot state`, `python3 dot camera --wait` e `python3 dot stop`.
+          Inclui objetivos locais limitados, câmera suave, cumprimento frontal/F5, percepção visível, heartbeat, eventos e inventário/crafting por IDs de slots.
+          Mineração e coleta têm evidências separadas; operações de inventário aguardam atualizações do servidor.
 
-          Guia completo: `INSTRUCOES_PARA_O_DOT.md` na raiz do repositório; `COMO_USAR_COM_O_DOT.md` no pacote.
-          Validação: 131 testes automatizados e 13 verificações em jogo com NeoForge 21.1.259 e Shoulder Surfing 5.2.0.
-          O modpack completo e o TLauncher não foram testados.
+          Validação: 244 testes automatizados e 31 cenários cobertos no cliente de desenvolvimento, com os mods de compatibilidade do pacote e os mesmos arquivos de classes/recursos do JAR. Inclui crafting real com Spatial GUI; a repetição de coleta e as medições separadas estão documentadas. Aetherfall completo e TLauncher não foram executados.
+
+          O instalador sem argumentos apenas prepara staging. Feche o jogo e siga `dotbridge/ATUALIZACAO-1.1.md` no repositório para atualizar ou reverter. A versão 1.0.0 permanece disponível; nunca coloque as duas na mesma pasta mods.
+          Guia do Dot: `INSTRUCOES_PARA_O_DOT.md`. API: `dotbridge/API-1.1.md`. Resultados medidos e limites: `dotbridge/VALIDACAO.md`.
 
           O modpack original permanece na release `aetherfall-2.0-2026-10-19`.
           EOF
-          gh release create dotbridge-v1.0.0 build/release/* \
+          gh release create dotbridge-v1.1.0 build/release/* \
             --target "$GITHUB_SHA" \
-            --title "DotBridge 1.0.0 — Aetherfall 2.0 / Linux" \
+            --title "DotBridge 1.1.0 — Aetherfall 2.0 / Linux" \
             --notes-file build/release-notes.md \
             --latest=false

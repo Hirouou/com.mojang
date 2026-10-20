@@ -72,7 +72,7 @@ jobs:
         run: python3 tools/check_profile.py docs/aetherfall-manifest.json
 
       - name: Package portable artifacts
-        run: python3 tools/package_release.py --jar build/libs/dotbridge-1.0.0.jar --output build/release
+        run: python3 tools/package_release.py --jar build/libs/dotbridge-1.1.0.jar --output build/release
 
       - name: Upload portable artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

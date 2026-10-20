@@ -1,36 +1,72 @@
-DOTBRIDGE 1.0.0 — MINECRAFT 1.21.1 / NEOFORGE 21.1.259
+DOTBRIDGE 1.1.0 — MINECRAFT 1.21.1 / NEOFORGE 21.1.259 / LINUX
 
-O manifest do ZIP do Aetherfall 2.0 enviado foi conferido:
-Minecraft 1.21.1, NeoForge 21.1.259, pacote 2026.10.19.185143.
+Java 21 e Python 3.10 ou superior, sem pacotes pip.
+O manifest do Aetherfall 2.0 fornecido declara pacote 2026.10.19.185143,
+Minecraft 1.21.1 e NeoForge 21.1.259. Preserve essas versões.
 
-INSTALAR
-1. Feche o Minecraft.
-2. Abra a pasta do jogo do perfil Aetherfall no TLauncher.
-3. Copie dotbridge-1.0.0.jar para a subpasta mods dessa pasta.
-4. Inicie o mesmo perfil com Java 21 e entre no mundo.
-5. Feche os menus para permitir o controle pelo Dot.
+PREPARAR SEM ALTERAR A SESSÃO ATUAL
+Dentro desta distribuição:
 
-USAR NO TERMINAL DO DOT
-Extraia esta pasta no Linux do Minecraft. Dentro dela, execute:
+python3 install.py
 
-python3 client/dotbridge.py health
-python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO state
-python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO observe --radius 2
-python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO camera --wait
+O padrão verifica o JAR e prepara staging/dotbridge-1.1.0/, separado do perfil.
+Não substitui o mod nem a configuração de um Minecraft em execução.
 
-O último comando alterna a câmera como F5, incluindo Shoulder Surfing.
-Troque /CAMINHO/DO/JOGO pela pasta real do perfil no TLauncher.
-Para parar: python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO stop
+INSTALAR / ATUALIZAR COM O JOGO FECHADO
+1. Pare o controlador e feche o Minecraft completamente.
+2. Localize o diretório real do perfil Java do TLauncher.
+3. Guarde o JAR antigo do DotBridge FORA de mods/. Preserve configuração/token.
+4. Execute, nesta distribuição:
 
-O Python usa automaticamente config/dotbridge.token, gerado pelo mod.
-Não envie o token em mensagens. Não há instalação de pacotes pip.
-O Dot precisa ter terminal/Python no mesmo Linux e rede local do jogo.
+python3 install.py --game-dir "/CAMINHO/REAL/DO/PERFIL"
+
+5. Não deixe duas versões com o ID dotbridge em mods/. O instalador recusa
+   outro dotbridge*.jar. Em instalação manual, copie somente dotbridge-1.1.0.jar;
+   ZIP e sources JAR ficam fora de mods/.
+6. Abra o mesmo perfil com Java 21, entre no mundo e confira a versão:
+
+python3 dot health
+python3 dot state
+python3 dot observe --radius 3
+python3 dot camera --mode first_person --wait
+
+O wrapper lê caminho, porta e token local sem imprimir a chave.
+Não envie config/dotbridge.token para mensagens, logs ou Git.
+O Dot precisa executar no mesmo Linux e ambiente de rede do Minecraft.
+
+DURANTE A ESPERA DA IA
+O Dot define um objetivo curto. O mod ajusta a câmera e executa apenas o
+comportamento autorizado; não acelera o modelo nem inventa novos objetivos.
+Heartbeat renova um prazo curto enquanto o controlador permanece vivo.
+Use uma sessão Python finita e um loop assíncrono; não um renovador independente
+que continue depois que o controlador morrer. Exemplo de espera simulada,
+autorizando somente observar, sem andar ou atacar:
+
+python3 client/example_wait.py --game-dir "/CAMINHO/REAL/DO/PERFIL" --execute --seconds 15 --ai-delay 5
+
+Pausa, morte, tela incompatível, intervenção manual e autorização expirada
+cancelam o trabalho. Para parar, mesmo sem mundo:
+
+python3 dot stop
+
+Inventário/crafting usa IDs reais de slots e confirmação do servidor, sem
+coordenadas fixas dos painéis do Spatial GUI. Consulte inventory e o exemplo
+client/example_inventory.py antes de transferir itens. Não repita cliques
+quando o efeito estiver incerto.
+
+REVERTER
+Com o jogo fechado, retire o JAR 1.1 de mods/ e restaure o JAR anterior guardado
+ou da release dotbridge-v1.0.0. Preserve configuração/token e mantenha uma só
+versão instalada. A reversão do mod não desfaz ações já ocorridas no mundo.
 
 DOCUMENTOS
-COMO_USAR_COM_O_DOT.md: entregue ao Dot junto do caminho desta pasta.
-README.md: instalação detalhada, comandos, API e configuração.
-VALIDACAO.md: versões e testes realmente realizados.
+README.md — instalação, limites e exemplos.
+COMO_USAR_COM_O_DOT.md — guia operacional do agente.
+API-1.1.md — heartbeat, objetivos, slots, eventos e condições de conclusão.
+ATUALIZACAO-1.1.md — troca offline, staging e reversão.
+VALIDACAO.md — resultados realmente obtidos e limites por versão.
 
-É um mod de cliente: não precisa instalar no servidor nem usar comandos OP.
-Ele reduz as etapas de observação/controle; não acelera o serviço GPT.
-O teste usou NeoForge e Shoulder Surfing do pacote, sem carregar o modpack inteiro.
+Relatórios antigos da 1.0 não validam automaticamente este novo JAR.
+A conferência do manifest não é um teste do Aetherfall inteiro.
+A API permanece autenticada e exclusiva de 127.0.0.1; não exige administrador,
+comandos OP ou instalação no servidor. Não altera autenticação do Minecraft.

@@ -1,95 +1,59 @@
-# Dot: preparar e usar o Aetherfall com DotBridge
+# Dot: usar o Aetherfall com DotBridge 1.1
 
-Você tem acesso ao terminal/Python do Linux em que o Minecraft roda. Use o
-DotBridge para obter o estado do jogo e enviar ações. A versão conferida do
-pacote é **Aetherfall 2.0 / Minecraft 1.21.1 / NeoForge 21.1.259 / Java 21**.
+Execute o cliente no mesmo Linux e ambiente de rede do Minecraft. O perfil conferido usa **Minecraft Java 1.21.1, NeoForge 21.1.259 e Java 21**. Python requer 3.10+. Não presuma que o diretório do jogo é `~/.minecraft` ou a pasta deste repositório.
 
-## Preparar uma vez
+## Preparar e atualizar
 
-1. Use o perfil Aetherfall existente no TLauncher. Se ainda não estiver
-   instalado, o [ZIP original está nesta release](https://github.com/Hirouou/com.mojang/releases/tag/aetherfall-2.0-2026-10-19);
-   siga o arquivo `LEIA-ME-INSTALACAO.txt` dele. Preserve a versão do jogo e do
-   NeoForge. Use a conta e os servidores autorizados pelo usuário.
-2. Identifique o **diretório do jogo desse perfil** nas configurações do
-   launcher. Não presuma que é `~/.minecraft` nem que é a pasta do repositório.
-3. Com o Minecraft fechado, clone o repositório e instale o DotBridge:
+1. Preserve o Aetherfall existente no TLauncher. O [ZIP original](https://github.com/Hirouou/com.mojang/releases/tag/aetherfall-2.0-2026-10-19) contém suas instruções de instalação.
+2. Identifique o diretório real do perfil. Não substitua o mod de uma sessão aberta.
+3. Na cópia local do repositório, execute `python3 dotbridge/install.py`: isso apenas prepara uma pasta de staging separada.
+4. Quando o jogo estiver fechado, guarde o JAR antigo fora de `mods/`, preserve `config/dotbridge.json` e `config/dotbridge.token`, e execute `python3 dotbridge/install.py --game-dir "/caminho/real/do/perfil"`. Nunca deixe duas versões do mesmo ID em `mods/`. [Reversão](dotbridge/ATUALIZACAO-1.1.md).
+5. Abra o perfil, entre no mundo e confirme `python3 dotbridge/dot health` e `python3 dotbridge/dot state`. Para ações no mundo, `connected` e `can_control` precisam ser verdadeiros. Ações de inventário têm contexto próprio.
 
-   ```bash
-   git clone https://github.com/Hirouou/com.mojang.git
-   cd com.mojang
-   python3 dotbridge/install.py --game-dir "/caminho/real/do/perfil"
-   ```
+O wrapper salva apenas caminho e porta em `.dotbridge-local.json`. O token fica no perfil e é lido automaticamente. Não imprima, copie para mensagens ou envie esse arquivo ao repositório.
 
-   Se o repositório já estiver clonado, use essa cópia. O instalador verifica
-   o hash do JAR e registra o caminho local; não coloca tokens no Git.
-   Se existirem vários perfis, use `--profile ID_DO_PERFIL` para selecionar
-   os metadados. Se o instalador informar que não encontrou metadados,
-   confira a versão no launcher antes de continuar.
-4. Abra o perfil, entre em um mundo/servidor e feche as telas de menu. Para
-   login, abertura de mundo e menus, use suas ferramentas normais de interface
-   ou a ajuda do usuário. A API não opera essas telas.
-5. Dentro da pasta `com.mojang`, confira:
+## Regra de execução
 
-   ```bash
-   python3 dotbridge/dot health
-   python3 dotbridge/dot state
-   ```
+Defina um objetivo com alvo, limite de duração e condição de fim. Deixe o mod fazer ajustes pequenos. Continue apenas comportamentos autorizados pelo usuário; não invente novos objetivos porque o modelo está demorando.
 
-   Para controlar o jogo, `connected` e `can_control` devem ser `true`.
-   O wrapper lê automaticamente o caminho, a porta e o token local.
+Para aguardar uma IA, use um controlador **assíncrono** que continua chamando `session.pump()` e verificando interrupções. Não mantenha uma thread ou processo de heartbeat independente que continue após o controlador morrer. O SDK oferece `bridge.session(max_seconds=..., ttl_ms=...)`; `session.wait()` renova a autorização enquanto aguarda, dentro desse limite. `bridge.wait()` e CLI `--wait` apenas consultam resultados, sem renovar heartbeat.
 
-## Jogar em ciclos curtos
-
-Observe, escolha uma ação, espere seu resultado e confira o estado novamente:
+O exemplo pronto autoriza somente observar e encerra a autorização ao sair:
 
 ```bash
-python3 dotbridge/dot observe --radius 2
-python3 dotbridge/dot look --yaw 0 --pitch 10 --wait
-python3 dotbridge/dot control --forward 1 --ticks 5 --wait
-python3 dotbridge/dot state
+python3 dotbridge/client/example_wait.py --game-dir "/caminho/real/do/perfil" --execute --seconds 15 --ai-delay 5
 ```
 
-Comece com ações de **3–10 ticks**. Verifique o terreno, colisões, líquidos e
-quedas antes de caminhar. O mod não calcula caminhos; aceitar um comando não
-significa alcançar o destino. `state` é leve; use `observe` quando precisar
-dos blocos e entidades próximos, sem pedir raios grandes desnecessariamente.
+A espera da IA nesse exemplo é simulada. Substitua a função de decisão por sua chamada assíncrona e mantenha o loop finito. Sem renovação, a autorização expira; não contorne essa proteção deixando teclas pressionadas.
 
-Comandos úteis:
+## Escolher o objetivo certo
 
-| Objetivo | Comando após `python3 dotbridge/dot` |
+| Intenção autorizada | Objetivo local |
 | --- | --- |
-| Estado, posição, saúde e inventário | `state` |
-| Blocos e entidades próximos | `observe --radius 2` |
-| Girar a câmera | `look --yaw -90 --pitch 15 --wait` |
-| Alternar como **F5** | `camera --wait` |
-| Voltar à primeira pessoa | `camera --mode first_person --wait` |
-| Selecionar a barra de itens | `hotbar 1 --wait` até `hotbar 9 --wait` |
-| Andar à frente por 5 ticks | `control --forward 1 --ticks 5 --wait` |
-| Atacar/minerar pela mira | `attack --ticks 10 --wait` |
-| Usar/interagir pela mira | `use --ticks 1 --wait` |
-| Interromper | `stop` |
+| Olhar naturalmente o ambiente visível durante a espera | `observe` |
+| Olhar para ponto/bloco conhecido | `look_at` com `target` |
+| Acompanhar uma criatura visível sem atacar | `track` com `entity_id` |
+| Andar brevemente, verificando obstáculos e riscos | `move` com `max_ticks` |
+| Minerar um bloco visível ao alcance | `mine` com coordenadas inteiras |
+| Enviar uma interação normal ao alvo | `interact`; resultado pode continuar não verificado |
+| Atacar somente o alvo explicitamente escolhido | `combat` com `entity_id` |
+| Cumprimento frontal com retorno à câmera anterior | `greet`; pode recusar local inseguro |
+| Pequena sequência previamente definida | `sequence`, até oito etapas sem aninhamento |
 
-`forward=1` vai à frente, `-1` recua. `strafe=1` vai à esquerda e `-1` à direita.
-Yaw 0=sul, 90=oeste, -90=leste, 180=norte. Pitch positivo olha para baixo.
+Use os IDs/posições de `observe`, não coordenadas inventadas. `observe` retorna superfícies e criaturas visíveis, não um mapa de cavernas ou minérios escondidos. Uma criatura neutra não é automaticamente inimiga; tipos de mods podem ser `unknown`. O estado normal informa `camera`, `camera_perspective` e `view_rotation`; F5 continua disponível por `camera --wait`.
 
-No Shoulder Surfing, consulte `camera_perspective` e `view_rotation`: a câmera
-pode ter rotação diferente do corpo, descrito em `player.rotation`. A alternância
-pela API segue o F5 normal e o ciclo configurado pelo mod. Após `look`, aguarde
-o próximo tick/observação para atualizar a mira antes de atacar ou usar um item.
+## Conferir o que aconteceu
 
-## Tratar interrupções
+Leia `active_action`, `recent_actions`, `local_state`, `interruption_reason` e os eventos. Um HTTP 202 significa aceitação, não sucesso no mundo. Uma ação pode terminar como `completed`, `cancelled` ou `failed`, com motivo e detalhes. Não repita automaticamente uma operação após timeout.
 
-Se receber HTTP 409, examine `state`, confira menus/pausa e retome somente
-quando o jogo permitir controle. Uma ação cancelada ou substituída deve causar
-uma nova decisão. Em timeout, consulte o estado antes de repetir uma ação.
-Use `stop` antes de devolver o teclado ao usuário.
+Em mineração, `broke` exige mudança confirmada pelo servidor. `collected` exige pacote de coleta perto do alvo correlacionado com aumento do item no inventário; isso aceita drops com ID diferente do bloco, sem provar causalidade. Sem essas evidências dentro da janela, a coleta continua não verificada. Não declare coleta apenas porque o bloco sumiu.
 
-Não leia nem cole o conteúdo de `dotbridge.token` em mensagens. O cliente
-Python faz a autenticação automaticamente. Mantenha a API em `127.0.0.1`.
-Se o Dot roda em outro contêiner ou computador, o endereço local aponta para
-outro ambiente: execute o cliente no ambiente do Minecraft.
+Para inventário/crafting, consulte `inventory`. Use `container_id`, `state_id`, IDs reais de slots e pré-condições de item/quantidade/cursor; confirme uma operação antes da próxima. Os números dos slots variam por menu e não são pixels do Spatial GUI. Em falha, consulte novamente o cursor e os slots; não repita um clique incerto. Exemplo: `client/example_inventory.py`, dentro de `dotbridge/`.
 
-Para loops persistentes, importe `DotBridge` de `dotbridge/client/dotbridge.py`
-e reutilize o processo Python. A API e os limites completos estão no
-[README do projeto](dotbridge/README.md). Os limites do teste estão em
-[VALIDACAO.md](dotbridge/VALIDACAO.md).
+## Parar e retomar
+
+`python3 dotbridge/dot stop` funciona sem mundo e cancela o controle. Intervenção manual, pausa, morte, menu incompatível, perda de alvo ou heartbeat expirado devem encerrar o objetivo pertinente. Depois de uma interrupção, observe o estado e espere nova autorização antes de retomar. Ao devolver o teclado ao usuário, envie `stop`.
+
+Use `state` para consultas leves e `observe` somente quando precisar de nova percepção. A sequência, tick, horário de captura e idade do snapshot ajudam a evitar decisões sobre dados antigos. HTTP, idade do snapshot, início da ação, FPS e resposta da IA são medidas diferentes.
+
+Consulte [API-1.1.md](dotbridge/API-1.1.md), [manual operacional](dotbridge/COMO_USAR_COM_O_DOT.md) e [validação](dotbridge/VALIDACAO.md). Relatórios da versão 1.0 são históricos; não valide a versão nova por associação.

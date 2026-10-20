@@ -7,3 +7,4 @@ __pycache__/
 *.iml
 .dotbridge-local.json
 .dotbridge-local-*.tmp
+staging/

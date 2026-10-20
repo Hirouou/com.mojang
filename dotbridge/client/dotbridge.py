@@ -44,6 +44,10 @@ class ActionTimeout(DotBridgeError):
     """A ação não teve um resultado observável dentro do prazo."""
 
 
+class SessionExpired(DotBridgeError):
+    """O prazo local do controlador terminou; não haverá mais renovações."""
+
+
 class _NoRedirects(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -175,7 +179,8 @@ class DotBridge:
             guidance = {
                 401: " Confira o token e o diretório usado pelo TLauncher.",
                 403: " A requisição foi recusada pelo mod.",
-                409: " Entre em um mundo e feche os menus do jogo.",
+                409: " Confira o estado do mundo, os menus e as pré-condições da operação.",
+                428: " Renove a autorização com heartbeat antes de enviar um objetivo.",
                 429: " A fila está cheia; reduza a frequência de chamadas.",
                 503: " O jogo não respondeu no prazo.",
             }.get(error.code, "")
@@ -213,6 +218,36 @@ class DotBridge:
         if not isinstance(payload, dict):
             raise ValueError("A ação deve ser um objeto JSON.")
         return self._request("POST", "/v1/action", payload)
+
+    def heartbeat(self, ttl_ms: int = 3000) -> dict[str, Any]:
+        """Autoriza um prazo curto, sem iniciar novos movimentos ou objetivos."""
+        _integer(ttl_ms, "ttl_ms", 500, 10000)
+        return self._request("POST", "/v1/heartbeat", {"ttl_ms": ttl_ms})
+
+    def goal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Objetivo local limitado; o mod valida alvo, duração e segurança."""
+        if not isinstance(payload, dict):
+            raise ValueError("O objetivo deve ser um objeto JSON.")
+        return self._request("POST", "/v1/goal", payload)
+
+    def events(self, after: int = 0) -> dict[str, Any]:
+        """Eventos posteriores ao cursor informado; use o próximo cursor retornado."""
+        _integer(after, "after", 0, 2**63 - 1)
+        return self._request("GET", "/v1/events?" + urlencode({"after": after}))
+
+    def inventory(self) -> dict[str, Any]:
+        """Slots reais do menu, ID do contêiner/estado e item no cursor."""
+        return self._request("GET", "/v1/inventory")
+
+    def inventory_action(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Transferência por IDs e pré-condições do snapshot, sem coordenadas de tela."""
+        if not isinstance(payload, dict):
+            raise ValueError("A ação de inventário deve ser um objeto JSON.")
+        return self._request("POST", "/v1/inventory", payload)
+
+    def session(self, *, max_seconds: float = 30, ttl_ms: int = 3000) -> ControllerSession:
+        """Lease finita, renovada apenas quando o controlador chama pump()/wait()."""
+        return ControllerSession(self, max_seconds=max_seconds, ttl_ms=ttl_ms)
 
     def control(
         self,
@@ -277,6 +312,7 @@ class DotBridge:
         *,
         timeout: float = 15.0,
         poll_interval: float = 0.1,
+        _pump=None,
     ) -> dict[str, Any]:
         """Aguarda um resultado por ID, sem confundir outra ação com a solicitada.
 
@@ -290,6 +326,8 @@ class DotBridge:
         _number(poll_interval, "poll_interval", 0.01, 60)
         deadline = time.monotonic() + timeout
         while True:
+            if _pump is not None:
+                _pump()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ActionTimeout(
@@ -303,11 +341,90 @@ class DotBridge:
                 records.extend(recent)
             for record in records:
                 if isinstance(record, dict) and record.get("id") == action_id:
-                    if record.get("status") not in (None, "queued", "active", "running", "accepted"):
+                    if record.get("status") not in (None, "queued", "active", "running", "accepted", "executing"):
                         return record
             if state.get("connected") is False:
                 raise DotBridgeError("O Minecraft saiu do mundo durante a espera pela ação.")
             time.sleep(min(poll_interval, max(0, deadline - time.monotonic())))
+
+
+class ControllerSession:
+    """Autorização finita para um controlador que continua vivo e executando seu loop.
+
+    Não cria threads nem processos. Uma chamada de IA bloqueante não renova a
+    lease: use uma tarefa assíncrona e chame pump() enquanto aguarda. Se o
+    processo morrer/travar, o mod expira o último heartbeat. O prazo máximo
+    também impede renovações locais indefinidas. A saída envia stop.
+    """
+
+    def __init__(self, bridge: DotBridge, *, max_seconds: float = 30, ttl_ms: int = 3000):
+        _number(max_seconds, "max_seconds", 0.1, 300)
+        _integer(ttl_ms, "ttl_ms", 500, 10000)
+        self.bridge = bridge
+        self.max_seconds = float(max_seconds)
+        self.ttl_ms = ttl_ms
+        self.deadline = None
+        self.next_heartbeat = None
+        self.closed = False
+        self.stop_error = None
+
+    def __enter__(self):
+        if self.closed or self.deadline is not None:
+            raise SessionExpired("Uma sessão só pode ser iniciada uma vez.")
+        self.deadline = time.monotonic() + self.max_seconds
+        self.pump()
+        return self
+
+    @property
+    def remaining_seconds(self) -> float:
+        return max(0, self.deadline - time.monotonic()) if self.deadline is not None else 0
+
+    def pump(self) -> None:
+        if self.closed or self.deadline is None:
+            raise SessionExpired("A sessão não está ativa.")
+        now = time.monotonic()
+        if now >= self.deadline:
+            self.close(suppress_errors=True)
+            raise SessionExpired("O prazo do controlador terminou; stop enviado e heartbeat encerrado.")
+        if self.next_heartbeat is None or now >= self.next_heartbeat:
+            self.bridge.heartbeat(self.ttl_ms)
+            self.next_heartbeat = now + self.ttl_ms / 3000
+            # An HTTP timeout can consume the remaining local authorization budget.
+            if time.monotonic() >= self.deadline:
+                self.close(suppress_errors=True)
+                raise SessionExpired("A sessão expirou durante o heartbeat; não envie novos objetivos.")
+
+    def wait(self, action_id: str, *, timeout: float = 15, poll_interval: float = 0.1) -> dict[str, Any]:
+        """Aguarda conclusão mantendo a lease, limitada ao prazo desta sessão."""
+        return self.bridge.wait(action_id, timeout=timeout, poll_interval=poll_interval, _pump=self.pump)
+
+    def close(self, *, suppress_errors: bool = False) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        if self.deadline is not None:
+            try:
+                self.bridge.stop()
+            except DotBridgeError as error:
+                self.stop_error = error
+                if not suppress_errors:
+                    raise
+
+    def __exit__(self, exception_type, exception, traceback):
+        self.close(suppress_errors=exception_type is not None)
+        return False
+
+
+def _json_object(raw: str) -> dict[str, Any]:
+    def invalid_constant(_value):
+        raise ValueError("Número JSON inválido")
+    try:
+        value = json.loads(raw, parse_constant=invalid_constant)
+    except (ValueError, TypeError, RecursionError):
+        raise ValueError("Informe um objeto JSON válido, com nomes e strings entre aspas duplas.") from None
+    if not isinstance(value, dict):
+        raise ValueError("O argumento JSON precisa ser um objeto.")
+    return value
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -319,6 +436,15 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("health", help="Verifica o mod sem ler o token")
     commands.add_parser("state", help="Estado compacto do jogo")
+    heartbeat = commands.add_parser("heartbeat", help="Renova o prazo do controlador uma única vez")
+    heartbeat.add_argument("--ttl-ms", type=int, default=3000, help="Prazo de 500 a 10000 ms")
+    goal = commands.add_parser("goal", help="Objetivo limitado como objeto JSON; exige heartbeat")
+    goal.add_argument("json", help='Exemplo: {"type":"observe","max_ticks":100}')
+    events = commands.add_parser("events", help="Eventos desde um cursor")
+    events.add_argument("--after", type=int, default=0)
+    commands.add_parser("inventory", help="Slots reais, contêiner, estado e cursor")
+    inventory_action = commands.add_parser("inventory-action", help="Ação de inventário como objeto JSON")
+    inventory_action.add_argument("json", help='Exemplo: {"type":"inventory","operation":"open"}')
     observe = commands.add_parser("observe", help="Blocos próximos e estado detalhado")
     observe.add_argument("--radius", type=int, default=4, help="Raio em blocos (1 a 8)")
     control = commands.add_parser("control", help="Movimento e teclas por um número de ticks")
@@ -336,7 +462,7 @@ def _parser() -> argparse.ArgumentParser:
     hotbar = commands.add_parser("hotbar", help="Seleciona uma posição de 1 a 9")
     hotbar.add_argument("slot", type=int)
     stop = commands.add_parser("stop", help="Solta todos os controles do Dot")
-    action_parsers = [control, look, camera, hotbar, stop]
+    action_parsers = [control, look, camera, hotbar, stop, goal, inventory_action]
     for command in ("attack", "use"):
         action = commands.add_parser(command, help="Mantém a ação por ticks")
         action.add_argument("--ticks", type=int, default=1)
@@ -358,10 +484,18 @@ def main(argv: list[str] | None = None) -> int:
             args.url, token_path=args.token_file, game_dir=args.game_dir, timeout=args.timeout,
         )
         command = args.command or "state"
-        if command in ("health", "state", "stop"):
+        if command in ("health", "state", "stop", "inventory"):
             result = getattr(bridge, command)()
         elif command == "observe":
             result = bridge.observe(args.radius)
+        elif command == "heartbeat":
+            result = bridge.heartbeat(args.ttl_ms)
+        elif command == "goal":
+            result = bridge.goal(_json_object(args.json))
+        elif command == "events":
+            result = bridge.events(args.after)
+        elif command == "inventory-action":
+            result = bridge.inventory_action(_json_object(args.json))
         elif command == "control":
             result = bridge.control(**{name: getattr(args, name) for name in (
                 "forward", "strafe", "jump", "sneak", "sprint", "attack", "use", "ticks",

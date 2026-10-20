@@ -1,0 +1,69 @@
+{
+  "version": "1.1.0",
+  "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+  "scope": "Same final isolated client bytes; placed known fixtures only; no hidden-world scan",
+  "checks": [
+    {
+      "name": "fov_and_first_hit_hide_occluded_ore_and_behind_camera_entity",
+      "passed": true,
+      "details": {
+        "hidden_ore_absent_with_wall": true,
+        "behind_camera_entity_absent": true,
+        "same_entity_visible_after_turn": {
+          "id": 16,
+          "uuid": "c790217a-1388-46a6-b98e-50a0d72f7980",
+          "type": "minecraft:pig",
+          "name": "Pig",
+          "position": {
+            "x": 0.5,
+            "y": -60.0,
+            "z": -3.5
+          },
+          "distance": 4.0,
+          "relative_yaw": 9.617531013204848e-06,
+          "relative_direction_frame": "render_camera",
+          "relative_direction": "ahead",
+          "line_of_sight": true,
+          "classification": "passive",
+          "aggression": "not_inferred_from_presence",
+          "alive": true
+        },
+        "ore_visible_after_wall_removal": {
+          "x": 0,
+          "y": -60,
+          "z": 4,
+          "position": {
+            "x": 0,
+            "y": -60,
+            "z": 4
+          },
+          "id": "minecraft:diamond_ore",
+          "name": "Diamond Ore",
+          "face": "north",
+          "distance": 3.642829005328785,
+          "hit_position": {
+            "x": 0.12525698713888023,
+            "y": -59.317960994621515,
+            "z": 4.0
+          },
+          "visible": true,
+          "collision": true,
+          "category": "obstacle",
+          "categories": [
+            "obstacle"
+          ],
+          "interaction_knowledge": "vanilla_candidates_require_server_confirmation",
+          "interactions": [
+            "mine_attempt",
+            "use_unknown_or_item_dependent"
+          ]
+        },
+        "blocked_visible_block_count": 22,
+        "ray_budget": 96
+      },
+      "wall_seconds": 12.873
+    }
+  ],
+  "passed": 1,
+  "failed": 0
+}

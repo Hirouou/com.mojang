@@ -1,0 +1,444 @@
+{
+  "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+  "scope": "Targeted rerun on identical bytes after foot-level random-drop collection unverified; real overhead stone, normal survival iron pickaxe, stationary player, no spawned substitute drops",
+  "checks": [
+    {
+      "name": "authoritative_stone_break_and_cobblestone_collection_overhead_fixture",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+          "type": "mine",
+          "status": "completed",
+          "tick": 4836,
+          "time_ms": 1792504594799,
+          "reason": "block_changed_and_inventory_increase_observed",
+          "details": {
+            "block": {
+              "x": 0,
+              "y": -58,
+              "z": 0
+            },
+            "initial_block": "minecraft:stone",
+            "broke": true,
+            "collected": true,
+            "collection_causal_proof": false,
+            "server_confirmed": true,
+            "server_confirmed_at_ms": 1792504594318,
+            "block_change_observed_tick": 4827,
+            "break_causal_proof": false,
+            "inventory_increases": [
+              {
+                "id": "minecraft:cobblestone",
+                "increase": 1
+              }
+            ],
+            "server_pickups_near_target": {
+              "minecraft:cobblestone": 1
+            },
+            "collected_item_increases": [
+              {
+                "id": "minecraft:cobblestone",
+                "count": 1
+              }
+            ],
+            "collection_evidence": "server_pickup_near_target_and_inventory_increase",
+            "elapsed_ticks": 17,
+            "state": "interrupted",
+            "accepted_tick": 4818,
+            "started_tick": 4819,
+            "start_delay_ms": 8.399358,
+            "steps": [
+              {
+                "block": {
+                  "x": 0,
+                  "y": -58,
+                  "z": 0
+                },
+                "initial_block": "minecraft:stone",
+                "broke": true,
+                "collected": true,
+                "collection_causal_proof": false,
+                "server_confirmed": true,
+                "server_confirmed_at_ms": 1792504594318,
+                "block_change_observed_tick": 4827,
+                "break_causal_proof": false,
+                "inventory_increases": [
+                  {
+                    "id": "minecraft:cobblestone",
+                    "increase": 1
+                  }
+                ],
+                "server_pickups_near_target": {
+                  "minecraft:cobblestone": 1
+                },
+                "collected_item_increases": [
+                  {
+                    "id": "minecraft:cobblestone",
+                    "count": 1
+                  }
+                ],
+                "collection_evidence": "server_pickup_near_target_and_inventory_increase",
+                "step": 0,
+                "type": "mine",
+                "reason": "block_changed_and_inventory_increase_observed"
+              }
+            ]
+          }
+        },
+        "phases_observed": [
+          "",
+          "accepted",
+          "collecting_observation",
+          "mining"
+        ],
+        "locked_target_post_tick_samples": 7,
+        "post_break_snapshot_note": "A post-tick miss/new surface can precede the next Pre phase transition; it is not treated as an attack on another target.",
+        "events": [
+          {
+            "sequence": 254,
+            "type": "action_accepted",
+            "tick": 4818,
+            "time_ms": 1792504593939,
+            "details": {
+              "id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "type": "mine",
+              "status": "accepted",
+              "state": "mining",
+              "local_state": "mining",
+              "phase": "accepted",
+              "accepted_tick": 4818,
+              "started_tick": null,
+              "start_delay_ms": null,
+              "elapsed_ticks": 0,
+              "max_ticks": 180,
+              "step": 0,
+              "step_type": "mine",
+              "step_elapsed_ticks": 0,
+              "details": {}
+            }
+          },
+          {
+            "sequence": 255,
+            "type": "goal_step_started",
+            "tick": 4819,
+            "time_ms": 1792504593948,
+            "details": {
+              "goal_id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "goal_type": "mine",
+              "reason": "mine",
+              "tick": 4819
+            }
+          },
+          {
+            "sequence": 256,
+            "type": "action_started",
+            "tick": 4819,
+            "time_ms": 1792504593948,
+            "details": {
+              "id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "type": "mine",
+              "status": "executing",
+              "state": "mining",
+              "local_state": "mining",
+              "phase": "aiming",
+              "accepted_tick": 4818,
+              "started_tick": 4819,
+              "start_delay_ms": 8.399358,
+              "elapsed_ticks": 0,
+              "max_ticks": 180,
+              "step": 0,
+              "step_type": "mine",
+              "step_elapsed_ticks": 0,
+              "details": {
+                "block": {
+                  "x": 0,
+                  "y": -58,
+                  "z": 0
+                },
+                "initial_block": "minecraft:stone",
+                "broke": false,
+                "collected": false,
+                "collection_causal_proof": false,
+                "server_confirmed": false
+              }
+            }
+          },
+          {
+            "sequence": 257,
+            "type": "goal_started",
+            "tick": 4819,
+            "time_ms": 1792504593948,
+            "details": {
+              "goal_id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "goal_type": "mine",
+              "reason": "executing",
+              "tick": 4819
+            }
+          },
+          {
+            "sequence": 258,
+            "type": "block_broken",
+            "tick": 4827,
+            "time_ms": 1792504594344,
+            "details": {
+              "goal_id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "goal_type": "mine",
+              "reason": "server_confirmed_block_change",
+              "tick": 4827
+            }
+          },
+          {
+            "sequence": 259,
+            "type": "collection_finished",
+            "tick": 4836,
+            "time_ms": 1792504594799,
+            "details": {
+              "goal_id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "goal_type": "mine",
+              "reason": "inventory_increase_observed_not_causal_proof",
+              "tick": 4836
+            }
+          },
+          {
+            "sequence": 260,
+            "type": "goal_step_finished",
+            "tick": 4836,
+            "time_ms": 1792504594799,
+            "details": {
+              "goal_id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "goal_type": "mine",
+              "reason": "block_changed_and_inventory_increase_observed",
+              "tick": 4836
+            }
+          },
+          {
+            "sequence": 261,
+            "type": "goal_finished",
+            "tick": 4836,
+            "time_ms": 1792504594799,
+            "details": {
+              "id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "type": "mine",
+              "status": "completed",
+              "state": "interrupted",
+              "local_state": "interrupted",
+              "reason": "block_changed_and_inventory_increase_observed",
+              "tick": 4836,
+              "details": {
+                "block": {
+                  "x": 0,
+                  "y": -58,
+                  "z": 0
+                },
+                "initial_block": "minecraft:stone",
+                "broke": true,
+                "collected": true,
+                "collection_causal_proof": false,
+                "server_confirmed": true,
+                "server_confirmed_at_ms": 1792504594318,
+                "block_change_observed_tick": 4827,
+                "break_causal_proof": false,
+                "inventory_increases": [
+                  {
+                    "id": "minecraft:cobblestone",
+                    "increase": 1
+                  }
+                ],
+                "server_pickups_near_target": {
+                  "minecraft:cobblestone": 1
+                },
+                "collected_item_increases": [
+                  {
+                    "id": "minecraft:cobblestone",
+                    "count": 1
+                  }
+                ],
+                "collection_evidence": "server_pickup_near_target_and_inventory_increase",
+                "elapsed_ticks": 17,
+                "state": "interrupted",
+                "accepted_tick": 4818,
+                "started_tick": 4819,
+                "start_delay_ms": 8.399358,
+                "steps": [
+                  {
+                    "block": {
+                      "x": 0,
+                      "y": -58,
+                      "z": 0
+                    },
+                    "initial_block": "minecraft:stone",
+                    "broke": true,
+                    "collected": true,
+                    "collection_causal_proof": false,
+                    "server_confirmed": true,
+                    "server_confirmed_at_ms": 1792504594318,
+                    "block_change_observed_tick": 4827,
+                    "break_causal_proof": false,
+                    "inventory_increases": [
+                      {
+                        "id": "minecraft:cobblestone",
+                        "increase": 1
+                      }
+                    ],
+                    "server_pickups_near_target": {
+                      "minecraft:cobblestone": 1
+                    },
+                    "collected_item_increases": [
+                      {
+                        "id": "minecraft:cobblestone",
+                        "count": 1
+                      }
+                    ],
+                    "collection_evidence": "server_pickup_near_target_and_inventory_increase",
+                    "step": 0,
+                    "type": "mine",
+                    "reason": "block_changed_and_inventory_increase_observed"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "sequence": 262,
+            "type": "action_completed",
+            "tick": 4836,
+            "time_ms": 1792504594799,
+            "details": {
+              "id": "cc39fa2b-f29c-45b8-b124-a296c610f614",
+              "type": "mine",
+              "status": "completed",
+              "tick": 4836,
+              "time_ms": 1792504594799,
+              "reason": "block_changed_and_inventory_increase_observed",
+              "details": {
+                "block": {
+                  "x": 0,
+                  "y": -58,
+                  "z": 0
+                },
+                "initial_block": "minecraft:stone",
+                "broke": true,
+                "collected": true,
+                "collection_causal_proof": false,
+                "server_confirmed": true,
+                "server_confirmed_at_ms": 1792504594318,
+                "block_change_observed_tick": 4827,
+                "break_causal_proof": false,
+                "inventory_increases": [
+                  {
+                    "id": "minecraft:cobblestone",
+                    "increase": 1
+                  }
+                ],
+                "server_pickups_near_target": {
+                  "minecraft:cobblestone": 1
+                },
+                "collected_item_increases": [
+                  {
+                    "id": "minecraft:cobblestone",
+                    "count": 1
+                  }
+                ],
+                "collection_evidence": "server_pickup_near_target_and_inventory_increase",
+                "elapsed_ticks": 17,
+                "state": "interrupted",
+                "accepted_tick": 4818,
+                "started_tick": 4819,
+                "start_delay_ms": 8.399358,
+                "steps": [
+                  {
+                    "block": {
+                      "x": 0,
+                      "y": -58,
+                      "z": 0
+                    },
+                    "initial_block": "minecraft:stone",
+                    "broke": true,
+                    "collected": true,
+                    "collection_causal_proof": false,
+                    "server_confirmed": true,
+                    "server_confirmed_at_ms": 1792504594318,
+                    "block_change_observed_tick": 4827,
+                    "break_causal_proof": false,
+                    "inventory_increases": [
+                      {
+                        "id": "minecraft:cobblestone",
+                        "increase": 1
+                      }
+                    ],
+                    "server_pickups_near_target": {
+                      "minecraft:cobblestone": 1
+                    },
+                    "collected_item_increases": [
+                      {
+                        "id": "minecraft:cobblestone",
+                        "count": 1
+                      }
+                    ],
+                    "collection_evidence": "server_pickup_near_target_and_inventory_increase",
+                    "step": 0,
+                    "type": "mine",
+                    "reason": "block_changed_and_inventory_increase_observed"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "sequence": 263,
+            "type": "inventory_changed",
+            "tick": 4836,
+            "time_ms": 1792504594800,
+            "details": {
+              "inventory": [
+                {
+                  "id": "minecraft:iron_pickaxe",
+                  "count": 1,
+                  "name": "Iron Pickaxe",
+                  "slot": 0,
+                  "hotbar_slot": 1
+                },
+                {
+                  "id": "minecraft:cobblestone",
+                  "count": 1,
+                  "name": "Cobblestone",
+                  "slot": 1,
+                  "hotbar_slot": 2
+                }
+              ]
+            }
+          }
+        ],
+        "inventory_before": [
+          {
+            "id": "minecraft:iron_pickaxe",
+            "count": 1,
+            "name": "Iron Pickaxe",
+            "slot": 0,
+            "hotbar_slot": 1
+          }
+        ],
+        "inventory_after": [
+          {
+            "id": "minecraft:iron_pickaxe",
+            "count": 1,
+            "name": "Iron Pickaxe",
+            "slot": 0,
+            "hotbar_slot": 1
+          },
+          {
+            "id": "minecraft:cobblestone",
+            "count": 1,
+            "name": "Cobblestone",
+            "slot": 1,
+            "hotbar_slot": 2
+          }
+        ]
+      },
+      "wall_seconds": 8.717
+    }
+  ],
+  "passed": 1,
+  "failed": 0
+}

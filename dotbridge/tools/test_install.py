@@ -319,6 +319,87 @@ class InstallerTests(unittest.TestCase):
         self.assertNotIn("private-value", result.stdout + result.stderr)
         self.assert_nothing_installed()
 
+    def version_11_distribution(self):
+        build = json.loads((self.package / "BUILD_INFO.json").read_text())
+        build["version"] = "1.1.0"
+        (self.package / "dotbridge-1.1.0.jar").write_bytes(self.jar)
+        (self.package / "BUILD_INFO.json").write_text(json.dumps(build))
+
+    def test_version_11_staging_preserves_running_version_10(self):
+        self.version_11_distribution()
+        live_jar = self.game / "mods" / "dotbridge-1.0.0.jar"
+        live_jar.write_bytes(b"running-version-do-not-replace")
+        (self.game / "config").mkdir()
+        token = self.game / "config" / "dotbridge.token"
+        token.write_bytes(b"preserved-token")
+        local = self.package / installer.LOCAL_FILENAME
+        local.write_text(json.dumps({"game_dir": str(self.game), "url": "http://127.0.0.1:8765"}))
+        before = local.read_bytes()
+        result = installer.stage(package_dir=self.package)
+        self.assertTrue(result["staged"])
+        folder = Path(result["staging_dir"])
+        self.assertEqual(folder.name, "dotbridge-1.1.0")
+        self.assertEqual((folder / "dotbridge-1.1.0.jar").read_bytes(), self.jar)
+        self.assertEqual(live_jar.read_bytes(), b"running-version-do-not-replace")
+        self.assertFalse((self.game / "mods" / "dotbridge-1.1.0.jar").exists())
+        self.assertEqual(token.read_bytes(), b"preserved-token")
+        self.assertEqual(local.read_bytes(), before)
+        self.assertTrue(any("feche o Minecraft" in line for line in result["instructions"]))
+
+    def test_default_cli_stages_without_installing_into_game(self):
+        self.wrapper_files()
+        self.version_11_distribution()
+        result = subprocess.run([sys.executable, str(self.package / "install.py")], cwd=self.base,
+                                capture_output=True, text=True, timeout=10,
+                                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertTrue(output["staged"])
+        self.assertEqual(output["version"], "1.1.0")
+        self.assertFalse((self.package / installer.LOCAL_FILENAME).exists())
+        self.assertEqual(list((self.game / "mods").iterdir()), [])
+
+    def test_staging_rejects_game_paths_or_conflicting_files(self):
+        self.version_11_distribution()
+        for path in (self.game, self.game / "mods", self.game / "future-subfolder", self.package):
+            with self.subTest(path=path), self.assertRaises(installer.InstallError):
+                installer.stage(path, package_dir=self.package)
+        destination = self.base / "staged"
+        destination.mkdir()
+        jar = destination / "dotbridge-1.1.0.jar"
+        jar.write_bytes(b"another-build")
+        with self.assertRaises(installer.InstallError):
+            installer.stage(destination, package_dir=self.package)
+        self.assertEqual(jar.read_bytes(), b"another-build")
+        self.assertFalse((destination / "BUILD_INFO.json").exists())
+
+    def test_upgrade_is_refused_until_old_jar_moved_manually(self):
+        self.version_11_distribution()
+        old = self.game / "mods" / "dotbridge-1.0.0.jar"
+        old.write_bytes(b"old-version")
+        with self.assertRaisesRegex(installer.InstallError, "outro dotbridge"):
+            self.install()
+        self.assertEqual(old.read_bytes(), b"old-version")
+        self.assertFalse((self.game / "mods" / "dotbridge-1.1.0.jar").exists())
+        # Simulate the operator's manual backup after closing Minecraft.
+        backup = self.base / "dotbridge-1.0.0.jar.backup"
+        old.rename(backup)
+        result = self.install()
+        self.assertEqual(result["jar"], "dotbridge-1.1.0.jar")
+        self.assertEqual((self.game / "mods" / "dotbridge-1.1.0.jar").read_bytes(), self.jar)
+        self.assertEqual(backup.read_bytes(), b"old-version")
+
+    def test_staging_is_idempotent_and_never_overwrites_modified_manifest(self):
+        result = installer.stage(package_dir=self.package)
+        folder = Path(result["staging_dir"])
+        before = (folder / self.jar_name).stat().st_mtime_ns
+        installer.stage(package_dir=self.package)
+        self.assertEqual((folder / self.jar_name).stat().st_mtime_ns, before)
+        (folder / "BUILD_INFO.json").write_text('{"changed":true}')
+        with self.assertRaises(installer.InstallError):
+            installer.stage(package_dir=self.package)
+        self.assertEqual((folder / "BUILD_INFO.json").read_text(), '{"changed":true}')
+
 
 if __name__ == "__main__":
     unittest.main()

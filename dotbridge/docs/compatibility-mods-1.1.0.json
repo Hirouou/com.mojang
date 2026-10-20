@@ -1,0 +1,277 @@
+{
+  "range_bytes": 5428862,
+  "mods": [
+    {
+      "name": "ImmediatelyFast-NeoForge-1.6.14+1.21.1.jar",
+      "bytes": 365195,
+      "sha256": "15bf9bd6d8e3ae8ad35c5a4d90680424b534d9762d698c0a466965afcab5dd78",
+      "archive_crc32": "db7376f6",
+      "metadata": {
+        "mods": [
+          {
+            "modId": "immediatelyfast",
+            "version": "1.6.14+1.21.1",
+            "displayName": "ImmediatelyFast",
+            "description": "Speed up and optimize immediate mode rendering in Minecraft",
+            "authors": "RK_01",
+            "logoFile": "immediatelyfast-icon.png",
+            "displayURL": "https://github.com/RaphiMC/ImmediatelyFast"
+          }
+        ],
+        "dependencies": {
+          "immediatelyfast": [
+            {
+              "modId": "minecraft",
+              "versionRange": "[1.21,1.21.1]",
+              "side": "CLIENT"
+            },
+            {
+              "modId": "neoforge",
+              "versionRange": "[21.0.0,)",
+              "side": "CLIENT"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "entityculling-neoforge-1.11.3-mc1.21.1.jar",
+      "bytes": 1510075,
+      "sha256": "fa73ac70a3766568203b730a1573b4b54d88fb48dff4a33d8c4a80be9b8d17d5",
+      "archive_crc32": "861c6996",
+      "metadata": {
+        "mods": [
+          {
+            "modId": "entityculling",
+            "version": "1.11.3",
+            "displayName": "EntityCulling",
+            "displayURL": "https://modrinth.com/mod/entityculling",
+            "logoFile": "icon.png",
+            "iconFile": "icon.png",
+            "bannerFile": "icon.png",
+            "authors": "tr7zw",
+            "description": "This mod uses async path-tracing to hide Tiles/Entities that are not visible.\n",
+            "displayTest": "IGNORE_ALL_VERSION"
+          }
+        ],
+        "dependencies": {
+          "entityculling": [
+            {
+              "modId": "minecraft",
+              "type": "required",
+              "versionRange": "[1.21.1]",
+              "ordering": "NONE",
+              "side": "BOTH"
+            },
+            {
+              "modId": "neoforge",
+              "type": "required",
+              "versionRange": "[20.2,)",
+              "ordering": "NONE",
+              "side": "BOTH"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "ferritecore-7.0.3-neoforge.jar",
+      "bytes": 121559,
+      "sha256": "d87ea28262715ebff45b8a82d493e6b468e7a4521bc021df5d88302196d030a8",
+      "archive_crc32": "38fe89d3",
+      "metadata": {
+        "mods": [
+          {
+            "modId": "ferritecore",
+            "version": "7.0.3",
+            "displayName": "Ferrite Core",
+            "authors": "malte0811",
+            "description": "Reduces memory usage.\n",
+            "logoFile": "logo.png"
+          }
+        ],
+        "dependencies": {
+          "ferritecore": [
+            {
+              "modId": "neoforge",
+              "type": "required",
+              "versionRange": "[21.1.218,)",
+              "ordering": "NONE",
+              "side": "BOTH"
+            },
+            {
+              "modId": "minecraft",
+              "type": "required",
+              "versionRange": "[1.21.1,1.22)",
+              "ordering": "NONE",
+              "side": "BOTH"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "modernfix-neoforge-5.27.26+mc1.21.1.jar",
+      "bytes": 611043,
+      "sha256": "09f6842c63d14b3f1707f1f4a6f4602052f237f7efa9be135e41d3d97acf2a13",
+      "archive_crc32": "056c2ae5",
+      "metadata": {
+        "mods": [
+          {
+            "modId": "modernfix",
+            "version": "5.27.26+mc1.21.1",
+            "displayName": "ModernFix",
+            "displayURL": "https://modrinth.com/mod/modernfix",
+            "logoFile": "icon.png",
+            "authors": "embeddedt",
+            "description": "Egregious, yet effective performance improvements for modern Minecraft\n"
+          }
+        ],
+        "dependencies": {
+          "modernfix": [
+            {
+              "modId": "neoforge",
+              "type": "required",
+              "versionRange": "[21.0.111-beta,)",
+              "ordering": "NONE",
+              "side": "BOTH"
+            },
+            {
+              "modId": "minecraft",
+              "type": "required",
+              "versionRange": "[1.21, 1.22)",
+              "ordering": "NONE",
+              "side": "BOTH"
+            },
+            {
+              "modId": "jei",
+              "type": "optional",
+              "versionRange": "[15.8.0.11,)",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sodium-neoforge-0.8.13+mc1.21.1.jar",
+      "bytes": 1292934,
+      "sha256": "575d187b15328d7bddd8a9b1bee64333c22c14735f5780ec49eac0cd5503c08d",
+      "archive_crc32": "1f4b1c11",
+      "metadata": {
+        "mods": [
+          {
+            "modId": "sodium",
+            "version": "0.8.13+mc1.21.1",
+            "displayName": "Sodium",
+            "logoFile": "sodium-icon.png",
+            "authors": "JellySquid (jellysquid3), IMS212",
+            "credits": "bytzo, PepperCode1, FlashyReese, altrisi, Grayray75, Madis0, Johni0702, comp500, coderbot16, Moulberry, MCRcortex, Altirix, embeddedt, pajicadvance, Kroppeb, douira, burgerindividual, TwistedZero, Leo40Git, haykam821, muzikbike",
+            "description": "Sodium is a powerful rendering engine for Minecraft which improves frame rates and reduces lag spikes.\n",
+            "provides": [
+              "indium"
+            ]
+          }
+        ],
+        "dependencies": {
+          "sodium": [
+            {
+              "modId": "minecraft",
+              "type": "required",
+              "versionRange": "1.21.1",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            },
+            {
+              "modId": "neoforge",
+              "type": "required",
+              "versionRange": "[21.1.82,)",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            },
+            {
+              "modId": "embeddium",
+              "type": "incompatible",
+              "reason": "Sodium and Embeddium cannot be used together. Please remove Embeddium.",
+              "versionRange": "[0.0.1,)",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "spatial-gui-1.8+1.21.1-neoforge.jar",
+      "bytes": 267947,
+      "sha256": "82c2ac5c45862df0175936aefe4764cc0d76c49f9ffa55743bfc655ffe64738f",
+      "archive_crc32": "89bc34e0",
+      "metadata": {
+        "mods": [
+          {
+            "modId": "spatial_gui",
+            "version": "1.8",
+            "displayName": "Spatial GUI",
+            "displayURL": "https://github.com/tastytrash/Spatial-GUI",
+            "issueTrackerURL": "https://github.com/tastytrash/Spatial-GUI/issues",
+            "logoFile": "assets/spatial-gui/icon.png",
+            "iconFile": "/assets/spatial-gui/icon.png",
+            "bannerFile": "/assets/spatial-gui/icon.png",
+            "description": "A client-side mod that renders inventory & container screens as a 3D plane.\n\n§e[!] §cSpatial GUI is still in early development and may not be fully compatible with some of your mods. If something doesn't work correctly please report the issue to help make the mod better for everyone!\n"
+          }
+        ],
+        "dependencies": {
+          "spatial_gui": [
+            {
+              "modId": "neoforge",
+              "type": "required",
+              "versionRange": "[21.1.240,)",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            },
+            {
+              "modId": "minecraft",
+              "type": "required",
+              "versionRange": "1.21.1",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            },
+            {
+              "modId": "yet_another_config_lib_v3",
+              "type": "required",
+              "versionRange": "[3.0.0,)",
+              "ordering": "NONE",
+              "side": "CLIENT"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "spatial-gui.json5",
+      "bytes": 4251,
+      "sha256": "ca451131e693421b1dcdef54ab492a0f232bd5ae678995c3a54f84e22a8b86f2",
+      "archive_crc32": "6712c016"
+    },
+    {
+      "name": "yet_another_config_lib_v3-3.8.2+1.21.1-neoforge.jar",
+      "bytes": 1118651,
+      "sha256": "b5c30321b46cfaa521645a04aff89d2804d8167a25bb23ad4b1ae8da73093a2f",
+      "archive_crc32": "5a2e0fa0",
+      "metadata": {
+        "mods": [
+          {
+            "logoFile": "yacl-128x.png",
+            "displayName": "YetAnotherConfigLib",
+            "description": "YetAnotherConfigLib (yacl) is just that. A builder-based configuration library for Minecraft.\n",
+            "version": "3.8.2+1.21.1-neoforge",
+            "modId": "yet_another_config_lib_v3",
+            "authors": "isXander"
+          }
+        ],
+        "dependencies": null
+      }
+    }
+  ]
+}

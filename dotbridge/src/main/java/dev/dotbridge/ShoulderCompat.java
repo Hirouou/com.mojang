@@ -55,6 +55,22 @@ final class ShoulderCompat {
         return null;
     }
 
+    /** Select the public mod perspective, including restoring shoulder view after a greeting. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static boolean changePerspective(String name) {
+        Access api = access();
+        if (api == null) return false;
+        try {
+            Class type = api.currentPerspective.getDeclaringClass();
+            Object value = Enum.valueOf(type, name.toUpperCase(Locale.ROOT));
+            api.changePerspective.invoke(api.instance, value);
+            return true;
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException error) {
+            unavailable(error);
+            return false;
+        }
+    }
+
     /** Read on the client thread; inactive views use the ordinary player rotation. */
     static float[] rotation() {
         Access api = access();
@@ -88,7 +104,7 @@ final class ShoulderCompat {
                 access = new Access(instance, api.getMethod("getCamera"), api.getMethod("isShoulderSurfing"),
                         camera.getMethod("setXRot", float.class), camera.getMethod("setYRot", float.class),
                         camera.getMethod("getXRot"), camera.getMethod("getYRot"),
-                        perspective.getMethod("current"));
+                        perspective.getMethod("current"), api.getMethod("changePerspective", perspective));
             } catch (ReflectiveOperationException | LinkageError | RuntimeException error) {
                 unavailable(error);
             }
@@ -106,5 +122,5 @@ final class ShoulderCompat {
     }
 
     private record Access(Object instance, Method getCamera, Method isShoulderSurfing, Method setXRot,
-                          Method setYRot, Method getXRot, Method getYRot, Method currentPerspective) {}
+                          Method setYRot, Method getXRot, Method getYRot, Method currentPerspective, Method changePerspective) {}
 }

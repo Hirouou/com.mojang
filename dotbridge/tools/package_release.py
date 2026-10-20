@@ -22,6 +22,7 @@ ROOT_FILES = (
     '.gitignore', 'BUILD_INFO.json', 'COMO_USAR_COM_O_DOT.md', 'LEIA-ME.txt',
     'LICENSE', 'README.md', 'VALIDACAO.md', 'build.gradle', 'gradle.properties',
     'gradlew', 'gradlew.bat', 'settings.gradle', 'install.py', 'dot',
+    'API-1.1.md', 'ATUALIZACAO-1.1.md',
 )
 REQUIRED_ROOT_FILES = (
     'BUILD_INFO.json', 'LICENSE', 'README.md', 'build.gradle', 'gradle.properties',
@@ -66,7 +67,7 @@ def allowed_source(relative: Path) -> bool:
     if directory == 'src':
         return relative.suffix.lower() in ('.java', '.toml', '.json', '.mcmeta', '.properties', '.lang', '.png')
     if directory == 'docs':
-        return relative.suffix.lower() in ('.json', '.md', '.txt')
+        return relative.suffix.lower() in ('.json', '.md', '.txt', '.png')
     return False
 
 
@@ -121,7 +122,7 @@ def build_info(original: dict, jar_hash: str, source_commit: str | None) -> dict
     info['packaged_jar_runtime_tested'] = matches and prior_has_runtime_test
     info['full_aetherfall_runtime_tested'] = False
     info['validation_documents_scope'] = (
-        'Retained runtime documents describe the prior release identified by '
+        'Retained runtime documents contain prior validation evidence identified by '
         'prior_runtime_validation.jar_sha256. They apply to the selected JAR only '
         'when its SHA-256 matches. This packager does not execute runtime or unit tests; '
         'current CI test results are recorded in the workflow logs.'
@@ -203,8 +204,9 @@ def package(root: Path, jar: Path, output: Path, source_commit: str | None = Non
         f"NeoForge {values['neo_version']}\n"
         f"JAR SHA-256: {sha256(jar_bytes)}\n"
         f"JAR idêntico ao validado anteriormente: {'sim' if info['packaged_jar_matches_prior_runtime_tested_jar'] else 'não'}\n"
-        'O empacotador não executa o jogo. Documentos de validação retidos descrevem a\n'
-        'entrega anterior; sua relação com o JAR atual está em BUILD_INFO.json.\n'
+        'O empacotador não executa o jogo. Documentos de validação retidos contêm\n'
+        'evidências prévias identificadas pelo SHA-256 em BUILD_INFO.json; aplicam-se\n'
+        'a este JAR somente quando os hashes coincidem.\n'
         'O modpack Aetherfall completo não foi testado.\n'
         'Resultados dos testes automáticos desta compilação constam no log da CI.\n'
     ).encode('utf-8')

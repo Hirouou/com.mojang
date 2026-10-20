@@ -1,0 +1,9 @@
+{
+  "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+  "matching_compiled_classes_and_resources": 33,
+  "runtime_mode": "NeoForge development client using these compiled classes/resources; packaged archive compared byte-for-byte per entry",
+  "java_tests": 160,
+  "python_client_tests": 31,
+  "python_tool_tests": 53,
+  "automated_tests_total": 244
+}

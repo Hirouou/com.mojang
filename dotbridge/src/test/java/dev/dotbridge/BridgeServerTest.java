@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,6 +22,12 @@ class BridgeServerTest {
     private final AtomicInteger observedRadius = new AtomicInteger();
     private final AtomicInteger actionCalls = new AtomicInteger();
     private final AtomicReference<CompletableFuture<JsonObject>> actionResult = new AtomicReference<>();
+    private final AtomicInteger newApiCalls = new AtomicInteger();
+    private final AtomicLong observedAfter = new AtomicLong(-1);
+    private final AtomicReference<String> observedRoute = new AtomicReference<>();
+    private final AtomicReference<JsonObject> observedBody = new AtomicReference<>();
+    private final AtomicReference<CompletableFuture<JsonObject>> newApiResult = new AtomicReference<>();
+    private boolean newApiSupported = true;
 
     @BeforeEach
     void start() throws IOException {
@@ -49,6 +56,33 @@ class BridgeServerTest {
                 actionCalls.incrementAndGet();
                 return actionResult.get();
             }
+
+            @Override
+            public CompletableFuture<JsonObject> heartbeat(JsonObject body) {
+                return newApiSupported ? newApiResponse("heartbeat", body) : BridgeServer.Backend.super.heartbeat(body);
+            }
+
+            @Override
+            public CompletableFuture<JsonObject> goal(JsonObject body) {
+                return newApiSupported ? newApiResponse("goal", body) : BridgeServer.Backend.super.goal(body);
+            }
+
+            @Override
+            public CompletableFuture<JsonObject> events(long after) {
+                if (!newApiSupported) return BridgeServer.Backend.super.events(after);
+                observedAfter.set(after);
+                return newApiResponse("events", null);
+            }
+
+            @Override
+            public CompletableFuture<JsonObject> inventory() {
+                return newApiSupported ? newApiResponse("inventory", null) : BridgeServer.Backend.super.inventory();
+            }
+
+            @Override
+            public CompletableFuture<JsonObject> inventoryAction(JsonObject body) {
+                return newApiSupported ? newApiResponse("inventoryAction", body) : BridgeServer.Backend.super.inventoryAction(body);
+            }
         });
         server.start();
     }
@@ -63,6 +97,7 @@ class BridgeServerTest {
         Response health = request("GET", "/health", null, false, Map.of());
         assertEquals(200, health.status());
         assertTrue(health.body().contains("\"minecraft\":\"1.21.1\""));
+        assertTrue(health.body().contains("\"version\":\"1.1.0\""));
         assertTrue(health.headers().toLowerCase().contains("cache-control: no-store"));
         assertEquals(401, request("GET", "/v1/state", null, false, Map.of()).status());
         assertEquals(401, request("GET", "/v1/state", null, false,
@@ -150,6 +185,115 @@ class BridgeServerTest {
         Response timedOut = request("POST", "/v1/action", "{}", true, Map.of());
         assertEquals(503, timedOut.status());
         assertTrue(pending.isCancelled(), "Queued work must be able to skip a request that timed out");
+    }
+
+    @Test
+    void dispatchesNewEndpointsWithCompatibleStatusesAndBodies() throws IOException {
+        assertEquals(200, request("POST", "/v1/heartbeat", "{\"ttl_ticks\":40}", true, Map.of()).status());
+        assertEquals("heartbeat", observedRoute.get());
+        assertEquals(40, observedBody.get().get("ttl_ticks").getAsInt());
+        assertEquals(202, request("POST", "/v1/goal", "{\"type\":\"observe\"}", true, Map.of()).status());
+        assertEquals("goal", observedRoute.get());
+        assertEquals("observe", observedBody.get().get("type").getAsString());
+        assertEquals(200, request("GET", "/v1/inventory", null, true, Map.of()).status());
+        assertEquals("inventory", observedRoute.get());
+        assertNull(observedBody.get());
+        assertEquals(202, request("POST", "/v1/inventory", "{\"slot\":12}", true, Map.of()).status());
+        assertEquals("inventoryAction", observedRoute.get());
+        assertEquals(12, observedBody.get().get("slot").getAsInt());
+        assertEquals(200, request("GET", "/v1/events", null, true, Map.of()).status());
+        assertEquals("events", observedRoute.get());
+        assertEquals(0, observedAfter.get());
+    }
+
+    @Test
+    void allNewEndpointsRetainAuthenticationHostAndOriginChecks() throws IOException {
+        String[][] routes = {{"POST", "/v1/heartbeat"}, {"POST", "/v1/goal"},
+                {"GET", "/v1/events"}, {"GET", "/v1/inventory"}, {"POST", "/v1/inventory"}};
+        for (String[] route : routes) {
+            String body = route[0].equals("POST") ? "{}" : null;
+            assertEquals(401, request(route[0], route[1], body, false, Map.of()).status(), route[1]);
+            assertEquals(403, request(route[0], route[1], body, true,
+                    Map.of("Origin", "null")).status(), route[1]);
+            assertEquals(403, request(route[0], route[1], body, true,
+                    Map.of("Host", "external.example:" + server.getPort())).status(), route[1]);
+        }
+        assertEquals(0, newApiCalls.get());
+    }
+
+    @Test
+    void newPostEndpointsRetainStrictJsonAndBodyLimits() throws IOException {
+        for (String path : new String[]{"/v1/heartbeat", "/v1/goal", "/v1/inventory"}) {
+            assertEquals(400, request("POST", path, "{unquoted:true}", true, Map.of()).status(), path);
+            assertEquals(400, request("POST", path, "[]", true, Map.of()).status(), path);
+            assertEquals(413, request("POST", path, " ".repeat(8193), true, Map.of()).status(), path);
+            assertEquals(415, request("POST", path, "{}", true,
+                    Map.of("Content-Type", "text/plain")).status(), path);
+        }
+        assertEquals(0, newApiCalls.get());
+    }
+
+    @Test
+    void validatesEventCursorWithoutTruncationOrExtraParameters() throws IOException {
+        assertEquals(200, request("GET", "/v1/events?after=9223372036854775807", null, true, Map.of()).status());
+        assertEquals(Long.MAX_VALUE, observedAfter.get());
+        assertEquals(200, request("GET", "/v1/events?after=%31%32", null, true, Map.of()).status());
+        assertEquals(12, observedAfter.get());
+        for (String query : new String[]{"after=-1", "after=1.5", "after=", "after=%2B1", "other=1",
+                "after=1&after=2", "after=1&other=2", "after=9223372036854775808"}) {
+            assertEquals(400, request("GET", "/v1/events?" + query, null, true, Map.of()).status(), query);
+        }
+        assertEquals(12, observedAfter.get(), "Invalid cursors must never reach the backend");
+    }
+
+    @Test
+    void newEndpointsEnforceMethodsAndRejectUnexpectedQueries() throws IOException {
+        assertEquals(405, request("GET", "/v1/heartbeat", null, true, Map.of()).status());
+        assertEquals(405, request("GET", "/v1/goal", null, true, Map.of()).status());
+        assertEquals(405, request("POST", "/v1/events", "{}", true, Map.of()).status());
+        Response wrongInventoryMethod = request("PUT", "/v1/inventory", "{}", true, Map.of());
+        assertEquals(405, wrongInventoryMethod.status());
+        assertTrue(wrongInventoryMethod.headers().toLowerCase().contains("allow: get, post"));
+        for (String path : new String[]{"/v1/heartbeat", "/v1/goal", "/v1/inventory"}) {
+            assertEquals(400, request("POST", path + "?extra=1", "{}", true, Map.of()).status(), path);
+        }
+        assertEquals(400, request("GET", "/v1/inventory?extra=1", null, true, Map.of()).status());
+        assertEquals(404, request("POST", "/v1/goal/extra", "{}", true, Map.of()).status());
+        assertEquals(0, newApiCalls.get());
+    }
+
+    @Test
+    void oldBackendsReturnUnsupportedWithoutBreakingExistingActions() throws IOException {
+        newApiSupported = false;
+        assertEquals(404, request("POST", "/v1/heartbeat", "{}", true, Map.of()).status());
+        assertEquals(404, request("POST", "/v1/goal", "{}", true, Map.of()).status());
+        assertEquals(404, request("GET", "/v1/events", null, true, Map.of()).status());
+        assertEquals(404, request("GET", "/v1/inventory", null, true, Map.of()).status());
+        assertEquals(404, request("POST", "/v1/inventory", "{}", true, Map.of()).status());
+        assertEquals(202, request("POST", "/v1/action", "{\"type\":\"stop\"}", true, Map.of()).status());
+    }
+
+    @Test
+    void newEndpointsPreserveBackendErrorsAndCancelTimeouts() throws IOException {
+        newApiResult.set(CompletableFuture.failedFuture(new BridgeServer.ApiException(409, "Controller expired")));
+        Response conflict = request("POST", "/v1/goal", "{}", true, Map.of());
+        assertEquals(409, conflict.status());
+        assertTrue(conflict.body().contains("Controller expired"));
+        CompletableFuture<JsonObject> pending = new CompletableFuture<>();
+        newApiResult.set(pending);
+        assertEquals(503, request("POST", "/v1/heartbeat", "{}", true, Map.of()).status());
+        assertTrue(pending.isCancelled());
+    }
+
+    private CompletableFuture<JsonObject> newApiResponse(String route, JsonObject body) {
+        newApiCalls.incrementAndGet();
+        observedRoute.set(route);
+        observedBody.set(body);
+        if (newApiResult.get() != null) return newApiResult.get();
+        JsonObject response = new JsonObject();
+        response.addProperty("ok", true);
+        response.addProperty("endpoint", route);
+        return CompletableFuture.completedFuture(response);
     }
 
     private Response request(String method, String path, String body, boolean authenticated,

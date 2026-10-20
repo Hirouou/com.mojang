@@ -1,0 +1,1599 @@
+{
+  "status": "passed",
+  "environment": "Minecraft 1.21.1 / NeoForge 21.1.259 / Xorg :99 / Mesa software GL",
+  "game_dir": "/workspace/com.mojang/dotbridge/run",
+  "port": 8766,
+  "scope": "real menu IDs, explicit server updates, Spatial GUI shifted/tilted panels",
+  "checks": [
+    {
+      "name": "runtime_has_spatial_gui",
+      "passed": true,
+      "details": {
+        "health": {
+          "ok": true,
+          "mod": "dotbridge",
+          "version": "1.1.0",
+          "minecraft": "1.21.1",
+          "loader": "neoforge"
+        },
+        "spatial_log_line": "Spatial GUI 1.8 (spatial_gui)"
+      }
+    },
+    {
+      "name": "disposable_world_setup",
+      "passed": true,
+      "details": {
+        "commands": [
+          "/give @p minecraft:oak_log 2",
+          "/gamemode survival"
+        ]
+      }
+    },
+    {
+      "name": "spatial_inventory_before",
+      "passed": true,
+      "details": {
+        "screenshot": "spatialgui-before-1.1.0.png",
+        "source_slot": 38,
+        "source_count": 2,
+        "craft_grid_slot": 1,
+        "result_slot": 0,
+        "target_slot": 9,
+        "snapshot": {
+          "available": true,
+          "open": true,
+          "container_id": 0,
+          "state_id": 7,
+          "slot_count": 46,
+          "truncated": false,
+          "menu_kind": "player_inventory",
+          "confirmation_mode": "server_updates_without_client_prediction",
+          "cursor": {
+            "item": "minecraft:air",
+            "count": 0
+          },
+          "slots": [
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 0,
+              "inventory_index": 0,
+              "role": "crafting_result",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 1,
+              "inventory_index": 0,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 2,
+              "inventory_index": 1,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 3,
+              "inventory_index": 2,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 4,
+              "inventory_index": 3,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 5,
+              "inventory_index": 39,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 6,
+              "inventory_index": 38,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 7,
+              "inventory_index": 37,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 8,
+              "inventory_index": 36,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 9,
+              "inventory_index": 9,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 10,
+              "inventory_index": 10,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 11,
+              "inventory_index": 11,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 12,
+              "inventory_index": 12,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 13,
+              "inventory_index": 13,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 14,
+              "inventory_index": 14,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 15,
+              "inventory_index": 15,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 16,
+              "inventory_index": 16,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 17,
+              "inventory_index": 17,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 18,
+              "inventory_index": 18,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 19,
+              "inventory_index": 19,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 20,
+              "inventory_index": 20,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 21,
+              "inventory_index": 21,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 22,
+              "inventory_index": 22,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 23,
+              "inventory_index": 23,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 24,
+              "inventory_index": 24,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 25,
+              "inventory_index": 25,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 26,
+              "inventory_index": 26,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 27,
+              "inventory_index": 27,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 28,
+              "inventory_index": 28,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 29,
+              "inventory_index": 29,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 30,
+              "inventory_index": 30,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 31,
+              "inventory_index": 31,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 32,
+              "inventory_index": 32,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 33,
+              "inventory_index": 33,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 34,
+              "inventory_index": 34,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 35,
+              "inventory_index": 35,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:iron_pickaxe",
+              "count": 1,
+              "name": "Iron Pickaxe",
+              "components_hash": 1663283862,
+              "slot": 36,
+              "inventory_index": 0,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:cobblestone",
+              "count": 1,
+              "name": "Cobblestone",
+              "components_hash": -319121480,
+              "slot": 37,
+              "inventory_index": 1,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:oak_log",
+              "count": 2,
+              "name": "Oak Log",
+              "components_hash": -319121480,
+              "slot": 38,
+              "inventory_index": 2,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 39,
+              "inventory_index": 3,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 40,
+              "inventory_index": 4,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 41,
+              "inventory_index": 5,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 42,
+              "inventory_index": 6,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 43,
+              "inventory_index": 7,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 44,
+              "inventory_index": 8,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 45,
+              "inventory_index": 40,
+              "role": "offhand",
+              "may_pickup": true,
+              "may_place_cursor": false
+            }
+          ],
+          "recovery_required": false,
+          "recovery_acknowledged": false,
+          "sequence": 6393,
+          "tick": 6201,
+          "captured_at_ms": 1792504663076,
+          "time_ms": 1792504663076,
+          "snapshot_age_ms": 0
+        }
+      }
+    },
+    {
+      "name": "stale_expected_item_rejected",
+      "passed": true,
+      "details": {
+        "http_status": 409,
+        "reason": "Observed slot changed; refresh its item, count and components before retry Confira o estado do mundo, os menus e as pré-condições da operação.",
+        "cursor_unchanged": true,
+        "all_slots_unchanged": true
+      }
+    },
+    {
+      "name": "stale_state_id_rejected",
+      "passed": true,
+      "details": {
+        "http_status": 409,
+        "reason": "Stale container_id or state_id; observe the menu again Confira o estado do mundo, os menus e as pré-condições da operação.",
+        "cursor_unchanged": true,
+        "all_slots_unchanged": true
+      }
+    },
+    {
+      "name": "pick_up_observed_log_stack",
+      "passed": true,
+      "details": {
+        "action_id": "43cdd462-5b7b-4af0-9574-93b7eb9354ae",
+        "server_state_before": 7,
+        "server_state_after": 8,
+        "cursor": {
+          "item": "minecraft:oak_log",
+          "count": 2,
+          "name": "Oak Log",
+          "components_hash": -319121480
+        },
+        "changed_slots": [
+          {
+            "slot": 38,
+            "before": {
+              "item": "minecraft:oak_log",
+              "count": 2,
+              "name": "Oak Log",
+              "components_hash": -319121480
+            },
+            "after": {
+              "item": "minecraft:air",
+              "count": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "place_one_log_in_craft_grid",
+      "passed": true,
+      "details": {
+        "action_id": "09dc2557-bedc-47ec-81de-2c9ad2532eb4",
+        "server_state_before": 8,
+        "server_state_after": 11,
+        "cursor": {
+          "item": "minecraft:oak_log",
+          "count": 1,
+          "name": "Oak Log",
+          "components_hash": -319121480
+        },
+        "changed_slots": [
+          {
+            "slot": 0,
+            "before": {
+              "item": "minecraft:air",
+              "count": 0
+            },
+            "after": {
+              "item": "minecraft:oak_planks",
+              "count": 4,
+              "name": "Oak Planks",
+              "components_hash": -319121480
+            }
+          },
+          {
+            "slot": 1,
+            "before": {
+              "item": "minecraft:air",
+              "count": 0
+            },
+            "after": {
+              "item": "minecraft:oak_log",
+              "count": 1,
+              "name": "Oak Log",
+              "components_hash": -319121480
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "return_remaining_logs_to_original_slot",
+      "passed": true,
+      "details": {
+        "action_id": "a41fb214-93c9-4bb6-99d9-9e190c985a74",
+        "server_state_before": 11,
+        "server_state_after": 12,
+        "cursor": {
+          "item": "minecraft:air",
+          "count": 0
+        },
+        "changed_slots": [
+          {
+            "slot": 38,
+            "before": {
+              "item": "minecraft:air",
+              "count": 0
+            },
+            "after": {
+              "item": "minecraft:oak_log",
+              "count": 1,
+              "name": "Oak Log",
+              "components_hash": -319121480
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "actual_server_crafting_result",
+      "passed": true,
+      "details": {
+        "slot": 0,
+        "result": {
+          "item": "minecraft:oak_planks",
+          "count": 4,
+          "name": "Oak Planks",
+          "components_hash": -319121480,
+          "slot": 0,
+          "inventory_index": 0,
+          "role": "crafting_result",
+          "may_pickup": true,
+          "may_place_cursor": false
+        },
+        "screenshot": "spatialgui-recipe-1.1.0.png"
+      }
+    },
+    {
+      "name": "take_four_planks_from_real_result_slot",
+      "passed": true,
+      "details": {
+        "action_id": "763f5e5f-4c7e-4dc2-b799-b340dac96ce9",
+        "server_state_before": 12,
+        "server_state_after": 15,
+        "cursor": {
+          "item": "minecraft:oak_planks",
+          "count": 4,
+          "name": "Oak Planks",
+          "components_hash": -319121480
+        },
+        "changed_slots": [
+          {
+            "slot": 0,
+            "before": {
+              "item": "minecraft:oak_planks",
+              "count": 4,
+              "name": "Oak Planks",
+              "components_hash": -319121480
+            },
+            "after": {
+              "item": "minecraft:air",
+              "count": 0
+            }
+          },
+          {
+            "slot": 1,
+            "before": {
+              "item": "minecraft:oak_log",
+              "count": 1,
+              "name": "Oak Log",
+              "components_hash": -319121480
+            },
+            "after": {
+              "item": "minecraft:air",
+              "count": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "place_planks_in_observed_empty_inventory_slot",
+      "passed": true,
+      "details": {
+        "action_id": "9539ee3c-b085-498b-80b7-db788933ee07",
+        "server_state_before": 15,
+        "server_state_after": 16,
+        "cursor": {
+          "item": "minecraft:air",
+          "count": 0
+        },
+        "changed_slots": [
+          {
+            "slot": 9,
+            "before": {
+              "item": "minecraft:air",
+              "count": 0
+            },
+            "after": {
+              "item": "minecraft:oak_planks",
+              "count": 4,
+              "name": "Oak Planks",
+              "components_hash": -319121480
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "spatial_inventory_after",
+      "passed": true,
+      "details": {
+        "screenshot": "spatialgui-after-1.1.0.png",
+        "snapshot": {
+          "available": true,
+          "open": true,
+          "container_id": 0,
+          "state_id": 16,
+          "slot_count": 46,
+          "truncated": false,
+          "menu_kind": "player_inventory",
+          "confirmation_mode": "server_updates_without_client_prediction",
+          "cursor": {
+            "item": "minecraft:air",
+            "count": 0
+          },
+          "slots": [
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 0,
+              "inventory_index": 0,
+              "role": "crafting_result",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 1,
+              "inventory_index": 0,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 2,
+              "inventory_index": 1,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 3,
+              "inventory_index": 2,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 4,
+              "inventory_index": 3,
+              "role": "crafting_grid",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 5,
+              "inventory_index": 39,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 6,
+              "inventory_index": 38,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 7,
+              "inventory_index": 37,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 8,
+              "inventory_index": 36,
+              "role": "armor",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:oak_planks",
+              "count": 4,
+              "name": "Oak Planks",
+              "components_hash": -319121480,
+              "slot": 9,
+              "inventory_index": 9,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 10,
+              "inventory_index": 10,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 11,
+              "inventory_index": 11,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 12,
+              "inventory_index": 12,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 13,
+              "inventory_index": 13,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 14,
+              "inventory_index": 14,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 15,
+              "inventory_index": 15,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 16,
+              "inventory_index": 16,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 17,
+              "inventory_index": 17,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 18,
+              "inventory_index": 18,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 19,
+              "inventory_index": 19,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 20,
+              "inventory_index": 20,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 21,
+              "inventory_index": 21,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 22,
+              "inventory_index": 22,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 23,
+              "inventory_index": 23,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 24,
+              "inventory_index": 24,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 25,
+              "inventory_index": 25,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 26,
+              "inventory_index": 26,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 27,
+              "inventory_index": 27,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 28,
+              "inventory_index": 28,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 29,
+              "inventory_index": 29,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 30,
+              "inventory_index": 30,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 31,
+              "inventory_index": 31,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 32,
+              "inventory_index": 32,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 33,
+              "inventory_index": 33,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 34,
+              "inventory_index": 34,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 35,
+              "inventory_index": 35,
+              "role": "inventory",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:iron_pickaxe",
+              "count": 1,
+              "name": "Iron Pickaxe",
+              "components_hash": 1663283862,
+              "slot": 36,
+              "inventory_index": 0,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:cobblestone",
+              "count": 1,
+              "name": "Cobblestone",
+              "components_hash": -319121480,
+              "slot": 37,
+              "inventory_index": 1,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:oak_log",
+              "count": 1,
+              "name": "Oak Log",
+              "components_hash": -319121480,
+              "slot": 38,
+              "inventory_index": 2,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 39,
+              "inventory_index": 3,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 40,
+              "inventory_index": 4,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 41,
+              "inventory_index": 5,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 42,
+              "inventory_index": 6,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 43,
+              "inventory_index": 7,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 44,
+              "inventory_index": 8,
+              "role": "hotbar",
+              "may_pickup": true,
+              "may_place_cursor": false
+            },
+            {
+              "item": "minecraft:air",
+              "count": 0,
+              "slot": 45,
+              "inventory_index": 40,
+              "role": "offhand",
+              "may_pickup": true,
+              "may_place_cursor": false
+            }
+          ],
+          "recovery_required": false,
+          "recovery_acknowledged": false,
+          "sequence": 6438,
+          "tick": 6234,
+          "captured_at_ms": 1792504664745,
+          "time_ms": 1792504664745,
+          "snapshot_age_ms": 0
+        },
+        "oak_logs_consumed": 1,
+        "oak_planks_added": 4,
+        "cursor_empty": true
+      }
+    }
+  ],
+  "started_at_ms": 1792504658752,
+  "artifact_before": {
+    "jar_path": "/workspace/com.mojang/dotbridge/build/libs/dotbridge-1.1.0.jar",
+    "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+    "runtime": "NeoForge development client using compiled classes/resources; bytes compared against release JAR",
+    "build_output_comparison": {
+      "classes": {
+        "files": 31,
+        "mismatches": []
+      },
+      "resources": {
+        "files": 2,
+        "mismatches": []
+      }
+    },
+    "all_compiled_outputs_match_jar": true
+  },
+  "actions": [
+    {
+      "name": "open_inventory",
+      "request": {
+        "type": "inventory",
+        "operation": "open"
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "9f61520f-b7e6-438e-a83f-a332d645968c",
+        "status": "accepted",
+        "accepted_tick": 6178,
+        "accepted_at_ms": 1792504661967
+      },
+      "result": {
+        "id": "9f61520f-b7e6-438e-a83f-a332d645968c",
+        "type": "inventory",
+        "operation": "open",
+        "status": "completed",
+        "tick": 6179,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 7,
+          "confirmation": "local_screen",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:air",
+            "count": 0
+          },
+          "changed_slots": []
+        }
+      },
+      "http_accept_ms": 25.567,
+      "until_confirmation_ms": 127.253
+    },
+    {
+      "name": "pick_up_observed_log_stack",
+      "request": {
+        "type": "inventory",
+        "operation": "click",
+        "container_id": 0,
+        "state_id": 7,
+        "slot": 38,
+        "button": 0,
+        "click_type": "pickup",
+        "expected_item": "minecraft:oak_log",
+        "expected_count": 2,
+        "expected_cursor_item": "minecraft:air",
+        "expected_cursor_count": 0,
+        "timeout_ticks": 100,
+        "expected_components_hash": -319121480
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "43cdd462-5b7b-4af0-9574-93b7eb9354ae",
+        "status": "accepted",
+        "accepted_tick": 6207,
+        "accepted_at_ms": 1792504663381
+      },
+      "result": {
+        "id": "43cdd462-5b7b-4af0-9574-93b7eb9354ae",
+        "type": "inventory",
+        "operation": "click",
+        "status": "completed",
+        "tick": 6210,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 8,
+          "confirmation": "server_updates",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:oak_log",
+            "count": 2,
+            "name": "Oak Log",
+            "components_hash": -319121480
+          },
+          "changed_slots": [
+            {
+              "slot": 38,
+              "before": {
+                "item": "minecraft:oak_log",
+                "count": 2,
+                "name": "Oak Log",
+                "components_hash": -319121480
+              },
+              "after": {
+                "item": "minecraft:air",
+                "count": 0
+              }
+            }
+          ]
+        }
+      },
+      "http_accept_ms": 20.48,
+      "until_confirmation_ms": 228.685
+    },
+    {
+      "name": "place_one_log_in_craft_grid",
+      "request": {
+        "type": "inventory",
+        "operation": "click",
+        "container_id": 0,
+        "state_id": 8,
+        "slot": 1,
+        "button": 1,
+        "click_type": "pickup",
+        "expected_item": "minecraft:air",
+        "expected_count": 0,
+        "expected_cursor_item": "minecraft:oak_log",
+        "expected_cursor_count": 2,
+        "timeout_ticks": 100,
+        "expected_cursor_components_hash": -319121480
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "09dc2557-bedc-47ec-81de-2c9ad2532eb4",
+        "status": "accepted",
+        "accepted_tick": 6211,
+        "accepted_at_ms": 1792504663612
+      },
+      "result": {
+        "id": "09dc2557-bedc-47ec-81de-2c9ad2532eb4",
+        "type": "inventory",
+        "operation": "click",
+        "status": "completed",
+        "tick": 6215,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 11,
+          "confirmation": "server_updates",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:oak_log",
+            "count": 1,
+            "name": "Oak Log",
+            "components_hash": -319121480
+          },
+          "changed_slots": [
+            {
+              "slot": 0,
+              "before": {
+                "item": "minecraft:air",
+                "count": 0
+              },
+              "after": {
+                "item": "minecraft:oak_planks",
+                "count": 4,
+                "name": "Oak Planks",
+                "components_hash": -319121480
+              }
+            },
+            {
+              "slot": 1,
+              "before": {
+                "item": "minecraft:air",
+                "count": 0
+              },
+              "after": {
+                "item": "minecraft:oak_log",
+                "count": 1,
+                "name": "Oak Log",
+                "components_hash": -319121480
+              }
+            }
+          ]
+        }
+      },
+      "http_accept_ms": 19.935,
+      "until_confirmation_ms": 261.051
+    },
+    {
+      "name": "return_remaining_logs_to_original_slot",
+      "request": {
+        "type": "inventory",
+        "operation": "click",
+        "container_id": 0,
+        "state_id": 11,
+        "slot": 38,
+        "button": 0,
+        "click_type": "pickup",
+        "expected_item": "minecraft:air",
+        "expected_count": 0,
+        "expected_cursor_item": "minecraft:oak_log",
+        "expected_cursor_count": 1,
+        "timeout_ticks": 100,
+        "expected_cursor_components_hash": -319121480
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "a41fb214-93c9-4bb6-99d9-9e190c985a74",
+        "status": "accepted",
+        "accepted_tick": 6217,
+        "accepted_at_ms": 1792504663885
+      },
+      "result": {
+        "id": "a41fb214-93c9-4bb6-99d9-9e190c985a74",
+        "type": "inventory",
+        "operation": "click",
+        "status": "completed",
+        "tick": 6220,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 12,
+          "confirmation": "server_updates",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:air",
+            "count": 0
+          },
+          "changed_slots": [
+            {
+              "slot": 38,
+              "before": {
+                "item": "minecraft:air",
+                "count": 0
+              },
+              "after": {
+                "item": "minecraft:oak_log",
+                "count": 1,
+                "name": "Oak Log",
+                "components_hash": -319121480
+              }
+            }
+          ]
+        }
+      },
+      "http_accept_ms": 19.972,
+      "until_confirmation_ms": 224.947
+    },
+    {
+      "name": "take_four_planks_from_real_result_slot",
+      "request": {
+        "type": "inventory",
+        "operation": "click",
+        "container_id": 0,
+        "state_id": 12,
+        "slot": 0,
+        "button": 0,
+        "click_type": "pickup",
+        "expected_item": "minecraft:oak_planks",
+        "expected_count": 4,
+        "expected_cursor_item": "minecraft:air",
+        "expected_cursor_count": 0,
+        "timeout_ticks": 100,
+        "expected_components_hash": -319121480
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "763f5e5f-4c7e-4dc2-b799-b340dac96ce9",
+        "status": "accepted",
+        "accepted_tick": 6225,
+        "accepted_at_ms": 1792504664277
+      },
+      "result": {
+        "id": "763f5e5f-4c7e-4dc2-b799-b340dac96ce9",
+        "type": "inventory",
+        "operation": "click",
+        "status": "completed",
+        "tick": 6228,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 15,
+          "confirmation": "server_updates",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:oak_planks",
+            "count": 4,
+            "name": "Oak Planks",
+            "components_hash": -319121480
+          },
+          "changed_slots": [
+            {
+              "slot": 0,
+              "before": {
+                "item": "minecraft:oak_planks",
+                "count": 4,
+                "name": "Oak Planks",
+                "components_hash": -319121480
+              },
+              "after": {
+                "item": "minecraft:air",
+                "count": 0
+              }
+            },
+            {
+              "slot": 1,
+              "before": {
+                "item": "minecraft:oak_log",
+                "count": 1,
+                "name": "Oak Log",
+                "components_hash": -319121480
+              },
+              "after": {
+                "item": "minecraft:air",
+                "count": 0
+              }
+            }
+          ]
+        }
+      },
+      "http_accept_ms": 13.451,
+      "until_confirmation_ms": 221.999
+    },
+    {
+      "name": "place_planks_in_observed_empty_inventory_slot",
+      "request": {
+        "type": "inventory",
+        "operation": "click",
+        "container_id": 0,
+        "state_id": 15,
+        "slot": 9,
+        "button": 0,
+        "click_type": "pickup",
+        "expected_item": "minecraft:air",
+        "expected_count": 0,
+        "expected_cursor_item": "minecraft:oak_planks",
+        "expected_cursor_count": 4,
+        "timeout_ticks": 100,
+        "expected_cursor_components_hash": -319121480
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "9539ee3c-b085-498b-80b7-db788933ee07",
+        "status": "accepted",
+        "accepted_tick": 6230,
+        "accepted_at_ms": 1792504664530
+      },
+      "result": {
+        "id": "9539ee3c-b085-498b-80b7-db788933ee07",
+        "type": "inventory",
+        "operation": "click",
+        "status": "completed",
+        "tick": 6233,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 16,
+          "confirmation": "server_updates",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:air",
+            "count": 0
+          },
+          "changed_slots": [
+            {
+              "slot": 9,
+              "before": {
+                "item": "minecraft:air",
+                "count": 0
+              },
+              "after": {
+                "item": "minecraft:oak_planks",
+                "count": 4,
+                "name": "Oak Planks",
+                "components_hash": -319121480
+              }
+            }
+          ]
+        }
+      },
+      "http_accept_ms": 28.661,
+      "until_confirmation_ms": 233.097
+    },
+    {
+      "name": "close_inventory",
+      "request": {
+        "type": "inventory",
+        "operation": "close"
+      },
+      "accepted": {
+        "ok": true,
+        "action_id": "b20b5112-9a6b-4ff3-b7d5-438033fbca58",
+        "status": "accepted",
+        "accepted_tick": 6250,
+        "accepted_at_ms": 1792504665551
+      },
+      "result": {
+        "id": "b20b5112-9a6b-4ff3-b7d5-438033fbca58",
+        "type": "inventory",
+        "operation": "close",
+        "status": "completed",
+        "tick": 6251,
+        "ok": true,
+        "details": {
+          "container_id": 0,
+          "state_id": 16,
+          "confirmation": "local_screen",
+          "uncertain": false,
+          "recovery_required": false,
+          "cursor": {
+            "item": "minecraft:air",
+            "count": 0
+          },
+          "changed_slots": []
+        }
+      },
+      "http_accept_ms": 20.425,
+      "until_confirmation_ms": 21.923
+    }
+  ],
+  "artifact_after": {
+    "jar_path": "/workspace/com.mojang/dotbridge/build/libs/dotbridge-1.1.0.jar",
+    "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+    "runtime": "NeoForge development client using compiled classes/resources; bytes compared against release JAR",
+    "build_output_comparison": {
+      "classes": {
+        "files": 31,
+        "mismatches": []
+      },
+      "resources": {
+        "files": 2,
+        "mismatches": []
+      }
+    },
+    "all_compiled_outputs_match_jar": true
+  },
+  "finished_at_ms": 1792504665995
+}

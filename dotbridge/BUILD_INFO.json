@@ -1,6 +1,6 @@
 {
   "name": "DotBridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minecraft": "1.21.1",
   "neoforge_compile_version": "21.1.259",
   "neoforge_declared_range": "[21.1.259,21.2)",
@@ -13,9 +13,26 @@
   "runtime_tested_with": [
     "Minecraft 1.21.1",
     "NeoForge 21.1.259",
-    "Shoulder Surfing Reloaded 1.21.1-5.2.0"
+    "Shoulder Surfing Reloaded 5.2.0",
+    "Spatial GUI 1.8",
+    "YetAnotherConfigLib 3.8.2",
+    "Sodium 0.8.13",
+    "ImmediatelyFast 1.6.14",
+    "EntityCulling 1.11.3",
+    "FerriteCore 7.0.3",
+    "ModernFix 5.27.26"
   ],
-  "unit_tests_passed": 98,
-  "in_game_checks_passed": 13,
-  "jar_sha256": "f0887875884bf905e04aad579f4e528650964217ec024a64eb4a9a7d8faeb0de"
+  "unit_tests_passed": 244,
+  "in_game_checks_passed": 31,
+  "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+  "runtime_validation_status": "completed_with_documented_limits",
+  "runtime_mode": "NeoForge development client; compiled classes/resources compared byte-for-byte with distributed JAR",
+  "runtime_reports": [
+    "docs/runtime-goals-1.1.0.json",
+    "docs/runtime-inventory-spatial-1.1.0.json",
+    "docs/runtime-visibility-1.1.0.json",
+    "docs/runtime-performance-1.1.0.json"
+  ],
+  "runtime_checks_note": "Final scenario coverage: 18 goals, 12 inventory, 1 visibility. Initial mining collection attempt was unverified; preserved and followed by successful overhead-stone collection rerun on identical bytes.",
+  "tlauncher_runtime_tested": false
 }

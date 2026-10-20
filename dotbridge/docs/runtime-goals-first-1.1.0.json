@@ -1,0 +1,799 @@
+{
+  "version": "1.1.0",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.259",
+  "scope": "isolated copied disposable superflat; Xorg99 Mesa llvmpipe; exact pack compatibility subset",
+  "checks": [
+    {
+      "name": "runtime_versions_and_disposable_setup",
+      "passed": true,
+      "details": {
+        "health": {
+          "ok": true,
+          "mod": "dotbridge",
+          "version": "1.1.0",
+          "minecraft": "1.21.1",
+          "loader": "neoforge"
+        },
+        "initial_tick": 560,
+        "game_mode": "survival"
+      },
+      "wall_seconds": 12.927
+    },
+    {
+      "name": "explicit_and_f5_camera_modes",
+      "passed": true,
+      "details": {
+        "explicit_modes": [
+          {
+            "requested": "first_person",
+            "camera": "first_person",
+            "perspective": "first_person"
+          },
+          {
+            "requested": "third_person_back",
+            "camera": "third_person_back",
+            "perspective": "third_person_back"
+          },
+          {
+            "requested": "third_person_front",
+            "camera": "third_person_front",
+            "perspective": "third_person_front"
+          }
+        ],
+        "api_cycle": [
+          "third_person_back",
+          "third_person_front",
+          "shoulder_surfing",
+          "first_person"
+        ],
+        "physical_f5_cycle": [
+          "third_person_back",
+          "third_person_front",
+          "shoulder_surfing",
+          "first_person"
+        ]
+      },
+      "wall_seconds": 3.57
+    },
+    {
+      "name": "uniform_visible_floor_does_not_freeze_waiting_camera",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "8ff440e1-376e-4778-a4b1-5c503755c42c",
+          "type": "observe",
+          "status": "completed",
+          "tick": 987,
+          "time_ms": 1792504401472,
+          "reason": "authorized_duration_completed",
+          "details": {
+            "visible_interest_count": 5,
+            "elapsed_ticks": 100,
+            "state": "interrupted",
+            "accepted_tick": 886,
+            "started_tick": 887,
+            "start_delay_ms": 37.367168,
+            "steps": [
+              {
+                "visible_interest_count": 5,
+                "step": 0,
+                "type": "observe",
+                "reason": "authorized_duration_completed"
+              }
+            ]
+          }
+        },
+        "fixture": "Uniform stone floor only; no landmark blocks or entities",
+        "tick_samples": 102,
+        "consecutive_tick_pairs": 100,
+        "angle_change_degrees": 74.26829900000001,
+        "max_axis_speed_degrees_per_tick": 5.0,
+        "max_axis_acceleration_degrees_per_tick_squared": 0.7000039999999785,
+        "revalidation": "Original sampled visible surface, never an occluded block center"
+      },
+      "wall_seconds": 9.06
+    },
+    {
+      "name": "authorized_observe_during_wait_smoothness",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "7feecdad-d956-4b82-9b06-6a9d99918457",
+          "type": "observe",
+          "status": "completed",
+          "tick": 1206,
+          "time_ms": 1792504412416,
+          "reason": "authorized_duration_completed",
+          "details": {
+            "visible_interest_count": 6,
+            "elapsed_ticks": 100,
+            "state": "interrupted",
+            "accepted_tick": 1105,
+            "started_tick": 1106,
+            "start_delay_ms": 40.275291,
+            "steps": [
+              {
+                "visible_interest_count": 6,
+                "step": 0,
+                "type": "observe",
+                "reason": "authorized_duration_completed"
+              }
+            ]
+          }
+        },
+        "tick_samples": 102,
+        "consecutive_tick_pairs": 100,
+        "purposeful_angle_change_degrees": 83.303131,
+        "max_observed_axis_speed_deg_per_tick": 5.0,
+        "max_observed_axis_acceleration_deg_per_tick_squared": 0.7000060000000303,
+        "natural_observe_fps_median": 49,
+        "natural_observe_client_work_us_median": 274.72,
+        "natural_observe_measurement_scope": "Visible-POI camera moving in the natural-observe test scene; not a fixed-view causal comparison."
+      },
+      "wall_seconds": 10.946
+    },
+    {
+      "name": "authoritative_stone_break_and_cobblestone_collection",
+      "passed": false,
+      "error": {
+        "type": "AssertionError",
+        "message": "{'id': 'f64f49e3-57b6-46cd-9a99-944d2d2f00e0', 'type': 'mine', 'status': 'completed', 'tick': 1418, 'time_ms': 1792504423007, 'reason': 'block_changed_collection_unverified', 'details': {'block': {'x': 0, 'y': -60, 'z': 1}, 'initial_block': 'minecraft:stone', 'broke': True, 'collected': False, 'collection_causal_proof': False, 'server_confirmed': True, 'server_confirmed_at_ms': 1792504421001, 'block_change_observed_tick': 1378, 'break_causal_proof': False, 'inventory_increases': [], 'server_pickups_near_target': {}, 'collected_item_increases': [], 'collection_evidence': 'not_observed', 'elapsed_ticks': 54, 'state': 'interrupted', 'accepted_tick': 1363, 'started_tick': 1364, 'start_delay_ms': 28.79171, 'steps': [{'block': {'x': 0, 'y': -60, 'z': 1}, 'initial_block': 'minecraft:stone', 'broke': True, 'collected': False, 'collection_causal_proof': False, 'server_confirmed': True, 'server_confirmed_at_ms': 1792504421001, 'block_change_observed_tick': 1378, 'break_causal_proof': False, 'inventory_increases': [], 'server_pickups_near_target': {}, 'collected_item_increases': [], 'collection_evidence': 'not_observed', 'step': 0, 'type': 'mine', 'reason': 'block_changed_collection_unverified'}]}}"
+      },
+      "wall_seconds": 10.609
+    },
+    {
+      "name": "moving_entity_tracking_without_combat",
+      "passed": true,
+      "details": {
+        "target_id": 5,
+        "entity_distance_moved": 2.4599609375,
+        "camera_yaw_span": 40.9467,
+        "result": {
+          "id": "bcb2558d-427e-4386-883a-e50fc2cde129",
+          "type": "track",
+          "status": "completed",
+          "tick": 1645,
+          "time_ms": 1792504434363,
+          "reason": "authorized_duration_completed",
+          "details": {
+            "entity_id": 5,
+            "elapsed_ticks": 80,
+            "state": "interrupted",
+            "accepted_tick": 1564,
+            "started_tick": 1565,
+            "start_delay_ms": 21.336447,
+            "steps": [
+              {
+                "entity_id": 5,
+                "step": 0,
+                "type": "track",
+                "reason": "authorized_duration_completed"
+              }
+            ]
+          }
+        },
+        "no_combat_events": true,
+        "target_remained_alive": true
+      },
+      "wall_seconds": 13.333
+    },
+    {
+      "name": "target_disappearance_stops_tracking",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+          "type": "track",
+          "status": "failed",
+          "tick": 1847,
+          "time_ms": 1792504444455,
+          "reason": "entity_missing",
+          "details": {
+            "entity_id": 9,
+            "elapsed_ticks": 48,
+            "state": "interrupted",
+            "accepted_tick": 1798,
+            "started_tick": 1799,
+            "start_delay_ms": 0.14311
+          }
+        },
+        "events": [
+          {
+            "sequence": 96,
+            "type": "action_accepted",
+            "tick": 1798,
+            "time_ms": 1792504442061,
+            "details": {
+              "id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "type": "track",
+              "status": "accepted",
+              "state": "observing",
+              "local_state": "observing",
+              "phase": "accepted",
+              "accepted_tick": 1798,
+              "started_tick": null,
+              "start_delay_ms": null,
+              "elapsed_ticks": 0,
+              "max_ticks": 160,
+              "step": 0,
+              "step_type": "track",
+              "step_elapsed_ticks": 0,
+              "details": {}
+            }
+          },
+          {
+            "sequence": 97,
+            "type": "goal_step_started",
+            "tick": 1799,
+            "time_ms": 1792504442061,
+            "details": {
+              "goal_id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "goal_type": "track",
+              "reason": "track",
+              "tick": 1799
+            }
+          },
+          {
+            "sequence": 98,
+            "type": "action_started",
+            "tick": 1799,
+            "time_ms": 1792504442061,
+            "details": {
+              "id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "type": "track",
+              "status": "executing",
+              "state": "observing",
+              "local_state": "observing",
+              "phase": "observing",
+              "accepted_tick": 1798,
+              "started_tick": 1799,
+              "start_delay_ms": 0.14311,
+              "elapsed_ticks": 0,
+              "max_ticks": 160,
+              "step": 0,
+              "step_type": "track",
+              "step_elapsed_ticks": 0,
+              "details": {}
+            }
+          },
+          {
+            "sequence": 99,
+            "type": "goal_started",
+            "tick": 1799,
+            "time_ms": 1792504442061,
+            "details": {
+              "goal_id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "goal_type": "track",
+              "reason": "executing",
+              "tick": 1799
+            }
+          },
+          {
+            "sequence": 100,
+            "type": "target_lost",
+            "tick": 1847,
+            "time_ms": 1792504444455,
+            "details": {
+              "goal_id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "goal_type": "track",
+              "reason": "entity_missing",
+              "tick": 1847
+            }
+          },
+          {
+            "sequence": 101,
+            "type": "goal_finished",
+            "tick": 1847,
+            "time_ms": 1792504444455,
+            "details": {
+              "id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "type": "track",
+              "status": "failed",
+              "state": "interrupted",
+              "local_state": "interrupted",
+              "reason": "entity_missing",
+              "tick": 1847,
+              "details": {
+                "entity_id": 9,
+                "elapsed_ticks": 48,
+                "state": "interrupted",
+                "accepted_tick": 1798,
+                "started_tick": 1799,
+                "start_delay_ms": 0.14311
+              }
+            }
+          },
+          {
+            "sequence": 102,
+            "type": "action_completed",
+            "tick": 1847,
+            "time_ms": 1792504444455,
+            "details": {
+              "id": "21b68d19-7337-4a41-a55e-23a23d183e68",
+              "type": "track",
+              "status": "failed",
+              "tick": 1847,
+              "time_ms": 1792504444455,
+              "reason": "entity_missing",
+              "details": {
+                "entity_id": 9,
+                "elapsed_ticks": 48,
+                "state": "interrupted",
+                "accepted_tick": 1798,
+                "started_tick": 1799,
+                "start_delay_ms": 0.14311
+              }
+            }
+          }
+        ]
+      },
+      "wall_seconds": 8.125
+    },
+    {
+      "name": "safe_frontal_greeting_restores_camera",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "757f5af3-0510-4048-82c9-762f1826e519",
+          "type": "greet",
+          "status": "completed",
+          "tick": 1973,
+          "time_ms": 1792504450769,
+          "reason": "greeting_finished",
+          "details": {
+            "camera": "third_person_front",
+            "elapsed_ticks": 45,
+            "state": "interrupted",
+            "accepted_tick": 1927,
+            "started_tick": 1928,
+            "start_delay_ms": 38.083113,
+            "steps": [
+              {
+                "camera": "third_person_front",
+                "step": 0,
+                "type": "greet",
+                "reason": "greeting_finished"
+              }
+            ]
+          }
+        },
+        "prior_and_restored_perspective": "third_person_back",
+        "front_samples": 45,
+        "crouch_samples": 15
+      },
+      "wall_seconds": 6.293
+    },
+    {
+      "name": "unsafe_greeting_reports_reason",
+      "passed": true,
+      "details": {
+        "id": "132b3c1e-c838-4323-b265-08f7243ef486",
+        "type": "greet",
+        "status": "failed",
+        "tick": 2072,
+        "time_ms": 1792504455708,
+        "reason": "unsafe_presentation: unsafe_presentation_area:immediate_obstacle",
+        "details": {
+          "elapsed_ticks": 0,
+          "state": "interrupted",
+          "accepted_tick": 2071,
+          "started_tick": 2072,
+          "start_delay_ms": 36.411882
+        }
+      },
+      "wall_seconds": 4.937
+    },
+    {
+      "name": "manual_key_has_priority",
+      "passed": true,
+      "details": {
+        "id": "c7beb519-f2d7-4e0f-a091-bc55f4c1e9e4",
+        "type": "observe",
+        "status": "cancelled",
+        "tick": 2158,
+        "time_ms": 1792504460063,
+        "reason": "manual_input",
+        "details": {
+          "visible_interest_count": 5,
+          "elapsed_ticks": 8,
+          "state": "interrupted",
+          "accepted_tick": 2150,
+          "started_tick": 2151,
+          "start_delay_ms": 0.093693
+        }
+      },
+      "wall_seconds": 4.86
+    },
+    {
+      "name": "menu_cancels_and_rejects_goals",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "bfa9fbf7-68e1-4ae0-b721-ff41a2e7f610",
+          "type": "observe",
+          "status": "cancelled",
+          "tick": 2254,
+          "time_ms": 1792504464909,
+          "reason": "manual_input",
+          "details": {
+            "visible_interest_count": 5,
+            "elapsed_ticks": 6,
+            "state": "interrupted",
+            "accepted_tick": 2248,
+            "started_tick": 2249,
+            "start_delay_ms": 0.098634
+          }
+        },
+        "screen": "PauseScreen",
+        "new_goal_http": 409
+      },
+      "wall_seconds": 5.194
+    },
+    {
+      "name": "heartbeat_loss_cancels_movement",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "6ef39d23-2d58-4acd-b3c2-fb2433978c1b",
+          "type": "move",
+          "status": "cancelled",
+          "tick": 2368,
+          "time_ms": 1792504470464,
+          "reason": "heartbeat_expired",
+          "details": {
+            "elapsed_ticks": 14,
+            "state": "interrupted",
+            "accepted_tick": 2353,
+            "started_tick": 2354,
+            "start_delay_ms": 0.129453
+          }
+        },
+        "remaining_drift_blocks": 0.0,
+        "ttl_ms": 700,
+        "states": [
+          {
+            "tick": 2353,
+            "lease_remaining_ms": 682,
+            "local_state": "moving",
+            "interruption_reason": null
+          },
+          {
+            "tick": 2358,
+            "lease_remaining_ms": 473,
+            "local_state": "moving",
+            "interruption_reason": null
+          },
+          {
+            "tick": 2363,
+            "lease_remaining_ms": 226,
+            "local_state": "moving",
+            "interruption_reason": null
+          },
+          {
+            "tick": 2368,
+            "lease_remaining_ms": 0,
+            "local_state": "interrupted",
+            "interruption_reason": "heartbeat_expired"
+          },
+          {
+            "tick": 2373,
+            "lease_remaining_ms": 0,
+            "local_state": "interrupted",
+            "interruption_reason": "heartbeat_expired"
+          },
+          {
+            "tick": 2378,
+            "lease_remaining_ms": 0,
+            "local_state": "interrupted",
+            "interruption_reason": "heartbeat_expired"
+          },
+          {
+            "tick": 2383,
+            "lease_remaining_ms": 0,
+            "local_state": "interrupted",
+            "interruption_reason": "heartbeat_expired"
+          },
+          {
+            "tick": 2388,
+            "lease_remaining_ms": 0,
+            "local_state": "interrupted",
+            "interruption_reason": "heartbeat_expired"
+          }
+        ]
+      },
+      "wall_seconds": 6.201
+    },
+    {
+      "name": "obstacle_prevents_blind_movement",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "6e0d7263-0329-4d4f-b4ef-27006a61b075",
+          "type": "move",
+          "status": "failed",
+          "tick": 2497,
+          "time_ms": 1792504476908,
+          "reason": "movement_risk: immediate_obstacle",
+          "details": {
+            "elapsed_ticks": 0,
+            "state": "interrupted",
+            "accepted_tick": 2496,
+            "started_tick": 2497,
+            "start_delay_ms": 17.903662
+          }
+        },
+        "position_change": 0.0
+      },
+      "wall_seconds": 4.932
+    },
+    {
+      "name": "lava_prevents_blind_movement",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "b3471a1e-5869-40c2-9490-4d8577cad254",
+          "type": "move",
+          "status": "failed",
+          "tick": 2595,
+          "time_ms": 1792504481813,
+          "reason": "movement_risk: lava_ahead",
+          "details": {
+            "elapsed_ticks": 0,
+            "state": "interrupted",
+            "accepted_tick": 2594,
+            "started_tick": 2595,
+            "start_delay_ms": 0.099669
+          }
+        },
+        "position_change": 0.0
+      },
+      "wall_seconds": 4.922
+    },
+    {
+      "name": "cliff_prevents_blind_movement",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "781b2acb-5c8e-4a77-97ea-6db1da160bf2",
+          "type": "move",
+          "status": "failed",
+          "tick": 2696,
+          "time_ms": 1792504486869,
+          "reason": "movement_risk: cliff_or_missing_support",
+          "details": {
+            "elapsed_ticks": 0,
+            "state": "interrupted",
+            "accepted_tick": 2695,
+            "started_tick": 2696,
+            "start_delay_ms": 17.621732
+          }
+        },
+        "position_change": 0.0
+      },
+      "wall_seconds": 5.039
+    },
+    {
+      "name": "bounded_sequence_executes_locally",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "902e419c-bdf0-400d-abb2-9cb5466e328d",
+          "type": "sequence",
+          "status": "completed",
+          "tick": 2814,
+          "time_ms": 1792504492770,
+          "reason": "authorized_duration_completed",
+          "details": {
+            "elapsed_ticks": 38,
+            "state": "interrupted",
+            "accepted_tick": 2774,
+            "started_tick": 2775,
+            "start_delay_ms": 27.602827,
+            "steps": [
+              {
+                "step": 0,
+                "type": "look_at",
+                "reason": "look_settled"
+              },
+              {
+                "visible_interest_count": 5,
+                "step": 1,
+                "type": "observe",
+                "reason": "authorized_duration_completed"
+              },
+              {
+                "step": 2,
+                "type": "move",
+                "reason": "authorized_duration_completed"
+              }
+            ]
+          }
+        },
+        "step_indices_observed": [
+          -1,
+          0,
+          1,
+          2
+        ]
+      },
+      "wall_seconds": 5.913
+    },
+    {
+      "name": "separate_http_snapshot_start_and_fps_metrics",
+      "passed": true,
+      "details": {
+        "fps_comparison": {
+          "baseline_idle": {
+            "tick_samples": 101,
+            "fps_median": 46,
+            "fps_min": 35,
+            "fps_max": 55,
+            "client_tick_work_us_median": 51.381,
+            "client_tick_work_us_max": 219.628,
+            "view_rotation_first": {
+              "yaw": 0.0,
+              "pitch": 0.0
+            },
+            "view_rotation_last": {
+              "yaw": 0.0,
+              "pitch": 0.0
+            }
+          },
+          "authorized_observe_fixed_target": {
+            "tick_samples": 100,
+            "fps_median": 56.0,
+            "fps_min": 53,
+            "fps_max": 58,
+            "client_tick_work_us_median": 85.261,
+            "client_tick_work_us_max": 994.359,
+            "view_rotation_first": {
+              "yaw": 0.0,
+              "pitch": 3.318718e-08
+            },
+            "view_rotation_last": {
+              "yaw": 0.0,
+              "pitch": 3.4150965e-08
+            }
+          },
+          "median_fps_delta_percent": 21.739130434782616,
+          "method": "5 seconds per condition, same position/first-person fixed target/view; software llvmpipe, mixed compatibility mods. This fixed-target condition excludes automatic POI scan costs."
+        },
+        "http_state_roundtrip_ms": {
+          "samples": 50,
+          "median": 0.875218499913899,
+          "p95": 3.2303009998031484
+        },
+        "snapshot_age_at_client_ms": {
+          "median": 23.5,
+          "p95": 47
+        },
+        "accepted_to_first_execution_tick_ms": {
+          "samples": [
+            37.367168,
+            40.275291,
+            21.336447,
+            0.14311,
+            38.083113,
+            36.411882,
+            0.093693,
+            0.098634,
+            0.129453,
+            17.903662,
+            0.099669,
+            17.621732,
+            27.602827
+          ],
+          "median": 17.903662,
+          "max": 40.275291,
+          "scope": "Client-thread acceptance to first local goal execution tick; excludes HTTP and prior request queue delay."
+        }
+      },
+      "wall_seconds": 16.687
+    },
+    {
+      "name": "actual_world_logout_leaves_no_pending_goal",
+      "passed": true,
+      "details": {
+        "result": {
+          "id": "2a52ebb1-32f5-438b-afdf-20e5df791984",
+          "type": "observe",
+          "status": "cancelled",
+          "tick": 3155,
+          "time_ms": 1792504509865,
+          "reason": "manual_input",
+          "details": {
+            "visible_interest_count": 4,
+            "elapsed_ticks": 7,
+            "state": "interrupted",
+            "accepted_tick": 3148,
+            "started_tick": 3149,
+            "start_delay_ms": 18.000199
+          }
+        },
+        "connected": false,
+        "screen": "TitleScreen",
+        "new_goal_http": 409,
+        "scope": "Goal was executing before menu/logout. Manual menu priority canceled it before world teardown; this does not simulate a remote transport failure."
+      },
+      "wall_seconds": 1.543
+    }
+  ],
+  "not_tested": [
+    "full Aetherfall",
+    "TLauncher",
+    "external multiplayer server"
+  ],
+  "started_at_ms": 1792504375920,
+  "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+  "metrics": {
+    "fps_comparison": {
+      "baseline_idle": {
+        "tick_samples": 101,
+        "fps_median": 46,
+        "fps_min": 35,
+        "fps_max": 55,
+        "client_tick_work_us_median": 51.381,
+        "client_tick_work_us_max": 219.628,
+        "view_rotation_first": {
+          "yaw": 0.0,
+          "pitch": 0.0
+        },
+        "view_rotation_last": {
+          "yaw": 0.0,
+          "pitch": 0.0
+        }
+      },
+      "authorized_observe_fixed_target": {
+        "tick_samples": 100,
+        "fps_median": 56.0,
+        "fps_min": 53,
+        "fps_max": 58,
+        "client_tick_work_us_median": 85.261,
+        "client_tick_work_us_max": 994.359,
+        "view_rotation_first": {
+          "yaw": 0.0,
+          "pitch": 3.318718e-08
+        },
+        "view_rotation_last": {
+          "yaw": 0.0,
+          "pitch": 3.4150965e-08
+        }
+      },
+      "median_fps_delta_percent": 21.739130434782616,
+      "method": "5 seconds per condition, same position/first-person fixed target/view; software llvmpipe, mixed compatibility mods. This fixed-target condition excludes automatic POI scan costs."
+    },
+    "http_state_roundtrip_ms": {
+      "samples": 50,
+      "median": 0.875218499913899,
+      "p95": 3.2303009998031484
+    },
+    "snapshot_age_at_client_ms": {
+      "median": 23.5,
+      "p95": 47
+    },
+    "accepted_to_first_execution_tick_ms": {
+      "samples": [
+        37.367168,
+        40.275291,
+        21.336447,
+        0.14311,
+        38.083113,
+        36.411882,
+        0.093693,
+        0.098634,
+        0.129453,
+        17.903662,
+        0.099669,
+        17.621732,
+        27.602827
+      ],
+      "median": 17.903662,
+      "max": 40.275291,
+      "scope": "Client-thread acceptance to first local goal execution tick; excludes HTTP and prior request queue delay."
+    }
+  },
+  "finished_at_ms": 1792504511043,
+  "passed": 17,
+  "failed": 1
+}

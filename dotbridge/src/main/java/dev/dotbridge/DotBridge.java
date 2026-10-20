@@ -4,6 +4,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.neoforged.neoforge.client.event.InputEvent;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -49,18 +53,60 @@ public final class DotBridge implements BridgeServer.Backend {
     private BridgeServer server;
     private ActiveAction active;
     private long tick;
+    private long snapshotSequence;
+    private JsonObject observationCache;
+    private long observationTick = -100;
+    private int observationRadius;
+    private final ControlLease lease = new ControlLease();
+    private boolean explicitLease;
+    private final EventBuffer events = new EventBuffer();
+    private final InventoryController inventoryController = new InventoryController();
+    private ControlAction goalInput;
+    private String interruption = "not_authorized";
+    private volatile long controlEpoch;
+    private long lastManualNanos;
+    private double mouseX, mouseY;
+    private boolean mouseSampled, mouseGrabbed;
+    private float previousHealth = Float.NaN;
+    private JsonArray previousInventory;
+    private long preWorkNanos;
+    private double workMicros, workEwmaMicros, workMaxMicros;
+    private final GoalController goals = new GoalController(new GoalController.Host() {
+        public void control(ControlAction command) {
+            boolean clickAttack = command.attack() && (goalInput == null || !goalInput.attack());
+            boolean clickUse = command.use() && (goalInput == null || !goalInput.use());
+            goalInput = command;
+            applyInputs(command, clickAttack, clickUse);
+        }
+        public void release() { goalInput = null; releaseKeys(); }
+        public void look(float yaw, float pitch) { setLook(yaw, pitch); }
+        public void camera(String mode) { setCamera(mode); }
+        public void event(String type, JsonObject details) { events.add(type, tick, details); }
+        public void complete(String id, String type, String status, String reason, JsonObject details) {
+            remember(id, type, status, reason, details);
+        }
+    });
 
     public DotBridge(IEventBus modBus) {
         modBus.addListener(this::setup);
         NeoForge.EVENT_BUS.addListener(this::preTick);
         NeoForge.EVENT_BUS.addListener(this::postTick);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, this::movement);
+        NeoForge.EVENT_BUS.addListener(this::manualKey);
+        NeoForge.EVENT_BUS.addListener(this::manualButton);
+        NeoForge.EVENT_BUS.addListener(this::manualScroll);
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, VisibleWorld::recordFov);
     }
 
     private static JsonObject initialSnapshot() {
         JsonObject state = new JsonObject();
         state.addProperty("ok", true);
         state.addProperty("tick", 0);
+        state.addProperty("sequence", 0);
+        long captured = System.currentTimeMillis();
+        state.addProperty("captured_at_ms", captured);
+        state.addProperty("time_ms", captured);
+        state.addProperty("snapshot_age_ms", 0);
         state.addProperty("connected", false);
         state.addProperty("paused", false);
         state.addProperty("can_control", false);
@@ -96,17 +142,42 @@ public final class DotBridge implements BridgeServer.Backend {
     }
 
     private void preTick(ClientTickEvent.Pre event) {
+        long start = System.nanoTime();
         tick++;
-        if (!pendingCameras.isEmpty() && !canControl(Minecraft.getInstance())) {
-            finishCameras("cancelled", "Game disconnected, paused, or a screen opened");
-        }
-        if (active == null) return;
         Minecraft mc = Minecraft.getInstance();
-        if (!canControl(mc)) {
-            finish("cancelled", "Game disconnected, paused, or a screen opened");
-            return;
+        sampleManualMouse(mc);
+        boolean operating = active != null || goals.active() || inventoryController.active() || !pendingCameras.isEmpty();
+        if (operating && !lease.valid()) interrupt("heartbeat_expired");
+        if ((active != null || goals.active() || !pendingCameras.isEmpty()) && !canControl(mc)) {
+            interrupt("paused_menu_death_or_disconnect");
         }
-        ControlAction action = active.action;
+        if (inventoryController.active() && !canUseInventory(mc)) interrupt("inventory_context_lost");
+        if (active != null) {
+            ControlAction action = active.action;
+            String risk = (action.forward() != 0 || action.strafe() != 0)
+                    ? VisibleWorld.movementRisk(mc, action.forward(), action.strafe()) : null;
+            if (risk != null) {
+                JsonObject detail = new JsonObject(); detail.addProperty("reason", risk);
+                events.add("movement_blocked", tick, detail);
+                finish("failed", risk);
+            } else {
+                applyInputs(action, !active.started && action.attack(), !active.started && action.use());
+                if (!active.started) {
+                    active.started = true;
+                    active.startedTick = tick;
+                    active.startedNanos = System.nanoTime();
+                    events.add("action_started", tick, activeInfo());
+                }
+            }
+        }
+        if (goals.active()) goals.tick(mc, tick);
+        JsonObject inventoryResult = inventoryController.tick(mc, tick);
+        if (inventoryResult != null) recordResult(inventoryResult);
+        preWorkNanos = System.nanoTime() - start;
+    }
+
+    private void applyInputs(ControlAction action, boolean attackClick, boolean useClick) {
+        Minecraft mc = Minecraft.getInstance();
         setKey(mc.options.keyUp, action.forward() > 0);
         setKey(mc.options.keyDown, action.forward() < 0);
         setKey(mc.options.keyLeft, action.strafe() > 0);
@@ -117,16 +188,83 @@ public final class DotBridge implements BridgeServer.Backend {
         if (!action.sprint()) mc.player.setSprinting(false);
         setKey(mc.options.keyAttack, action.attack());
         setKey(mc.options.keyUse, action.use());
-        if (!active.started) {
-            active.started = true;
-            if (action.attack()) KeyMapping.click(mc.options.keyAttack.getKey());
-            if (action.use()) KeyMapping.click(mc.options.keyUse.getKey());
+        if (attackClick) KeyMapping.click(mc.options.keyAttack.getKey());
+        if (useClick) KeyMapping.click(mc.options.keyUse.getKey());
+    }
+
+    private static boolean canUseInventory(Minecraft mc) {
+        return mc.player != null && mc.level != null && mc.gameMode != null
+                && !mc.player.isDeadOrDying() && !mc.isPaused() && mc.getOverlay() == null
+                && (mc.screen == null || mc.screen instanceof AbstractContainerScreen<?>);
+    }
+
+    private void manualKey(InputEvent.Key event) {
+        if (event.getAction() != GLFW.GLFW_RELEASE) {
+            var physical = InputConstants.getKey(event.getKey(), event.getScanCode());
+            boolean preservePerspectiveClick = event.getAction() == GLFW.GLFW_PRESS
+                    && !pendingCameras.isEmpty()
+                    && Minecraft.getInstance().options.keyTogglePerspective.getKey().equals(physical);
+            var restored = new java.util.HashMap<KeyMapping, Boolean>();
+            for (KeyMapping key : pressedKeys) {
+                if (key.getKey().equals(physical)) restored.put(key, key.isDown());
+            }
+            manualOverride();
+            // Vanilla already processed this key. Restore only bindings owned by the bridge,
+            // without toggling a ToggleKeyMapping a second time.
+            restored.forEach(DotBridge::setKeyState);
+            if (preservePerspectiveClick) KeyMapping.click(physical);
         }
+    }
+    private void manualButton(InputEvent.MouseButton.Pre event) {
+        if (event.getAction() == GLFW.GLFW_PRESS) manualOverride();
+    }
+    private void manualScroll(InputEvent.MouseScrollingEvent event) { manualOverride(); }
+    private void manualOverride() {
+        lastManualNanos = System.nanoTime();
+        interrupt("manual_input");
+    }
+    private void sampleManualMouse(Minecraft mc) {
+        double x = mc.mouseHandler.xpos(), y = mc.mouseHandler.ypos();
+        boolean grabbed = mc.mouseHandler.isMouseGrabbed();
+        if (mouseSampled && grabbed && mouseGrabbed && (Math.abs(x - mouseX) > 0.5 || Math.abs(y - mouseY) > 0.5)) {
+            manualOverride();
+        }
+        mouseX = x; mouseY = y; mouseGrabbed = grabbed; mouseSampled = true;
+    }
+    private void ensureManualIdle() {
+        Minecraft mc = Minecraft.getInstance();
+        if (System.nanoTime() - lastManualNanos < 250_000_000L) throw new BridgeServer.ApiException(409, "Manual input has priority; wait for physical controls to be released");
+        for (KeyMapping key : new KeyMapping[]{mc.options.keyUp, mc.options.keyDown, mc.options.keyLeft,
+                mc.options.keyRight, mc.options.keyJump, mc.options.keyShift, mc.options.keySprint,
+                mc.options.keyAttack, mc.options.keyUse}) {
+            InputConstants.Key physical = key.getKey();
+            boolean down = physical.getType() == InputConstants.Type.KEYSYM && physical.getValue() >= 0
+                    ? GLFW.glfwGetKey(mc.getWindow().getWindow(), physical.getValue()) == GLFW.GLFW_PRESS
+                    : physical.getType() == InputConstants.Type.MOUSE && physical.getValue() >= 0
+                    && GLFW.glfwGetMouseButton(mc.getWindow().getWindow(), physical.getValue()) == GLFW.GLFW_PRESS;
+            if (down) throw new BridgeServer.ApiException(409, "Physical input is held; manual control has priority");
+        }
+    }
+    private void interrupt(String reason) {
+        controlEpoch++;
+        interruption = reason;
+        lease.revoke();
+        explicitLease = false;
+        cancelActions(reason);
+    }
+    private void cancelActions(String reason) {
+        goals.cancel(reason, Minecraft.getInstance());
+        JsonObject result = inventoryController.cancel(reason, tick);
+        if (result != null) recordResult(result);
+        finish("cancelled", reason);
+        finishCameras("cancelled", reason);
+        goalInput = null;
     }
 
     private void movement(MovementInputUpdateEvent event) {
-        if (active == null || !canControl(Minecraft.getInstance())) return;
-        ControlAction action = active.action;
+        if (!canControl(Minecraft.getInstance())) return;
+        ControlAction action = active != null ? active.action : goalInput;
+        if (action == null) return;
         var input = event.getInput();
         input.up = action.forward() > 0;
         input.down = action.forward() < 0;
@@ -146,6 +284,7 @@ public final class DotBridge implements BridgeServer.Backend {
     }
 
     private void postTick(ClientTickEvent.Post event) {
+        long start = System.nanoTime();
         if (active != null && active.started) {
             if (--active.remaining <= 0) finish("completed", null);
             else if (!canControl(Minecraft.getInstance())) finish("cancelled", "Game disconnected, paused, or a screen opened");
@@ -155,10 +294,30 @@ public final class DotBridge implements BridgeServer.Backend {
             finishCameras(ready ? "completed" : "cancelled", ready ? null : "Game is no longer controllable");
         }
         snapshot = captureState();
+        detectChanges(snapshot);
+        workMicros = (preWorkNanos + System.nanoTime() - start) / 1000.0;
+        workEwmaMicros = workEwmaMicros == 0 ? workMicros : workEwmaMicros * 0.95 + workMicros * 0.05;
+        workMaxMicros = Math.max(workMaxMicros, workMicros);
+    }
+
+    private void detectChanges(JsonObject state) {
+        if (!state.has("player")) { previousInventory = null; previousHealth = Float.NaN; return; }
+        float health = state.getAsJsonObject("player").get("health").getAsFloat();
+        if (Float.isFinite(previousHealth) && health < previousHealth) {
+            JsonObject detail = new JsonObject(); detail.addProperty("amount", previousHealth - health);
+            detail.addProperty("health", health); events.add("damage", tick, detail);
+        }
+        previousHealth = health;
+        JsonArray inventory = state.getAsJsonArray("inventory");
+        if (previousInventory != null && !previousInventory.equals(inventory)) {
+            JsonObject detail = new JsonObject(); detail.add("inventory", inventory.deepCopy());
+            events.add("inventory_changed", tick, detail);
+        }
+        previousInventory = inventory.deepCopy();
     }
 
     private void finishCameras(String status, String reason) {
-        if (!status.equals("completed")) {
+        if (!pendingCameras.isEmpty() && !status.equals("completed")) {
             while (Minecraft.getInstance().options.keyTogglePerspective.consumeClick()) {}
         }
         while (!pendingCameras.isEmpty()) remember(pendingCameras.removeFirst(), "camera", status, reason);
@@ -186,6 +345,7 @@ public final class DotBridge implements BridgeServer.Backend {
     }
 
     private void releaseKeys() {
+        if (pressedKeys.isEmpty()) return;
         for (KeyMapping mapping : pressedKeys) {
             setKeyState(mapping, false);
             // A screen or overlay can prevent vanilla from consuming an injected click.
@@ -208,26 +368,57 @@ public final class DotBridge implements BridgeServer.Backend {
 
     private void finish(String status, String reason) {
         if (active != null) {
-            remember(active.id, active.action.type(), status, reason);
+            JsonObject timing = new JsonObject();
+            timing.addProperty("accepted_tick", active.acceptedTick);
+            if (active.started) {
+                timing.addProperty("started_tick", active.startedTick);
+                timing.addProperty("start_delay_ms", (active.startedNanos - active.acceptedNanos) / 1_000_000.0);
+            }
+            remember(active.id, active.action.type(), status.equals("replaced") ? "cancelled" : status, reason, timing);
             active = null;
         }
         releaseKeys();
     }
 
     private void remember(String id, String type, String status, String reason) {
+        remember(id, type, status, reason, new JsonObject());
+    }
+    private void remember(String id, String type, String status, String reason, JsonObject details) {
         JsonObject result = new JsonObject();
         result.addProperty("id", id);
         result.addProperty("type", type);
         result.addProperty("status", status);
         result.addProperty("tick", tick);
+        result.addProperty("time_ms", System.currentTimeMillis());
         if (reason != null) result.addProperty("reason", reason);
-        history.addFirst(result);
-        while (history.size() > 32) history.removeLast();
+        result.add("details", details);
+        recordResult(result);
     }
-
+    private void recordResult(JsonObject result) {
+        history.addFirst(result.deepCopy());
+        while (history.size() > 32) history.removeLast();
+        events.add("action_completed", tick, result);
+    }
+    private JsonObject activeInfo() {
+        if (active != null) {
+            JsonObject info = new JsonObject();
+            info.addProperty("id", active.id); info.addProperty("type", active.action.type());
+            info.addProperty("status", active.started ? "executing" : "accepted");
+            info.addProperty("remaining_ticks", active.remaining);
+            info.addProperty("accepted_tick", active.acceptedTick);
+            if (active.started) { info.addProperty("started_tick", active.startedTick);
+                info.addProperty("start_delay_ms", (active.startedNanos - active.acceptedNanos) / 1_000_000.0); }
+            return info;
+        }
+        if (goals.active()) return goals.status();
+        return inventoryController.status();
+    }
     @Override
     public JsonObject state() {
-        return snapshot;
+        JsonObject published = snapshot.deepCopy();
+        if (published.has("captured_at_ms")) published.addProperty("snapshot_age_ms",
+                Math.max(0, System.currentTimeMillis() - published.get("captured_at_ms").getAsLong()));
+        return published;
     }
 
     private CompletableFuture<JsonObject> onClientThread(Callable<JsonObject> task) {
@@ -248,107 +439,179 @@ public final class DotBridge implements BridgeServer.Backend {
         return future;
     }
 
+    private void setLook(float yaw, float pitch) {
+        Minecraft mc = Minecraft.getInstance();
+        mc.player.setYRot(yaw); mc.player.setXRot(pitch); mc.player.setYHeadRot(yaw);
+        ShoulderCompat.look(yaw, pitch);
+        mc.gameRenderer.pick(1.0f);
+    }
+    private void setCamera(String mode) {
+        Minecraft mc = Minecraft.getInstance();
+        if (ShoulderCompat.changePerspective(mode)) return;
+        CameraType previous = mc.options.getCameraType();
+        CameraType next = switch (mode) {
+            case "first_person" -> CameraType.FIRST_PERSON;
+            case "third_person_back", "shoulder_surfing" -> CameraType.THIRD_PERSON_BACK;
+            case "third_person_front" -> CameraType.THIRD_PERSON_FRONT;
+            default -> throw new IllegalArgumentException("Unsupported camera mode");
+        };
+        mc.options.setCameraType(next);
+        if (previous.isFirstPerson() != next.isFirstPerson()) {
+            mc.gameRenderer.checkEntityPostEffect(next.isFirstPerson() ? mc.getCameraEntity() : null);
+        }
+        mc.levelRenderer.needsUpdate();
+    }
+    private JsonObject ack(String id) {
+        snapshot = captureState();
+        JsonObject result = new JsonObject();
+        result.addProperty("ok", true); result.addProperty("action_id", id);
+        result.addProperty("status", "accepted"); result.addProperty("accepted_tick", tick);
+        result.addProperty("accepted_at_ms", System.currentTimeMillis());
+        return result;
+    }
     @Override
     public CompletableFuture<JsonObject> action(JsonObject body) {
         final ControlAction command;
-        try {
-            command = ControlAction.parse(body);
-        } catch (IllegalArgumentException e) {
-            return CompletableFuture.failedFuture(new BridgeServer.ApiException(400, e.getMessage()));
-        }
+        try { command = ControlAction.parse(body); }
+        catch (IllegalArgumentException e) { return CompletableFuture.failedFuture(new BridgeServer.ApiException(400, e.getMessage())); }
+        long epoch = controlEpoch;
         return onClientThread(() -> {
             Minecraft mc = Minecraft.getInstance();
-            if (!command.type().equals("stop") && !canControl(mc)) {
-                throw new BridgeServer.ApiException(409, "Enter a world, close menus and unpause before controlling");
-            }
             String id = UUID.randomUUID().toString();
+            if (command.type().equals("stop")) {
+                interrupt("stopped_by_controller");
+                remember(id, "stop", "completed", null);
+                return ack(id);
+            }
+            if (epoch != controlEpoch) throw new BridgeServer.ApiException(409, "Command cancelled by intervening stop or manual input");
+            if (!canControl(mc)) throw new BridgeServer.ApiException(409, "Enter a world, close menus and unpause before controlling");
+            ensureManualIdle();
+            if (goals.active()) goals.cancel("replaced_by_manual_command", mc);
+            if (inventoryController.active()) recordResult(inventoryController.cancel("replaced_by_manual_command", tick));
+            // Legacy requests remain bounded at 200 ticks; a short implicit watchdog preserves their API.
+            if (!lease.valid() || !explicitLease) lease.renew(10_000);
+            interruption = null;
             switch (command.type()) {
-                case "stop" -> {
-                    finish("cancelled", "Stopped by client");
-                    finishCameras("cancelled", "Stopped by client");
-                    remember(id, "stop", "completed", null);
-                }
-                case "look" -> {
-                    mc.player.setYRot(command.yaw());
-                    mc.player.setXRot(command.pitch());
-                    mc.player.setYHeadRot(command.yaw());
-                    ShoulderCompat.look(command.yaw(), command.pitch());
-                    // Refresh the target before publishing a state with the new rotation.
-                    mc.gameRenderer.pick(1.0f);
-                    remember(id, "look", "completed", null);
-                }
+                case "look" -> { setLook(command.yaw(), command.pitch()); remember(id, "look", "completed", null); }
                 case "camera" -> {
                     if (command.cameraMode().equals("cycle")) {
                         if (pendingCameras.size() >= 16) throw new BridgeServer.ApiException(429, "Camera queue is full");
-                        // Let vanilla and camera mods consume the real perspective binding.
-                        // Shoulder Surfing has its own cycle, which CameraType.cycle() bypasses.
-                        KeyMapping.click(mc.options.keyTogglePerspective.getKey());
-                        pendingCameras.addLast(id);
-                        break;
-                    }
-                    CameraType previous = mc.options.getCameraType();
-                    CameraType next = switch (command.cameraMode()) {
-                        case "first_person" -> CameraType.FIRST_PERSON;
-                        case "third_person_back" -> CameraType.THIRD_PERSON_BACK;
-                        case "third_person_front" -> CameraType.THIRD_PERSON_FRONT;
-                        default -> throw new IllegalArgumentException("Unsupported camera mode");
-                    };
-                    // Same state changes as vanilla F5, regardless of keyboard remapping.
-                    mc.options.setCameraType(next);
-                    if (previous.isFirstPerson() != next.isFirstPerson()) {
-                        mc.gameRenderer.checkEntityPostEffect(next.isFirstPerson() ? mc.getCameraEntity() : null);
-                    }
-                    mc.levelRenderer.needsUpdate();
-                    remember(id, "camera", "completed", null);
+                        KeyMapping.click(mc.options.keyTogglePerspective.getKey()); pendingCameras.addLast(id);
+                    } else { setCamera(command.cameraMode()); remember(id, "camera", "completed", null); }
                 }
-                case "hotbar" -> {
-                    mc.player.getInventory().selected = command.slot() - 1;
-                    remember(id, "hotbar", "completed", null);
-                }
+                case "hotbar" -> { mc.player.getInventory().selected = command.slot() - 1; remember(id, "hotbar", "completed", null); }
                 default -> {
-                    if (active != null) finish("replaced", "Replaced by a new timed action");
-                    active = new ActiveAction(id, command);
+                    if (active != null) finish("cancelled", "replaced_by_new_action");
+                    active = new ActiveAction(id, command, tick);
                 }
             }
-            snapshot = captureState();
-            JsonObject ack = new JsonObject();
-            ack.addProperty("ok", true);
-            ack.addProperty("action_id", id);
-            return ack;
+            return ack(id);
         });
     }
-
+    @Override
+    public CompletableFuture<JsonObject> heartbeat(JsonObject body) {
+        long epoch = controlEpoch;
+        return onClientThread(() -> {
+            if (epoch != controlEpoch) throw new BridgeServer.ApiException(409, "Heartbeat cancelled by intervening stop or manual input");
+            if (body.size() > 1 || body.size() == 1 && !body.has("ttl_ms")) throw new BridgeServer.ApiException(400, "Only ttl_ms is accepted");
+            int ttl = 3000;
+            if (body.has("ttl_ms")) {
+                var value = body.get("ttl_ms");
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()
+                        || !value.getAsString().matches("[0-9]{1,5}")) throw new BridgeServer.ApiException(400, "ttl_ms must be an integer");
+                ttl = value.getAsInt();
+            }
+            if (ttl < 500 || ttl > 10000) throw new BridgeServer.ApiException(400, "ttl_ms must be 500..10000");
+            ensureManualIdle();
+            lease.renew(ttl);
+            explicitLease = true;
+            JsonObject result = new JsonObject(); result.addProperty("ok", true);
+            result.addProperty("ttl_ms", ttl); result.addProperty("expires_at_ms", System.currentTimeMillis() + ttl);
+            return result;
+        });
+    }
+    @Override
+    public CompletableFuture<JsonObject> goal(JsonObject body) {
+        final GoalRequest request;
+        try { request = GoalRequest.parse(body); }
+        catch (IllegalArgumentException e) { return CompletableFuture.failedFuture(new BridgeServer.ApiException(400, e.getMessage())); }
+        long epoch = controlEpoch;
+        return onClientThread(() -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (epoch != controlEpoch) throw new BridgeServer.ApiException(409, "Goal cancelled before dispatch");
+            if (!canControl(mc)) throw new BridgeServer.ApiException(409, "Close menus and enter a live world");
+            ensureManualIdle();
+            if (!lease.valid()) throw new BridgeServer.ApiException(409, "Send heartbeat before starting a local goal");
+            cancelActions("replaced_by_new_goal");
+            interruption = null;
+            String id = UUID.randomUUID().toString();
+            try { goals.start(id, request, mc, tick); }
+            catch (IllegalArgumentException e) { throw new BridgeServer.ApiException(400, e.getMessage()); }
+            catch (IllegalStateException e) { throw new BridgeServer.ApiException(409, e.getMessage()); }
+            events.add("action_accepted", tick, goals.status() == null ? new JsonObject() : goals.status());
+            return ack(id);
+        });
+    }
+    @Override
+    public CompletableFuture<JsonObject> events(long after) { return onClientThread(() -> events.since(after)); }
+    @Override
+    public CompletableFuture<JsonObject> inventory() {
+        return onClientThread(() -> {
+            if (Minecraft.getInstance().player == null) throw new BridgeServer.ApiException(409, "No world loaded");
+            JsonObject result = inventoryController.observe(Minecraft.getInstance(), tick);
+            stamp(result); return result;
+        });
+    }
+    @Override
+    public CompletableFuture<JsonObject> inventoryAction(JsonObject body) {
+        try { InventoryCommand.parse(body); }
+        catch (IllegalArgumentException e) { return CompletableFuture.failedFuture(new BridgeServer.ApiException(400, e.getMessage())); }
+        long epoch = controlEpoch;
+        return onClientThread(() -> {
+            if (epoch != controlEpoch) throw new BridgeServer.ApiException(409, "Inventory action cancelled before dispatch");
+            Minecraft mc = Minecraft.getInstance();
+            if (!canUseInventory(mc)) throw new BridgeServer.ApiException(409, "Inventory is unavailable in this context");
+            ensureManualIdle();
+            if (!lease.valid()) throw new BridgeServer.ApiException(409, "Send heartbeat before inventory actions");
+            if (inventoryController.active()) throw new BridgeServer.ApiException(409, "Wait for the current inventory action to confirm");
+            goals.cancel("inventory_requested", mc); finish("cancelled", "inventory_requested");
+            finishCameras("cancelled", "inventory_requested");
+            String id = UUID.randomUUID().toString();
+            try { inventoryController.start(id, body, mc, tick); }
+            catch (IllegalArgumentException e) { throw new BridgeServer.ApiException(400, e.getMessage()); }
+            catch (IllegalStateException e) { throw new BridgeServer.ApiException(409, e.getMessage()); }
+            interruption = null;
+            return ack(id);
+        });
+    }
     @Override
     public CompletableFuture<JsonObject> observe(int radius) {
         return onClientThread(() -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.level == null) throw new BridgeServer.ApiException(409, "No world loaded");
-            JsonObject observation = captureState();
-            observation.addProperty("radius", radius);
-            observation.addProperty("air_omitted", true);
-            observation.addProperty("unloaded_omitted", true);
-            BlockPos center = mc.player.blockPosition();
-            observation.add("center", blockPos(center));
-            JsonArray blocks = new JsonArray();
-            for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -radius, -radius),
-                    center.offset(radius, radius, radius))) {
-                if (!mc.level.hasChunkAt(pos)) continue;
-                var block = mc.level.getBlockState(pos);
-                if (block.isAir()) continue;
-                JsonObject entry = blockPos(pos);
-                entry.addProperty("id", BuiltInRegistries.BLOCK.getKey(block.getBlock()).toString());
-                entry.addProperty("collision", !block.getCollisionShape(mc.level, pos).isEmpty());
-                blocks.add(entry);
+            if (observationCache != null && tick - observationTick < 4) {
+                if (radius != observationRadius) throw new BridgeServer.ApiException(429, "Observation budget: wait four ticks before changing radius");
+                JsonObject cached = observationCache.deepCopy();
+                cached.addProperty("snapshot_age_ms", Math.max(0,
+                        System.currentTimeMillis() - cached.get("captured_at_ms").getAsLong()));
+                cached.addProperty("cached", true);
+                return cached;
             }
-            observation.add("blocks", blocks);
-            JsonArray entities = new JsonArray();
-            var nearby = mc.level.getEntities(mc.player, mc.player.getBoundingBox().inflate(radius), Entity::isAlive);
-            nearby.sort(Comparator.comparingDouble(entity -> entity.distanceToSqr(mc.player)));
-            for (int i = 0; i < Math.min(32, nearby.size()); i++) entities.add(entity(nearby.get(i), mc.player));
-            observation.add("entities", entities);
-            observation.addProperty("entities_truncated", nearby.size() > 32);
-            return observation;
+            JsonObject result = captureState();
+            JsonObject visible = VisibleWorld.observe(mc, radius);
+            for (var entry : visible.entrySet()) result.add(entry.getKey(), entry.getValue());
+            observationCache = result.deepCopy();
+            observationTick = tick;
+            observationRadius = radius;
+            return result;
         });
+    }
+    private void stamp(JsonObject state) {
+        state.addProperty("sequence", ++snapshotSequence);
+        state.addProperty("tick", tick);
+        state.addProperty("captured_at_ms", System.currentTimeMillis());
+        state.addProperty("time_ms", state.get("captured_at_ms").getAsLong());
+        state.addProperty("snapshot_age_ms", 0);
     }
 
     private JsonObject captureState() {
@@ -356,7 +619,16 @@ public final class DotBridge implements BridgeServer.Backend {
         JsonObject state = new JsonObject();
         state.addProperty("ok", true);
         state.addProperty("tick", tick);
-        state.addProperty("time_ms", System.currentTimeMillis());
+        stamp(state);
+        state.addProperty("lease_remaining_ms", lease.remainingMs());
+        state.addProperty("local_state", localState());
+        if (interruption != null) state.addProperty("interruption_reason", interruption);
+        JsonObject metrics = new JsonObject();
+        metrics.addProperty("client_tick_work_us", workMicros);
+        metrics.addProperty("client_tick_work_ewma_us", workEwmaMicros);
+        metrics.addProperty("client_tick_work_max_us", workMaxMicros);
+        metrics.addProperty("fps", mc.getFps());
+        state.add("metrics", metrics);
         state.addProperty("connected", mc.player != null && mc.level != null);
         state.addProperty("paused", mc.isPaused());
         state.addProperty("can_control", canControl(mc));
@@ -366,13 +638,7 @@ public final class DotBridge implements BridgeServer.Backend {
                 : mc.options.getCameraType().name().toLowerCase(java.util.Locale.ROOT));
         if (mc.screen == null) state.add("screen", JsonNull.INSTANCE);
         else state.addProperty("screen", mc.screen.getClass().getSimpleName());
-        JsonObject ongoing = null;
-        if (active != null) {
-            ongoing = new JsonObject();
-            ongoing.addProperty("id", active.id);
-            ongoing.addProperty("type", active.action.type());
-            ongoing.addProperty("remaining_ticks", active.remaining);
-        }
+        JsonObject ongoing = activeInfo();
         state.add("active_action", ongoing == null ? JsonNull.INSTANCE : ongoing);
         state.add("last_action", history.isEmpty() ? JsonNull.INSTANCE : history.peekFirst().deepCopy());
         JsonArray results = new JsonArray();
@@ -418,7 +684,7 @@ public final class DotBridge implements BridgeServer.Backend {
             inventory.add(entry);
         }
         state.add("inventory", inventory);
-        state.add("crosshair", crosshair(mc));
+        state.add("crosshair", VisibleWorld.crosshair(mc));
         return state;
     }
 
@@ -430,33 +696,20 @@ public final class DotBridge implements BridgeServer.Backend {
         return item;
     }
 
-    private static JsonObject crosshair(Minecraft mc) {
-        JsonObject target = new JsonObject();
-        if (mc.hitResult == null) {
-            target.addProperty("type", "miss");
-            return target;
+    private String localState() {
+        if (inventoryController.active()) return "interacting";
+        if (goals.active()) {
+            JsonObject status = goals.status();
+            if (status != null && status.has("local_state")) return status.get("local_state").getAsString();
+            return "observing";
         }
-        target.addProperty("type", mc.hitResult.getType().name().toLowerCase(java.util.Locale.ROOT));
-        target.add("position", vector(mc.hitResult.getLocation()));
-        target.addProperty("distance", mc.player.getEyePosition().distanceTo(mc.hitResult.getLocation()));
-        if (mc.hitResult instanceof BlockHitResult block && mc.hitResult.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
-            target.add("block", blockPos(block.getBlockPos()));
-            target.addProperty("face", block.getDirection().getName());
-            target.addProperty("id", BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(block.getBlockPos()).getBlock()).toString());
-        } else if (mc.hitResult instanceof EntityHitResult hit) {
-            target.add("entity", entity(hit.getEntity(), mc.player));
+        if (active != null) {
+            if (active.action.attack()) return "mining";
+            if (active.action.use()) return "interacting";
+            if (active.action.forward() != 0 || active.action.strafe() != 0) return "moving";
+            return "observing";
         }
-        return target;
-    }
-
-    private static JsonObject entity(Entity entity, LocalPlayer player) {
-        JsonObject entry = new JsonObject();
-        entry.addProperty("id", entity.getId());
-        entry.addProperty("type", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
-        entry.addProperty("name", entity.getName().getString());
-        entry.add("position", vector(entity.position()));
-        entry.addProperty("distance", entity.distanceTo(player));
-        return entry;
+        return interruption == null ? "idle" : "interrupted";
     }
 
     private static JsonObject vector(Vec3 position) {
@@ -480,8 +733,12 @@ public final class DotBridge implements BridgeServer.Backend {
         final ControlAction action;
         int remaining;
         boolean started;
+        final long acceptedTick;
+        final long acceptedNanos = System.nanoTime();
+        long startedTick, startedNanos;
 
-        ActiveAction(String id, ControlAction action) {
+        ActiveAction(String id, ControlAction action, long tick) {
+            this.acceptedTick = tick;
             this.id = id;
             this.action = action;
             this.remaining = action.ticks();

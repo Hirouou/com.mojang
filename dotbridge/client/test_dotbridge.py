@@ -12,8 +12,9 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
-from dotbridge import ActionTimeout, DotBridge, DotBridgeError, main
+from dotbridge import ActionTimeout, ControllerSession, DotBridge, DotBridgeError, SessionExpired, main
 
 
 class LocalServer:
@@ -67,6 +68,133 @@ class LocalServer:
 
 
 class ClientTests(unittest.TestCase):
+    def test_new_goal_heartbeat_events_inventory_routes_and_auth(self):
+        with LocalServer() as server:
+            client = DotBridge(server.url, token="local-secret")
+            calls = [
+                (lambda: client.heartbeat(), "POST", "/v1/heartbeat", {"ttl_ms": 3000}),
+                (lambda: client.goal({"type": "observe", "max_ticks": 100}), "POST", "/v1/goal",
+                 {"type": "observe", "max_ticks": 100}),
+                (lambda: client.events(17), "GET", "/v1/events?after=17", None),
+                (client.inventory, "GET", "/v1/inventory", None),
+                (lambda: client.inventory_action({"type": "inventory", "operation": "open"}),
+                 "POST", "/v1/inventory", {"type": "inventory", "operation": "open"}),
+            ]
+            for call, method, path, body in calls:
+                call()
+                recorded = server.requests[-1]
+                self.assertEqual(recorded[0:2], (method, path))
+                self.assertEqual(recorded[2]["Authorization"], "Bearer local-secret")
+                self.assertEqual(json.loads(recorded[3]) if recorded[3] else None, body)
+
+    def test_new_payload_limits_reject_before_sending(self):
+        with LocalServer() as server:
+            client = DotBridge(server.url, token="secret")
+            for call in (lambda: client.heartbeat(499), lambda: client.heartbeat(10001),
+                         lambda: client.heartbeat(True), lambda: client.heartbeat(1000.0),
+                         lambda: client.events(-1), lambda: client.events(True),
+                         lambda: client.events(2**63), lambda: client.goal([]),
+                         lambda: client.inventory_action(None),
+                         lambda: client.goal({"type": "look_at", "target": {"x": float("nan")}})):
+                with self.assertRaises(ValueError):
+                    call()
+            self.assertEqual(server.requests, [])
+
+    def test_cli_new_routes_raw_json_and_invalid_json(self):
+        with LocalServer() as server, tempfile.TemporaryDirectory() as directory:
+            token = Path(directory) / "token"
+            token.write_text("cli-secret")
+            options = ["--url", server.url, "--token-file", str(token)]
+            for args, path, payload in [
+                (["heartbeat", "--ttl-ms", "1500"], "/v1/heartbeat", {"ttl_ms": 1500}),
+                (["goal", '{"type":"observe","max_ticks":100}'], "/v1/goal", {"type": "observe", "max_ticks": 100}),
+                (["events", "--after", "4"], "/v1/events?after=4", None),
+                (["inventory"], "/v1/inventory", None),
+                (["inventory-action", '{"type":"inventory","operation":"open"}'],
+                 "/v1/inventory", {"type": "inventory", "operation": "open"}),
+            ]:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = main(options + args)
+                self.assertEqual(result, 0)
+                self.assertEqual(server.requests[-1][1], path)
+                self.assertEqual(json.loads(server.requests[-1][3]) if payload else None, payload)
+            before = len(server.requests)
+            for raw in ("[]", "null", "{bad", '{"max_ticks":NaN}'):
+                with contextlib.redirect_stderr(io.StringIO()) as error:
+                    result = main(options + ["goal", raw])
+                self.assertEqual(result, 1)
+                self.assertIn("JSON", error.getvalue())
+                self.assertNotIn("cli-secret", error.getvalue())
+            self.assertEqual(len(server.requests), before)
+
+    def test_wait_treats_executing_goal_as_pending_and_returns_failure(self):
+        with LocalServer() as server:
+            server.responses.extend([
+                (200, {"connected": True, "recent_actions": [{"id": "g", "status": "accepted"}]}),
+                (200, {"connected": True, "recent_actions": [{"id": "g", "status": "executing"}]}),
+                (200, {"connected": True, "recent_actions": [{"id": "g", "status": "failed", "reason": "target_lost"}]}),
+            ])
+            result = DotBridge(server.url, token="secret").wait("g", poll_interval=0.01)
+            self.assertEqual(result["status"], "failed")
+            self.assertEqual(result["reason"], "target_lost")
+            self.assertEqual(len(server.requests), 3)
+
+    def test_session_renews_only_when_pumped_and_never_after_finite_deadline(self):
+        bridge = mock.Mock()
+        with mock.patch("dotbridge.time.monotonic", return_value=10) as clock:
+            session = ControllerSession(bridge, max_seconds=2, ttl_ms=3000)
+            with session:
+                bridge.heartbeat.assert_called_once_with(3000)
+                clock.return_value = 10.5
+                session.pump()
+                self.assertEqual(bridge.heartbeat.call_count, 1)
+                clock.return_value = 11.2
+                # Advancing time alone does not create background renewals.
+                self.assertEqual(bridge.heartbeat.call_count, 1)
+                session.pump()
+                self.assertEqual(bridge.heartbeat.call_count, 2)
+                clock.return_value = 12
+                with self.assertRaises(SessionExpired):
+                    session.pump()
+                bridge.stop.assert_called_once_with()
+                self.assertTrue(session.closed)
+                with self.assertRaises(SessionExpired):
+                    session.pump()
+                self.assertEqual(bridge.heartbeat.call_count, 2)
+            self.assertEqual(bridge.stop.call_count, 1)
+
+    def test_session_wait_pumps_and_stops_on_context_exit(self):
+        bridge = DotBridge(token="secret")
+        bridge._request = mock.Mock(side_effect=[
+            {"connected": True, "last_action": {"id": "goal", "status": "executing"}},
+            {"connected": True, "last_action": {"id": "goal", "status": "completed"}},
+        ])
+        bridge.heartbeat = mock.Mock(return_value={"ok": True})
+        bridge.stop = mock.Mock(return_value={"ok": True})
+        with bridge.session(max_seconds=2, ttl_ms=500) as session:
+            session.pump = mock.Mock(wraps=session.pump)
+            result = session.wait("goal", timeout=1, poll_interval=0.01)
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(session.pump.call_count, 2)
+        bridge.stop.assert_called_once_with()
+
+    def test_session_exception_cleans_up_without_hiding_original_failure(self):
+        bridge = mock.Mock()
+        bridge.stop.side_effect = DotBridgeError("offline")
+        session = ControllerSession(bridge, max_seconds=1)
+        with self.assertRaisesRegex(ValueError, "original"):
+            with session:
+                raise ValueError("original")
+        self.assertTrue(session.closed)
+        self.assertIsInstance(session.stop_error, DotBridgeError)
+        bridge.stop.assert_called_once_with()
+
+    def test_session_rejects_unbounded_or_invalid_lease_settings(self):
+        for kwargs in ({"max_seconds": float("inf")}, {"max_seconds": 0}, {"max_seconds": 301},
+                       {"ttl_ms": 499}, {"ttl_ms": 10001}, {"ttl_ms": True}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                ControllerSession(mock.Mock(), **kwargs)
+
     def test_health_does_not_require_or_send_token(self):
         with LocalServer() as server:
             client = DotBridge(server.url, token_path="/missing/token")

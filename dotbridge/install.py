@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Instala o JAR verificado em um diretório de Minecraft escolhido explicitamente.
+"""Prepara o JAR verificado separadamente; instala somente com --game-dir explícito.
 
 Não inicia o jogo, não instala Java e não lê nem cria tokens de autenticação.
+Sem argumentos, prepara staging/dotbridge-VERSAO sem alterar um perfil de jogo.
 """
 
 from __future__ import annotations
@@ -177,12 +178,7 @@ def _save_local(path: Path, settings: dict) -> None:
         Path(temporary).unlink(missing_ok=True)
 
 
-def install(game_dir: str | os.PathLike[str], *, package_dir: Path = PACKAGE_DIR,
-            profile: str | None = None) -> dict:
-    """Valida tudo antes de copiar; preserva outros mods, configuração e token."""
-    package_dir = Path(package_dir).resolve()
-    game_dir = _plausible_game_dir(game_dir)
-    read_local_settings(package_dir)  # Refuse an invalid existing local selection before writes.
+def _verified_distribution(package_dir: Path) -> tuple[dict, str, bytes, str]:
     build = _read_json(package_dir / "BUILD_INFO.json", "BUILD_INFO.json")
     version, expected = build.get("version"), build.get("jar_sha256")
     if (not isinstance(version, str) or not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]*", version)
@@ -197,6 +193,57 @@ def install(game_dir: str | os.PathLike[str], *, package_dir: Path = PACKAGE_DIR
     actual = hashlib.sha256(jar_bytes).hexdigest()
     if actual != expected:
         raise InstallError("SHA-256 do JAR não confere com BUILD_INFO.json; nada foi instalado.")
+    return build, jar_name, jar_bytes, expected
+
+
+def stage(destination: str | os.PathLike[str] | None = None, *, package_dir: Path = PACKAGE_DIR) -> dict:
+    """Prepara uma entrega separada, sem instalar ou substituir o mod de um perfil."""
+    package_dir = Path(package_dir).resolve()
+    build, jar_name, jar_bytes, expected = _verified_distribution(package_dir)
+    folder = (Path(destination).expanduser() if destination is not None
+              else package_dir / "staging" / ("dotbridge-" + build["version"])).resolve()
+    if folder == package_dir or (folder.exists() and not folder.is_dir()):
+        raise InstallError("Escolha uma pasta separada para staging; a distribuição original será preservada.")
+    local = read_local_settings(package_dir)
+    if local:
+        live = Path(local["game_dir"]).resolve()
+        if folder == live or live in folder.parents:
+            raise InstallError("Staging precisa ficar fora do perfil de jogo salvo; a sessão ativa será preservada.")
+    for ancestor in (folder, *folder.parents):
+        if ancestor.name.lower() in ("mods", "config", "versions", "saves"):
+            raise InstallError("Staging não pode usar uma pasta de mods, config, versions ou saves.")
+        if any((ancestor / name).is_dir() for name in ("mods", "config", "versions", "saves")):
+            raise InstallError("Staging precisa ficar fora de pastas de jogo existentes.")
+    contents = {jar_name: jar_bytes, "BUILD_INFO.json":
+                (json.dumps(build, ensure_ascii=False, indent=2) + "\n").encode("utf-8")}
+    for name, content in contents.items():
+        target = folder / name
+        if target.exists() or target.is_symlink():
+            try:
+                identical = target.is_file() and target.read_bytes() == content
+            except OSError:
+                identical = False
+            if not identical:
+                raise InstallError("A pasta de staging já contém arquivos diferentes; use outra pasta.")
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, content in contents.items():
+        if not (folder / name).exists():
+            _write_new(folder / name, content)
+    return {"ok": True, "staged": True, "staging_dir": str(folder), "jar": jar_name,
+            "jar_sha256": expected, "version": build["version"],
+            "instructions": ["Nenhum perfil ou JAR de sessão em andamento foi alterado.",
+                             "Para atualizar: feche o Minecraft, guarde o JAR antigo fora de mods e só então use --game-dir.",
+                             "Para reverter: feche o Minecraft, retire o novo JAR e restaure o JAR guardado.",
+                             "Preserve config/dotbridge.json e config/dotbridge.token. Java 21 é necessário."]}
+
+
+def install(game_dir: str | os.PathLike[str], *, package_dir: Path = PACKAGE_DIR,
+            profile: str | None = None) -> dict:
+    """Valida tudo antes de copiar; preserva outros mods, configuração e token."""
+    package_dir = Path(package_dir).resolve()
+    game_dir = _plausible_game_dir(game_dir)
+    read_local_settings(package_dir)  # Refuse an invalid existing local selection before writes.
+    build, jar_name, jar_bytes, expected = _verified_distribution(package_dir)
 
     metadata, warnings = _check_profile(game_dir, package_dir, profile)
     config_dir, mods_dir = game_dir / "config", game_dir / "mods"
@@ -243,11 +290,15 @@ def install(game_dir: str | os.PathLike[str], *, package_dir: Path = PACKAGE_DIR
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--game-dir", required=True, help="Pasta de jogo existente usada pelo perfil do TLauncher")
+    destination = parser.add_mutually_exclusive_group()
+    destination.add_argument("--game-dir", help="Instala em pasta de jogo existente; recusa outro dotbridge*.jar")
+    destination.add_argument("--stage-dir", help="Prepara uma pasta separada; padrão: staging/dotbridge-VERSAO")
     parser.add_argument("--profile", help="ID exato em versions/ quando existem vários perfis")
     args = parser.parse_args(argv)
     try:
-        result = install(args.game_dir, profile=args.profile)
+        if args.profile and not args.game_dir:
+            raise InstallError("--profile só pode ser usado junto com --game-dir.")
+        result = install(args.game_dir, profile=args.profile) if args.game_dir else stage(args.stage_dir)
     except (InstallError, OSError) as error:
         print("Erro: " + str(error), file=sys.stderr)
         return 1

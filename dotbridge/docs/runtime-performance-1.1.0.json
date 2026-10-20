@@ -1,0 +1,237 @@
+{
+  "jar_sha256": "01687ba59af01d23cf860b5a27904912a0e240369ed3a94c5fd66f9ba4a62375",
+  "scope": "Final bytes, uniform visible floor, no landmarks/entities, Xorg99 CPU llvmpipe with compatibility mod subset",
+  "method": "2 sec warm-up, then5sec idle and5sec authorized automaticPOI observation atsame stationarypositionandinitialyaw0pitch8. View changes duringPOI condition; short,noisy,descriptive sample with NOcausalFPSclaim.",
+  "baseline_idle": {
+    "tick_samples": 101,
+    "fps_median": 55,
+    "fps_min": 53,
+    "fps_max": 58,
+    "client_tick_work_us_median": 49.168,
+    "client_tick_work_us_p95": 83.018,
+    "position_first": {
+      "x": 0.5,
+      "y": -60.0,
+      "z": 0.5
+    },
+    "position_last": {
+      "x": 0.5,
+      "y": -60.0,
+      "z": 0.5
+    },
+    "view_rotation_first": {
+      "yaw": 0.0,
+      "pitch": 8.0
+    },
+    "view_rotation_last": {
+      "yaw": 0.0,
+      "pitch": 8.0
+    },
+    "yaw_span_degrees": 0.0,
+    "pitch_span_degrees": 0.0
+  },
+  "natural_visible_floor_poi_observe": {
+    "tick_samples": 99,
+    "fps_median": 58,
+    "fps_min": 51,
+    "fps_max": 58,
+    "client_tick_work_us_median": 121.295,
+    "client_tick_work_us_p95": 231.675,
+    "position_first": {
+      "x": 0.5,
+      "y": -60.0,
+      "z": 0.5
+    },
+    "position_last": {
+      "x": 0.5,
+      "y": -60.0,
+      "z": 0.5
+    },
+    "view_rotation_first": {
+      "yaw": 24.5,
+      "pitch": 19.015972
+    },
+    "view_rotation_last": {
+      "yaw": 11.0059595,
+      "pitch": 35.398354
+    },
+    "yaw_span_degrees": 76.684816,
+    "pitch_span_degrees": 16.382381999999996
+  },
+  "fps_median_difference_percent": 5.454545454545445,
+  "goal_result": {
+    "id": "81c4d60c-5732-4ade-9c96-865346036474",
+    "type": "observe",
+    "status": "cancelled",
+    "tick": 5908,
+    "time_ms": 1792504648439,
+    "reason": "stopped_by_controller",
+    "details": {
+      "visible_interest_count": 5,
+      "elapsed_ticks": 110,
+      "state": "interrupted",
+      "accepted_tick": 5798,
+      "started_tick": 5799,
+      "start_delay_ms": 33.599654
+    }
+  },
+  "passed": true,
+  "prior_hash_attempts": [
+    {
+      "jar_sha256": "954894958f367f88d8ae25f900c3fabfcbb51ecccc33325348d88d246f3d4e1d",
+      "baseline_idle": {
+        "samples": 90,
+        "fps_median": 27.0,
+        "fps_min": 23,
+        "fps_max": 53,
+        "tick_work_us_median": 48.715999999999994,
+        "tick_work_us_p95": 82.801,
+        "position_first": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "position_last": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "view_rotation_first": {
+          "yaw": 0.0,
+          "pitch": 8.0
+        },
+        "view_rotation_last": {
+          "yaw": 0.0,
+          "pitch": 8.0
+        }
+      },
+      "natural_poi_observe": {
+        "samples": 101,
+        "fps_median": 54,
+        "fps_min": 51,
+        "fps_max": 54,
+        "tick_work_us_median": 86.947,
+        "tick_work_us_p95": 310.929,
+        "position_first": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "position_last": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "view_rotation_first": {
+          "yaw": 0.0,
+          "pitch": 8.0
+        },
+        "view_rotation_last": {
+          "yaw": 0.0,
+          "pitch": 8.0
+        }
+      },
+      "fps_median_difference_percent": 100.0,
+      "method": "5 seconds each, same stationary position and initial yaw0/pitch8; natural observation changes camera and sampled scene. CPU llvmpipe, short single run, no controlled causal FPS claim. Includes automatic visible-POI scans.",
+      "goal_id": "9aa7b59f-2870-4a87-8e5d-c30d5646fb92",
+      "goal_result": {
+        "id": "9aa7b59f-2870-4a87-8e5d-c30d5646fb92",
+        "type": "observe",
+        "status": "cancelled",
+        "tick": 5629,
+        "time_ms": 1792503873793,
+        "reason": "stopped_by_controller",
+        "details": {
+          "visible_interest_count": 5,
+          "elapsed_ticks": 110,
+          "state": "interrupted",
+          "accepted_tick": 5519,
+          "started_tick": 5520,
+          "start_delay_ms": 22.530018
+        }
+      },
+      "attempt_label": "first_uniform_floor_short_warmup",
+      "limitations": "View first/last unchanged on uniform floor; warmup and camera scene not controlled. FPS difference is descriptive, not causal."
+    },
+    {
+      "attempt_label": "second_visible_landmarks_longer_warmup",
+      "jar_sha256": "954894958f367f88d8ae25f900c3fabfcbb51ecccc33325348d88d246f3d4e1d",
+      "baseline_idle": {
+        "samples": 92,
+        "fps_median": 47.0,
+        "fps_min": 22,
+        "fps_max": 50,
+        "tick_work_us_median": 39.302,
+        "tick_work_us_p95": 73.92,
+        "position_first": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "position_last": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "view_rotation_first": {
+          "yaw": 0.0,
+          "pitch": 8.0
+        },
+        "view_rotation_last": {
+          "yaw": 0.0,
+          "pitch": 8.0
+        },
+        "yaw_span_degrees": 0.0,
+        "pitch_span_degrees": 0.0
+      },
+      "natural_poi_observe": {
+        "samples": 101,
+        "fps_median": 55,
+        "fps_min": 24,
+        "fps_max": 57,
+        "tick_work_us_median": 101.023,
+        "tick_work_us_p95": 232.793,
+        "position_first": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "position_last": {
+          "x": 0.5,
+          "y": -60.0,
+          "z": 0.5
+        },
+        "view_rotation_first": {
+          "yaw": 30.1,
+          "pitch": 10.33972
+        },
+        "view_rotation_last": {
+          "yaw": 40.597843,
+          "pitch": 14.325416
+        },
+        "yaw_span_degrees": 10.497842999999996,
+        "pitch_span_degrees": 3.985696000000001
+      },
+      "fps_median_difference_percent": 17.021276595744684,
+      "method": "Two visible landmark blocks placed before both conditions.2secwarmup then5sec idle and5sec automaticPOI observe fromsame stationarypositionandinitialyaw0pitch8. Camera moves/scene changes; softwareCPUllvmpipe; short singlerun soNOcausalFPSclaim.",
+      "goal_id": "fd4fe20d-d6aa-4e0e-b39b-1c26561be933",
+      "goal_result": {
+        "id": "fd4fe20d-d6aa-4e0e-b39b-1c26561be933",
+        "type": "observe",
+        "status": "cancelled",
+        "tick": 7844,
+        "time_ms": 1792503984541,
+        "reason": "stopped_by_controller",
+        "details": {
+          "visible_interest_count": 5,
+          "elapsed_ticks": 110,
+          "state": "interrupted",
+          "accepted_tick": 7734,
+          "started_tick": 7735,
+          "start_delay_ms": 58.693636
+        }
+      }
+    }
+  ],
+  "prior_attempts_scope": "Preserved measurements of prior bytes; not pooled with this final run and not used as evidence for its performance."
+}

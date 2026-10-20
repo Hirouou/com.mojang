@@ -54,6 +54,30 @@ public final class BridgeServer implements AutoCloseable {
         JsonObject state();
         CompletableFuture<JsonObject> observe(int radius);
         CompletableFuture<JsonObject> action(JsonObject body);
+
+        default CompletableFuture<JsonObject> heartbeat(JsonObject body) {
+            return unsupported("Heartbeat");
+        }
+
+        default CompletableFuture<JsonObject> goal(JsonObject body) {
+            return unsupported("Goals");
+        }
+
+        default CompletableFuture<JsonObject> events(long after) {
+            return unsupported("Events");
+        }
+
+        default CompletableFuture<JsonObject> inventory() {
+            return unsupported("Inventory observations");
+        }
+
+        default CompletableFuture<JsonObject> inventoryAction(JsonObject body) {
+            return unsupported("Inventory actions");
+        }
+
+        private static CompletableFuture<JsonObject> unsupported(String feature) {
+            return CompletableFuture.failedFuture(new ApiException(404, feature + " are not supported by this backend"));
+        }
     }
 
     public static final class ApiException extends RuntimeException {
@@ -121,7 +145,7 @@ public final class BridgeServer implements AutoCloseable {
                     JsonObject health = new JsonObject();
                     health.addProperty("ok", true);
                     health.addProperty("mod", "dotbridge");
-                    health.addProperty("version", "1.0.0");
+                    health.addProperty("version", "1.1.0");
                     health.addProperty("minecraft", "1.21.1");
                     health.addProperty("loader", "neoforge");
                     respond(exchange, 200, health);
@@ -143,6 +167,33 @@ public final class BridgeServer implements AutoCloseable {
                     requireNoQuery(exchange);
                     JsonObject body = readJsonBody(exchange);
                     respond(exchange, 202, await(backend.action(body)));
+                }
+                case "/v1/heartbeat" -> {
+                    requireAuth(exchange);
+                    requireMethod(exchange, "POST");
+                    requireNoQuery(exchange);
+                    respond(exchange, 200, await(backend.heartbeat(readJsonBody(exchange))));
+                }
+                case "/v1/goal" -> {
+                    requireAuth(exchange);
+                    requireMethod(exchange, "POST");
+                    requireNoQuery(exchange);
+                    respond(exchange, 202, await(backend.goal(readJsonBody(exchange))));
+                }
+                case "/v1/events" -> {
+                    requireAuth(exchange);
+                    requireMethod(exchange, "GET");
+                    respond(exchange, 200, await(backend.events(parseAfter(exchange))));
+                }
+                case "/v1/inventory" -> {
+                    requireAuth(exchange);
+                    requireMethod(exchange, "GET", "POST");
+                    requireNoQuery(exchange);
+                    if (exchange.getRequestMethod().equals("GET")) {
+                        respond(exchange, 200, await(backend.inventory()));
+                    } else {
+                        respond(exchange, 202, await(backend.inventoryAction(readJsonBody(exchange))));
+                    }
                 }
                 default -> throw new ApiException(404, "Unknown endpoint");
             }
@@ -185,11 +236,10 @@ public final class BridgeServer implements AutoCloseable {
         }
     }
 
-    private static void requireMethod(HttpExchange exchange, String method) {
-        if (!exchange.getRequestMethod().equals(method)) {
-            exchange.getResponseHeaders().set("Allow", method);
-            throw new ApiException(405, "Method not allowed");
-        }
+    private static void requireMethod(HttpExchange exchange, String... methods) {
+        for (String method : methods) if (exchange.getRequestMethod().equals(method)) return;
+        exchange.getResponseHeaders().set("Allow", String.join(", ", methods));
+        throw new ApiException(405, "Method not allowed");
     }
 
     private static void requireNoQuery(HttpExchange exchange) {
@@ -213,6 +263,24 @@ public final class BridgeServer implements AutoCloseable {
             return Integer.parseInt(raw);
         } catch (IllegalArgumentException error) {
             throw new ApiException(400, "Invalid radius parameter");
+        }
+    }
+
+    private static long parseAfter(HttpExchange exchange) {
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null || query.isEmpty()) return 0;
+        String[] parts = query.split("&", -1);
+        if (parts.length != 1) throw new ApiException(400, "Use one nonnegative after parameter");
+        String[] pair = parts[0].split("=", -1);
+        try {
+            if (pair.length != 2 || !URLDecoder.decode(pair[0], StandardCharsets.UTF_8).equals("after")) {
+                throw new ApiException(400, "Unknown query parameter");
+            }
+            String value = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+            if (!value.matches("[0-9]+")) throw new ApiException(400, "After must be a nonnegative integer");
+            return Long.parseLong(value);
+        } catch (IllegalArgumentException error) {
+            throw new ApiException(400, "After must be a nonnegative 64-bit integer");
         }
     }
 
