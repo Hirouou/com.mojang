@@ -1,0 +1,20 @@
+{
+  "source_url": "https://www.mediafire.com/file/d6dpq8w5wva45vo/Aetherfall-2.0-Compartilhar-2026-10-19_18-51-43.zip/file?action=check",
+  "archive_name": "Aetherfall-2.0-Compartilhar-2026-10-19_18-51-43.zip",
+  "archive_bytes": 901084665,
+  "archive_entries": 732,
+  "inspected_at_utc": "2026-10-20T02:33:31.831731+00:00",
+  "method": "Read ZIP central directory and manifest.json through validated HTTP 206 byte-range responses; zipfile validated manifest CRC; no files extracted or executed.",
+  "manifest_member": "manifest.json",
+  "manifest_bytes": 338,
+  "manifest_crc32": "e7b04528",
+  "manifest_sha256": "648677f8b4e027a3ca185e6db8c8a00c8e2c14968277fc4630e1c663bbcb4665",
+  "pack_name": "Aetherfall 2.0",
+  "pack_version": "2026.10.19.185143",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.259",
+  "versions_source": "manifest.json: minecraft.version and minecraft.modLoaders[0].id",
+  "project_build_target": "Minecraft 1.21.1 / NeoForge 21.1.259 / Java 21",
+  "full_modpack_runtime_tested": false,
+  "scope": "Confirms declared versions in the user-provided archive. Does not verify installed profile files, individual mod compatibility or runtime behavior of the complete pack."
+}

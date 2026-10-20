@@ -1,0 +1,9 @@
+.gradle/
+build/
+run/
+__pycache__/
+*.pyc
+.idea/
+*.iml
+.dotbridge-local.json
+.dotbridge-local-*.tmp

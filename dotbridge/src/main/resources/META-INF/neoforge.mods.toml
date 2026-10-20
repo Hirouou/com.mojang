@@ -1,0 +1,28 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="dotbridge"
+version="${version}"
+displayName="DotBridge"
+authors="DotBridge contributors"
+description='''
+Local, authenticated control and observation bridge for a Minecraft Java client.
+Built for Minecraft 1.21.1, NeoForge and Java 21.
+'''
+displayTest="IGNORE_ALL_VERSION"
+
+[[dependencies.dotbridge]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.259,21.2)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.dotbridge]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="CLIENT"

@@ -1,0 +1,36 @@
+DOTBRIDGE 1.0.0 — MINECRAFT 1.21.1 / NEOFORGE 21.1.259
+
+O manifest do ZIP do Aetherfall 2.0 enviado foi conferido:
+Minecraft 1.21.1, NeoForge 21.1.259, pacote 2026.10.19.185143.
+
+INSTALAR
+1. Feche o Minecraft.
+2. Abra a pasta do jogo do perfil Aetherfall no TLauncher.
+3. Copie dotbridge-1.0.0.jar para a subpasta mods dessa pasta.
+4. Inicie o mesmo perfil com Java 21 e entre no mundo.
+5. Feche os menus para permitir o controle pelo Dot.
+
+USAR NO TERMINAL DO DOT
+Extraia esta pasta no Linux do Minecraft. Dentro dela, execute:
+
+python3 client/dotbridge.py health
+python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO state
+python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO observe --radius 2
+python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO camera --wait
+
+O último comando alterna a câmera como F5, incluindo Shoulder Surfing.
+Troque /CAMINHO/DO/JOGO pela pasta real do perfil no TLauncher.
+Para parar: python3 client/dotbridge.py --game-dir /CAMINHO/DO/JOGO stop
+
+O Python usa automaticamente config/dotbridge.token, gerado pelo mod.
+Não envie o token em mensagens. Não há instalação de pacotes pip.
+O Dot precisa ter terminal/Python no mesmo Linux e rede local do jogo.
+
+DOCUMENTOS
+COMO_USAR_COM_O_DOT.md: entregue ao Dot junto do caminho desta pasta.
+README.md: instalação detalhada, comandos, API e configuração.
+VALIDACAO.md: versões e testes realmente realizados.
+
+É um mod de cliente: não precisa instalar no servidor nem usar comandos OP.
+Ele reduz as etapas de observação/controle; não acelera o serviço GPT.
+O teste usou NeoForge e Shoulder Surfing do pacote, sem carregar o modpack inteiro.

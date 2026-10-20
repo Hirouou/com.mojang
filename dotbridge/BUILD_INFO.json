@@ -1,0 +1,21 @@
+{
+  "name": "DotBridge",
+  "version": "1.0.0",
+  "minecraft": "1.21.1",
+  "neoforge_compile_version": "21.1.259",
+  "neoforge_declared_range": "[21.1.259,21.2)",
+  "java": 21,
+  "python_minimum": "3.10",
+  "side": "client",
+  "aetherfall_manifest_verified": true,
+  "aetherfall_pack_version": "2026.10.19.185143",
+  "full_aetherfall_runtime_tested": false,
+  "runtime_tested_with": [
+    "Minecraft 1.21.1",
+    "NeoForge 21.1.259",
+    "Shoulder Surfing Reloaded 1.21.1-5.2.0"
+  ],
+  "unit_tests_passed": 98,
+  "in_game_checks_passed": 13,
+  "jar_sha256": "f0887875884bf905e04aad579f4e528650964217ec024a64eb4a9a7d8faeb0de"
+}

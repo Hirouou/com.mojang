@@ -1,0 +1,10 @@
+{
+  "endpoint": "GET /v1/state",
+  "samples": 50,
+  "median_ms": 2.156,
+  "p95_ms": 7.951,
+  "max_ms": 13.84,
+  "connected": true,
+  "environment": "isolated localhost, Java21, NeoForge21.1.259, Xorg/Mesa software renderer",
+  "note": "HTTP cache response only; excludes Minecraft input tick, model reasoning and full Aetherfall load"
+}

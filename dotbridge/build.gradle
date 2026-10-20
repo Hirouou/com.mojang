@@ -1,0 +1,76 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+neoForge {
+    version = project.neo_version
+    runs {
+        client {
+            client()
+        }
+    }
+    mods {
+        dotbridge {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+dependencies {
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+def metadataVersion = project.version.toString()
+tasks.named('processResources', ProcessResources).configure {
+    inputs.property 'version', metadataVersion
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(version: metadataVersion)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+def jarModVersion = project.version.toString()
+def jarMinecraftVersion = project.minecraft_version.toString()
+def jarNeoForgeVersion = project.neo_version.toString()
+tasks.named('jar', Jar).configure {
+    manifest.attributes(
+        'Implementation-Title': 'DotBridge',
+        'Implementation-Version': jarModVersion,
+        'Minecraft-Version': jarMinecraftVersion,
+        'NeoForge-Compile-Version': jarNeoForgeVersion,
+        'Required-Java-Version': '21'
+    )
+}
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

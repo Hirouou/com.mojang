@@ -1,0 +1,222 @@
+{
+  "environment": "NeoForge development client on Xorg :99 / Mesa llvmpipe",
+  "minecraft": "1.21.1",
+  "neoforge": "21.1.259",
+  "shoulder_surfing": "5.2.0",
+  "world": "disposable creative superflat",
+  "checks": [
+    {
+      "name": "exact_runtime_versions",
+      "passed": true,
+      "details": {
+        "neoforge": "21.1.259",
+        "shoulder_mod_log": "Shoulder Surfing Reloaded 1.21.1-5.2.0 (shouldersurfing)"
+      }
+    },
+    {
+      "name": "world_loaded",
+      "passed": true,
+      "details": {
+        "connected": true,
+        "can_control": true,
+        "game_mode": "creative",
+        "tick": 392
+      }
+    },
+    {
+      "name": "serialized_null_contract",
+      "passed": true,
+      "details": {
+        "active_action": null,
+        "screen": null
+      }
+    },
+    {
+      "name": "api_cycle_matches_physical_f5_with_shoulder_surfing",
+      "passed": true,
+      "details": {
+        "start": {
+          "camera": "first_person",
+          "camera_perspective": "first_person"
+        },
+        "api_cycle": [
+          {
+            "camera": "third_person_back",
+            "camera_perspective": "third_person_back"
+          },
+          {
+            "camera": "third_person_front",
+            "camera_perspective": "third_person_front"
+          },
+          {
+            "camera": "third_person_back",
+            "camera_perspective": "shoulder_surfing"
+          },
+          {
+            "camera": "first_person",
+            "camera_perspective": "first_person"
+          }
+        ],
+        "physical_f5_cycle": [
+          {
+            "camera": "third_person_back",
+            "camera_perspective": "third_person_back"
+          },
+          {
+            "camera": "third_person_front",
+            "camera_perspective": "third_person_front"
+          },
+          {
+            "camera": "third_person_back",
+            "camera_perspective": "shoulder_surfing"
+          },
+          {
+            "camera": "first_person",
+            "camera_perspective": "first_person"
+          }
+        ]
+      }
+    },
+    {
+      "name": "explicit_camera_modes",
+      "passed": true,
+      "details": [
+        {
+          "camera": "third_person_front",
+          "camera_perspective": "third_person_front"
+        },
+        {
+          "camera": "third_person_back",
+          "camera_perspective": "third_person_back"
+        },
+        {
+          "camera": "first_person",
+          "camera_perspective": "first_person"
+        }
+      ]
+    },
+    {
+      "name": "look_persists_in_shoulder_mode_after_five_ticks",
+      "passed": true,
+      "details": {
+        "perspective": {
+          "camera": "third_person_back",
+          "camera_perspective": "shoulder_surfing"
+        },
+        "rotation": {
+          "yaw": 37.0,
+          "pitch": -12.0
+        },
+        "view_rotation": {
+          "yaw": 37.0,
+          "pitch": -12.0
+        },
+        "elapsed_ticks": 6
+      }
+    },
+    {
+      "name": "timed_movement_in_shoulder_mode_changes_position",
+      "passed": true,
+      "details": {
+        "before": {
+          "x": 7.5,
+          "y": -60.0,
+          "z": -3.0722926554693584
+        },
+        "after": {
+          "x": 7.5,
+          "y": -60.0,
+          "z": -0.9262694121392286
+        },
+        "horizontal_distance_blocks": 2.14602324333013,
+        "perspective": {
+          "camera": "third_person_back",
+          "camera_perspective": "shoulder_surfing"
+        },
+        "result": {
+          "id": "48831d55-64ab-4d1a-b008-337f73096927",
+          "type": "control",
+          "status": "completed",
+          "tick": 530
+        }
+      }
+    },
+    {
+      "name": "stop_cancels_and_releases",
+      "passed": true,
+      "details": {
+        "active_before_stop": {
+          "id": "0d420bda-84af-41f1-839a-9c98339cc010",
+          "type": "control",
+          "remaining_ticks": 96
+        },
+        "cancelled_result": {
+          "id": "0d420bda-84af-41f1-839a-9c98339cc010",
+          "type": "control",
+          "status": "cancelled",
+          "tick": 539,
+          "reason": "Stopped by client"
+        },
+        "remaining_drift_blocks": 0.0105107286283454
+      }
+    },
+    {
+      "name": "hotbar_selection",
+      "passed": true,
+      "details": {
+        "selected_slot": 4
+      }
+    },
+    {
+      "name": "observe_nearby_blocks",
+      "passed": true,
+      "details": {
+        "radius": 2,
+        "blocks_count": 50,
+        "entities_count": 0,
+        "first_block": {
+          "x": 5,
+          "y": -62,
+          "z": -2,
+          "id": "minecraft:dirt",
+          "collision": true
+        }
+      }
+    },
+    {
+      "name": "attack_use_empty_sky",
+      "passed": true,
+      "details": {
+        "attack": "completed",
+        "use": "completed"
+      }
+    },
+    {
+      "name": "menu_blocks_and_cancels_control",
+      "passed": true,
+      "details": {
+        "screen": "PauseScreen",
+        "paused": true,
+        "http_status": 409,
+        "cancelled_result": {
+          "id": "4a86715b-bd41-4302-a176-3f9e445ad4e7",
+          "type": "control",
+          "status": "cancelled",
+          "tick": 563,
+          "reason": "Game disconnected, paused, or a screen opened"
+        }
+      }
+    },
+    {
+      "name": "disconnect_blocks_control_allows_stop",
+      "passed": true,
+      "details": {
+        "connected": false,
+        "can_control": false,
+        "screen": "TitleScreen",
+        "http_status": 409
+      }
+    }
+  ],
+  "status": "all_checks_passed"
+}

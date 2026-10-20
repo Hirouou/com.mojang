@@ -1,0 +1,18 @@
+{
+  "minecraft": {
+    "version": "1.21.1",
+    "modLoaders": [
+      {
+        "id": "neoforge-21.1.259",
+        "primary": true
+      }
+    ]
+  },
+  "manifestType": "minecraftModpack",
+  "manifestVersion": 1,
+  "name": "Aetherfall 2.0",
+  "version": "2026.10.19.185143",
+  "author": "Alan",
+  "files": [],
+  "overrides": "overrides"
+}

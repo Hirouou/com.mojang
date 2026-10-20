@@ -1,0 +1,83 @@
+name: DotBridge CI
+
+on:
+  push:
+    paths:
+      - 'dotbridge/**'
+      - '.github/workflows/dotbridge-ci.yml'
+  pull_request:
+    paths:
+      - 'dotbridge/**'
+      - '.github/workflows/dotbridge-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dotbridge-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: dotbridge
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            dotbridge/*.gradle
+            dotbridge/gradle.properties
+            dotbridge/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify the official Gradle 9.2.1 wrapper
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          expected = '423cb469ccc0ecc31f0e4e1c309976198ccb734cdcbb7029d4bda0f18f57e8d9'
+          actual = hashlib.sha256(Path('gradle/wrapper/gradle-wrapper.jar').read_bytes()).hexdigest()
+          if actual != expected:
+              raise SystemExit('Gradle wrapper SHA-256 mismatch')
+          PY
+
+      - name: Compile and run Java tests
+        run: ./gradlew --no-daemon build
+
+      - name: Run Python client tests
+        run: python3 -m unittest discover -s client -p 'test_*.py' -v
+
+      - name: Run Python tool and installer tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
+
+      - name: Verify the retained Aetherfall manifest
+        run: python3 tools/check_profile.py docs/aetherfall-manifest.json
+
+      - name: Package portable artifacts
+        run: python3 tools/package_release.py --jar build/libs/dotbridge-1.0.0.jar --output build/release
+
+      - name: Upload portable artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: DotBridge-Minecraft-1.21.1-NeoForge-21.1.259
+          path: dotbridge/build/release/*
+          if-no-files-found: error
+          retention-days: 14

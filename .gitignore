@@ -1,0 +1,6 @@
+dotbridge/.gradle/
+dotbridge/build/
+dotbridge/run/
+dotbridge/.dotbridge-local.json
+**/__pycache__/
+*.pyc
