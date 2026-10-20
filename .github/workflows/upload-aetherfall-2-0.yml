@@ -20,33 +20,16 @@ jobs:
           python3 - <<'PY'
           import hashlib
           import subprocess
-          import urllib.request
-          from html.parser import HTMLParser
           from pathlib import Path
-          from urllib.parse import urlparse
 
-          page = 'https://www.mediafire.com/file/d6dpq8w5wva45vo/Aetherfall-2.0-Compartilhar-2026-10-19_18-51-43.zip/file'
+          download_url = 'https://download851.mediafire.com/9is01u6bdz4gLR-O6OP-8yxG2oyh2B2pK_dU75lySvbS8QIDvbP_ddDRbbmaEP-z5IlQpKQHaHFqPOgW293Tam17B9aFx5AbEQAD1kWnAcfd8QWelpqyBft_oDW-OUtCaIoc7XqhjR9h0tfN9PYbnrq3A-oUwtXHWpl03plqHsRmHA/d6dpq8w5wva45vo/Aetherfall-2.0-Compartilhar-2026-10-19_18-51-43.zip'
           archive = Path('Aetherfall-2.0-Compartilhar-2026-10-19_18-51-43.zip')
           expected_size = 901084665
           expected_sha256 = '2ea92a7cb6db8d8660563018ea86972f97152a7ae7170a3209e470d0887e16d9'
 
-          class DownloadLink(HTMLParser):
-              url = None
-              def handle_starttag(self, tag, attrs):
-                  attrs = dict(attrs)
-                  if tag == 'a' and attrs.get('id') == 'downloadButton':
-                      self.url = attrs.get('href')
-
-          parser = DownloadLink()
-          request = urllib.request.Request(page, headers={'User-Agent': 'Mozilla/5.0'})
-          with urllib.request.urlopen(request, timeout=60) as response:
-              parser.feed(response.read().decode('utf-8'))
-          url = urlparse(parser.url or '')
-          if url.scheme != 'https' or not (url.hostname or '').endswith('.mediafire.com'):
-              raise RuntimeError('MediaFire download link not found')
           subprocess.run([
               'curl', '--fail', '--location', '--retry', '5', '--retry-all-errors',
-              '--continue-at', '-', '--output', str(archive), parser.url,
+              '--continue-at', '-', '--output', str(archive), download_url,
           ], check=True)
           if archive.stat().st_size != expected_size:
               raise RuntimeError('Downloaded ZIP has an unexpected size')
